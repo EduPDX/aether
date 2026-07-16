@@ -35,3 +35,16 @@ O Minecraft é apenas o **primeiro Provider**. O Core não conhece nenhum jogo �
 3. **Local-first.** Tudo funciona sem nuvem; a nuvem é uma camada opcional futura.
 4. **Cada versão do roadmap entrega valor usável** — nunca seis meses de infraestrutura sem nada na tela.
 5. **Decisões registradas.** Toda decisão arquitetural relevante vira um ADR em `docs/adr/`.
+
+## Desenvolvimento
+
+Requisitos: Python 3.11+, [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv sync --all-packages   # instala o workspace (core + sdk + providers)
+uv run pytest            # testes
+uv run ruff check .      # lint
+uv run python -m aether_core   # sobe a API em http://127.0.0.1:8600 (docs em /api/docs)
+```
+
+Estrutura do monorepo em [docs/02-arquitetura.md](docs/02-arquitetura.md); roadmap em [docs/06-roadmap.md](docs/06-roadmap.md).
