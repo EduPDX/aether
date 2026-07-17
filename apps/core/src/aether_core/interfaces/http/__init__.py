@@ -53,6 +53,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.state.supervisor = LocalProcessSupervisor(app.state.bus)
     app.state.jwt_secret = load_or_create_secret(settings.data_dir)
 
+    if settings.static_dir and settings.static_dir.is_dir():
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/app", StaticFiles(directory=settings.static_dir, html=True), name="dashboard")
+
+        @app.get("/", include_in_schema=False)
+        def index_redirect():
+            from fastapi.responses import RedirectResponse
+
+            return RedirectResponse("/app/")
+
     api = APIRouter(prefix="/api/v1")
     api.include_router(meta.router)
     api.include_router(auth.router)

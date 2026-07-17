@@ -38,8 +38,11 @@ class FilesService:
     # -------------------------------------------------------------- sandbox --
     @staticmethod
     def _resolve(instance: Instance, rel_path: str) -> Path:
+        # Backslash is always treated as a separator (even on Linux) so a
+        # Windows-style traversal string can never be a valid file name.
+        rel_path = rel_path.replace("\\", "/").lstrip("/")
         root = Path(instance.root_dir).resolve()
-        target = (root / rel_path.lstrip("/\\")).resolve()
+        target = (root / rel_path).resolve()
         if target != root and root not in target.parents:
             raise ForbiddenError("path escapes the instance directory")
         return target

@@ -17,6 +17,8 @@ class AppSettings(BaseSettings):
     data_dir: Path = Field(default_factory=_default_data_dir)
     host: str = "127.0.0.1"
     port: int = 8600
+    static_dir: Path | None = None
+    """Built dashboard directory; when set, the Core serves it at ``/``."""
 
     @property
     def db_path(self) -> Path:
