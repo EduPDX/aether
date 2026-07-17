@@ -38,13 +38,18 @@ O Minecraft é apenas o **primeiro Provider**. O Core não conhece nenhum jogo �
 
 ## Desenvolvimento
 
-Requisitos: Python 3.11+, [uv](https://docs.astral.sh/uv/).
+Requisitos: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+, pnpm 11+.
 
 ```bash
-uv sync --all-packages   # instala o workspace (core + sdk + providers)
+# Backend (Core + SDK + Providers)
+uv sync --all-packages   # instala o workspace Python
 uv run pytest            # testes
 uv run ruff check .      # lint
 uv run python -m aether_core   # sobe a API em http://127.0.0.1:8600 (docs em /api/docs)
+
+# Dashboard (com o Core rodando)
+pnpm install
+pnpm --dir apps/dashboard dev    # http://localhost:5173 (proxy /api → 8600)
 ```
 
 Estrutura do monorepo em [docs/02-arquitetura.md](docs/02-arquitetura.md); roadmap em [docs/06-roadmap.md](docs/06-roadmap.md).

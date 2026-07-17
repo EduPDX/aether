@@ -1,0 +1,7 @@
+{
+  "name": "aether-workspace",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}
