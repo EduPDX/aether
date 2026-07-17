@@ -50,11 +50,33 @@ def make_mod_jar(
     return jar
 
 
+OWNER = {"username": "admin", "password": "senha-forte-123"}
+
+
+def authenticate(client: TestClient) -> dict:
+    """Ensures the owner exists and attaches its access token to the client."""
+    if client.get("/api/v1/auth/status").json()["setup_required"]:
+        res = client.post("/api/v1/auth/setup", json=OWNER)
+    else:
+        res = client.post("/api/v1/auth/login", json=OWNER)
+    body = res.json()
+    client.headers["Authorization"] = f"Bearer {body['access_token']}"
+    return body
+
+
 @pytest.fixture
 def client(tmp_path: Path):
     settings = AppSettings(data_dir=tmp_path / "aether-data")
     # Context manager: keeps a single event loop for every request (the
     # supervisor holds asyncio state) and runs the lifespan shutdown.
+    with TestClient(create_app(settings)) as c:
+        authenticate(c)
+        yield c
+
+
+@pytest.fixture
+def anon_client(tmp_path: Path):
+    settings = AppSettings(data_dir=tmp_path / "aether-data")
     with TestClient(create_app(settings)) as c:
         yield c
 

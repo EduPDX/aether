@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request
 
 from aether_core import __version__
+from aether_core.interfaces.http.deps import CurrentUserDep
 
 router = APIRouter()
 
@@ -13,7 +14,7 @@ def health() -> dict:
 
 
 @router.get("/providers", tags=["providers"])
-def providers(request: Request) -> list[dict]:
+def providers(request: Request, _: CurrentUserDep) -> list[dict]:
     return [
         {
             "manifest": p.manifest.model_dump(),

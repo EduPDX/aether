@@ -36,6 +36,27 @@ class ContentCacheRow(Base):
     updated_at: Mapped[str] = mapped_column(String(40))
 
 
+class UserRow(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    username: Mapped[str] = mapped_column(String(60), unique=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    role: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[str] = mapped_column(String(40))
+
+
+class AuditLogRow(Base):
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    username: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    action: Mapped[str] = mapped_column(String(200))
+    ip: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40))
+
+
 def run_migrations(db_path: Path) -> None:
     """Bring the SQLite database to the latest schema (runs at startup)."""
     cfg = Config()

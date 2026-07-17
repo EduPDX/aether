@@ -13,9 +13,11 @@ let socket: WebSocket | null = null;
 let reconnectTimer: number | undefined;
 const listeners = new Map<string, Set<Listener>>();
 
+import { getAccessToken } from "./api";
+
 function url(): string {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${location.host}/ws`;
+  return `${proto}://${location.host}/ws?token=${encodeURIComponent(getAccessToken())}`;
 }
 
 function connect() {

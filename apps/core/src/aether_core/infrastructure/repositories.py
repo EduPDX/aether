@@ -3,13 +3,14 @@
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aether_core.application.ports import CachedContent
 from aether_core.domain.instances import Instance
-from aether_core.infrastructure.db import ContentCacheRow, InstanceRow
+from aether_core.domain.users import Role, User
+from aether_core.infrastructure.db import AuditLogRow, ContentCacheRow, InstanceRow, UserRow
 
 _CHUNK = 500  # stay under SQLite's bound-parameter limit
 
@@ -102,3 +103,82 @@ class SqlContentCache:
             )
             await self._session.execute(stmt)
         await self._session.commit()
+
+
+def _row_to_user(row: UserRow) -> User:
+    return User(
+        id=row.id,
+        username=row.username,
+        password_hash=row.password_hash,
+        role=Role(row.role),
+        created_at=datetime.fromisoformat(row.created_at),
+    )
+
+
+class SqlUserRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, user: User) -> None:
+        self._session.add(
+            UserRow(
+                id=user.id,
+                username=user.username,
+                password_hash=user.password_hash,
+                role=str(user.role),
+                created_at=user.created_at.isoformat(),
+            )
+        )
+        await self._session.commit()
+
+    async def get(self, user_id: str) -> User | None:
+        row = await self._session.get(UserRow, user_id)
+        return _row_to_user(row) if row else None
+
+    async def get_by_username(self, username: str) -> User | None:
+        row = await self._session.scalar(select(UserRow).where(UserRow.username == username))
+        return _row_to_user(row) if row else None
+
+    async def count(self) -> int:
+        return (await self._session.scalar(select(func.count()).select_from(UserRow))) or 0
+
+    async def list_all(self) -> list[User]:
+        rows = await self._session.scalars(select(UserRow).order_by(UserRow.created_at))
+        return [_row_to_user(r) for r in rows]
+
+    async def delete(self, user_id: str) -> bool:
+        result = await self._session.execute(delete(UserRow).where(UserRow.id == user_id))
+        await self._session.commit()
+        return result.rowcount > 0
+
+
+class SqlAuditLog:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, action: str, user: User | None = None, ip: str | None = None) -> None:
+        self._session.add(
+            AuditLogRow(
+                user_id=user.id if user else None,
+                username=user.username if user else None,
+                action=action,
+                ip=ip,
+                created_at=datetime.now(UTC).isoformat(),
+            )
+        )
+        await self._session.commit()
+
+    async def list_recent(self, limit: int = 100) -> list[dict]:
+        rows = await self._session.scalars(
+            select(AuditLogRow).order_by(AuditLogRow.id.desc()).limit(limit)
+        )
+        return [
+            {
+                "id": r.id,
+                "username": r.username,
+                "action": r.action,
+                "ip": r.ip,
+                "created_at": r.created_at,
+            }
+            for r in rows
+        ]

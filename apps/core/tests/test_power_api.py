@@ -109,10 +109,23 @@ def test_start_without_server_fails(client, tmp_path):
     assert "no runnable server" in res.json()["detail"]
 
 
-def test_websocket_streams_console_and_state(client, tmp_path):
-    iid = create_server_instance(client, tmp_path, FAKE_SERVER)
+def test_websocket_requires_token(client, tmp_path):
+    from starlette.websockets import WebSocketDisconnect
 
     with client.websocket_connect("/ws") as ws:
+        # sem token: o servidor fecha com 4401
+        import pytest
+
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_json()
+        assert exc.value.code == 4401
+
+
+def test_websocket_streams_console_and_state(client, tmp_path):
+    iid = create_server_instance(client, tmp_path, FAKE_SERVER)
+    token = client.headers["Authorization"].removeprefix("Bearer ")
+
+    with client.websocket_connect(f"/ws?token={token}") as ws:
         ws.send_json({"op": "subscribe", "topic": f"instance.{iid}"})
         client.post(f"/api/v1/instances/{iid}/power", json={"action": "start"})
 

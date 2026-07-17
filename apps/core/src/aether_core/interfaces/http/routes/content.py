@@ -6,7 +6,12 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse
 
 from aether_core.domain.errors import NotFoundError
-from aether_core.interfaces.http.deps import ContentServiceDep, InstanceServiceDep
+from aether_core.interfaces.http.deps import (
+    ContentRead,
+    ContentServiceDep,
+    ContentWrite,
+    InstanceServiceDep,
+)
 from aether_core.interfaces.http.schemas import (
     CompareOut,
     ContentFileRequest,
@@ -25,6 +30,7 @@ async def list_content(
     type: TypeParam,
     instances: InstanceServiceDep,
     content: ContentServiceDep,
+    _: ContentRead,
 ) -> list[ContentItemOut]:
     instance = await instances.get(instance_id)
     items = await content.list_content(instance, type)
@@ -37,6 +43,7 @@ async def toggle_content(
     body: ContentFileRequest,
     instances: InstanceServiceDep,
     content: ContentServiceDep,
+    _: ContentWrite,
 ) -> dict:
     instance = await instances.get(instance_id)
     new_name = await content.toggle(instance, body.type, body.file)
@@ -49,6 +56,7 @@ async def trash_content(
     body: ContentFileRequest,
     instances: InstanceServiceDep,
     content: ContentServiceDep,
+    _: ContentWrite,
 ) -> dict:
     instance = await instances.get(instance_id)
     moved_to = await content.trash(instance, body.type, body.file)
@@ -61,6 +69,7 @@ async def copy_content(
     body: CopyContentRequest,
     instances: InstanceServiceDep,
     content: ContentServiceDep,
+    _: ContentWrite,
 ) -> None:
     source = await instances.get(instance_id)
     target = await instances.get(body.to_instance_id)
@@ -74,6 +83,7 @@ async def compare_content(
     type: TypeParam,
     instances: InstanceServiceDep,
     content: ContentServiceDep,
+    _: ContentRead,
 ) -> CompareOut:
     a = await instances.get(instance_id)
     b = await instances.get(with_instance)

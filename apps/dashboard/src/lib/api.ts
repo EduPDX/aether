@@ -61,11 +61,58 @@ export interface ProviderInfo {
   content_types: { id: string; label: string; default_directory: string }[];
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+// ------------------------------------------------------------------ auth --
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: "owner" | "admin" | "moderator" | "viewer";
+}
+
+let accessToken = localStorage.getItem("aether.access") ?? "";
+let refreshToken = localStorage.getItem("aether.refresh") ?? "";
+
+export function getAccessToken(): string {
+  return accessToken;
+}
+
+export function setTokens(access: string, refresh: string) {
+  accessToken = access;
+  refreshToken = refresh;
+  localStorage.setItem("aether.access", access);
+  localStorage.setItem("aether.refresh", refresh);
+}
+
+export function clearTokens() {
+  accessToken = "";
+  refreshToken = "";
+  localStorage.removeItem("aether.access");
+  localStorage.removeItem("aether.refresh");
+  window.dispatchEvent(new Event("aether:logout"));
+}
+
+async function tryRefresh(): Promise<boolean> {
+  if (!refreshToken) return false;
+  const res = await fetch("/api/v1/auth/refresh", {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
-    ...init,
+    body: JSON.stringify({ refresh_token: refreshToken }),
   });
+  if (!res.ok) return false;
+  const body = await res.json();
+  accessToken = body.access_token;
+  localStorage.setItem("aether.access", accessToken);
+  return true;
+}
+
+async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  const res = await fetch(path, { ...init, headers });
+
+  if (res.status === 401 && !retried && !path.startsWith("/api/v1/auth/")) {
+    if (await tryRefresh()) return request<T>(path, init, true);
+    clearTokens();
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -81,6 +128,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  authStatus: () => request<{ setup_required: boolean }>("/api/v1/auth/status"),
+  setup: (username: string, password: string) =>
+    request<{ user: AuthUser; access_token: string; refresh_token: string }>(
+      "/api/v1/auth/setup",
+      { method: "POST", body: JSON.stringify({ username, password }) },
+    ),
+  login: (username: string, password: string) =>
+    request<{ user: AuthUser; access_token: string; refresh_token: string }>(
+      "/api/v1/auth/login",
+      { method: "POST", body: JSON.stringify({ username, password }) },
+    ),
+  me: () => request<AuthUser>("/api/v1/auth/me"),
   providers: () => request<ProviderInfo[]>("/api/v1/providers"),
   instances: () => request<Instance[]>("/api/v1/instances"),
   createInstance: (body: {

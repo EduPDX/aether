@@ -20,7 +20,24 @@ router = APIRouter()
 
 @router.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket) -> None:
+    from aether_core.domain.errors import AuthenticationError
+    from aether_core.infrastructure.repositories import SqlUserRepository
+    from aether_core.infrastructure.security import decode_token
+
     await ws.accept()
+
+    # Authenticate before serving any events (token via query param — the
+    # browser WebSocket API cannot send headers).
+    token = ws.query_params.get("token", "")
+    try:
+        user_id = decode_token(ws.app.state.jwt_secret, token, "access")
+        async with ws.app.state.session_factory() as session:
+            if await SqlUserRepository(session).get(user_id) is None:
+                raise AuthenticationError("user no longer exists")
+    except AuthenticationError:
+        await ws.close(code=4401, reason="unauthorized")
+        return
+
     bus = ws.app.state.bus
     topics: set[str] = set()
     queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue(maxsize=1000)

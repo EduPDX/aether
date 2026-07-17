@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, Boxes, Plus, Server, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Boxes, LogOut, Plus, Server, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Spinner } from "./components/ui";
 import { api } from "./lib/api";
+import { useAuth } from "./modules/auth/AuthGate";
 import { CompareView } from "./modules/content/CompareView";
 import { CreateInstanceDialog } from "./modules/instances/CreateInstanceDialog";
 import { InstanceView } from "./modules/instances/InstanceView";
@@ -11,6 +12,7 @@ type View = { kind: "instance"; id: string } | { kind: "compare" };
 
 export default function App() {
   const qc = useQueryClient();
+  const { user, logout } = useAuth();
   const instancesQuery = useQuery({ queryKey: ["instances"], queryFn: api.instances });
   const [view, setView] = useState<View | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -116,6 +118,22 @@ export default function App() {
           >
             <Plus size={15} /> Nova instância
           </button>
+          <div className="mt-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-dim text-xs font-bold text-black">
+              {user?.username.charAt(0).toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs">{user?.username}</span>
+              <span className="block text-[10px] text-muted">{user?.role}</span>
+            </span>
+            <button
+              title="Sair"
+              className="cursor-pointer text-muted hover:text-danger"
+              onClick={logout}
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
         </div>
       </aside>
 

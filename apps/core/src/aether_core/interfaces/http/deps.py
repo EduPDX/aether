@@ -6,10 +6,18 @@ from typing import Annotated
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aether_core.application.auth import AuthService
 from aether_core.application.content import ContentService
 from aether_core.application.instances import InstanceService
 from aether_core.application.power import PowerService
-from aether_core.infrastructure.repositories import SqlContentCache, SqlInstanceRepository
+from aether_core.domain.errors import AuthenticationError, ForbiddenError
+from aether_core.domain.users import User
+from aether_core.infrastructure import security
+from aether_core.infrastructure.repositories import (
+    SqlContentCache,
+    SqlInstanceRepository,
+    SqlUserRepository,
+)
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -18,6 +26,67 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
 
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+class _Hasher:
+    def hash(self, password: str) -> str:
+        return security.hash_password(password)
+
+    def verify(self, password_hash: str, password: str) -> bool:
+        return security.verify_password(password_hash, password)
+
+
+class _Tokens:
+    def __init__(self, secret: str) -> None:
+        self._secret = secret
+
+    def issue(self, user_id: str, token_type: str) -> str:
+        return security.issue_token(self._secret, user_id, token_type)
+
+    def decode(self, token: str, expected_type: str) -> str:
+        return security.decode_token(self._secret, token, expected_type)
+
+
+def get_auth_service(request: Request, session: SessionDep) -> AuthService:
+    return AuthService(
+        users=SqlUserRepository(session),
+        hasher=_Hasher(),
+        tokens=_Tokens(request.app.state.jwt_secret),
+    )
+
+
+AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+async def get_current_user(request: Request, auth: AuthServiceDep) -> User:
+    header = request.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        raise AuthenticationError("missing bearer token")
+    user = await auth.authenticate(header[len("Bearer ") :])
+    request.state.user = user
+    return user
+
+
+CurrentUserDep = Annotated[User, Depends(get_current_user)]
+
+
+def _require(permission: str):
+    async def dep(user: CurrentUserDep) -> User:
+        if not user.has_permission(permission):
+            raise ForbiddenError(f"missing permission: {permission}")
+        return user
+
+    return dep
+
+
+InstancesRead = Annotated[User, Depends(_require("instances.read"))]
+InstancesWrite = Annotated[User, Depends(_require("instances.write"))]
+ContentRead = Annotated[User, Depends(_require("content.read"))]
+ContentWrite = Annotated[User, Depends(_require("content.write"))]
+PowerUse = Annotated[User, Depends(_require("power.use"))]
+ConsoleUse = Annotated[User, Depends(_require("console.use"))]
+AuditRead = Annotated[User, Depends(_require("audit.read"))]
+UsersManage = Annotated[User, Depends(_require("users.manage"))]
 
 
 def get_instance_service(request: Request, session: SessionDep) -> InstanceService:

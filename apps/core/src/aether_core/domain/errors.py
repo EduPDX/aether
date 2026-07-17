@@ -9,6 +9,14 @@ class NotFoundError(AetherError):
     pass
 
 
+class AuthenticationError(AetherError):
+    """Missing or invalid credentials (HTTP 401)."""
+
+
+class ForbiddenError(AetherError):
+    """Authenticated but not allowed (HTTP 403)."""
+
+
 class ConflictError(AetherError):
     pass
 

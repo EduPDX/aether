@@ -5,13 +5,19 @@ from fastapi.responses import JSONResponse
 
 from aether_core.domain.errors import (
     AetherError,
+    AuthenticationError,
     ConflictError,
+    ForbiddenError,
     NotFoundError,
     ValidationFailedError,
 )
 
 
 def _status_for(exc: AetherError) -> int:
+    if isinstance(exc, AuthenticationError):
+        return 401
+    if isinstance(exc, ForbiddenError):
+        return 403
     if isinstance(exc, NotFoundError):
         return 404
     if isinstance(exc, ConflictError):

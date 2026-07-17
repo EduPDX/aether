@@ -5,7 +5,13 @@ from typing import Literal
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from aether_core.interfaces.http.deps import InstanceServiceDep, PowerServiceDep
+from aether_core.interfaces.http.deps import (
+    ConsoleUse,
+    InstanceServiceDep,
+    InstancesRead,
+    PowerServiceDep,
+    PowerUse,
+)
 
 router = APIRouter(prefix="/instances/{instance_id}", tags=["power"])
 
@@ -24,6 +30,7 @@ async def power(
     body: PowerRequest,
     instances: InstanceServiceDep,
     power: PowerServiceDep,
+    _: PowerUse,
 ) -> dict:
     instance = await instances.get(instance_id)
     action = {
@@ -37,7 +44,9 @@ async def power(
 
 
 @router.get("/status")
-async def status(instance_id: str, instances: InstanceServiceDep, power: PowerServiceDep) -> dict:
+async def status(
+    instance_id: str, instances: InstanceServiceDep, power: PowerServiceDep, _: InstancesRead
+) -> dict:
     instance = await instances.get(instance_id)
     return {"state": power.state(instance)}
 
@@ -48,6 +57,7 @@ async def send_command(
     body: CommandRequest,
     instances: InstanceServiceDep,
     power: PowerServiceDep,
+    _: ConsoleUse,
 ) -> None:
     instance = await instances.get(instance_id)
     await power.send_command(instance, body.command)
@@ -58,6 +68,7 @@ async def logs(
     instance_id: str,
     instances: InstanceServiceDep,
     power: PowerServiceDep,
+    _: InstancesRead,
     tail: int = 200,
 ) -> dict:
     instance = await instances.get(instance_id)
