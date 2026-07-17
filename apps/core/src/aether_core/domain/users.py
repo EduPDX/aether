@@ -28,6 +28,10 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "power.use",
         "console.use",
         "audit.read",
+        "files.read",
+        "files.write",
+        "config.read",
+        "config.write",
     },
     Role.MODERATOR: {
         "instances.read",

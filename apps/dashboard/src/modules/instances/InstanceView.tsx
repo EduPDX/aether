@@ -3,10 +3,13 @@ import { Play, RotateCw, Skull, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge, Button } from "../../components/ui";
 import type { Instance, InstanceState } from "../../lib/api";
-import { api } from "../../lib/api";
+import { api, can } from "../../lib/api";
 import { subscribeTopic } from "../../lib/ws";
+import { useAuth } from "../auth/AuthGate";
+import { ConfigView } from "../config/ConfigView";
 import { ConsoleView } from "../console/ConsoleView";
 import { ContentView } from "../content/ContentView";
+import { FilesView } from "../files/FilesView";
 
 const STATE_LABEL: Record<InstanceState, string> = {
   stopped: "parado",
@@ -24,10 +27,11 @@ const STATE_TONE: Record<InstanceState, "neutral" | "green" | "orange" | "red"> 
   crashed: "red",
 };
 
-type Tab = "content" | "console";
+type Tab = "content" | "console" | "files" | "config";
 
 export function InstanceView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("content");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -91,6 +95,8 @@ export function InstanceView({ instance }: { instance: Instance }) {
             [
               ["content", "Conteúdo"],
               ["console", "Console"],
+              ...(can(user, "files.read") ? [["files", "Arquivos"] as [Tab, string]] : []),
+              ...(can(user, "config.read") ? [["config", "Config"] as [Tab, string]] : []),
             ] as [Tab, string][]
           ).map(([key, label]) => (
             <button
@@ -109,6 +115,8 @@ export function InstanceView({ instance }: { instance: Instance }) {
       <div className="min-h-0 flex-1">
         {tab === "content" && <ContentView instance={instance} />}
         {tab === "console" && <ConsoleView instance={instance} />}
+        {tab === "files" && <FilesView instance={instance} />}
+        {tab === "config" && <ConfigView instance={instance} />}
       </div>
     </div>
   );

@@ -184,7 +184,69 @@ export const api = {
     }),
   logs: (id: string, tail = 500) =>
     request<{ lines: string[] }>(`/api/v1/instances/${id}/logs?tail=${tail}`),
+  listFiles: (id: string, path = "") =>
+    request<FileEntry[]>(`/api/v1/instances/${id}/files?path=${encodeURIComponent(path)}`),
+  readFile: (id: string, path: string) =>
+    request<{ path: string; content: string }>(
+      `/api/v1/instances/${id}/files/content?path=${encodeURIComponent(path)}`,
+    ),
+  writeFile: (id: string, path: string, content: string) =>
+    request<void>(`/api/v1/instances/${id}/files/content`, {
+      method: "PUT",
+      body: JSON.stringify({ path, content }),
+    }),
+  fileOp: (id: string, op: "mkdir" | "rename" | "delete", path: string, newName?: string) =>
+    request<{ ok: boolean }>(`/api/v1/instances/${id}/files/op`, {
+      method: "POST",
+      body: JSON.stringify({ op, path, new_name: newName }),
+    }),
+  configs: (id: string) => request<InstanceConfig[]>(`/api/v1/instances/${id}/config`),
+  updateConfig: (id: string, schemaId: string, values: Record<string, string>) =>
+    request<void>(`/api/v1/instances/${id}/config`, {
+      method: "PUT",
+      body: JSON.stringify({ schema_id: schemaId, values }),
+    }),
 };
+
+export interface FileEntry {
+  name: string;
+  is_dir: boolean;
+  size: number;
+  mtime: number;
+}
+
+export interface ConfigFieldDef {
+  key: string;
+  label: string;
+  type: "string" | "integer" | "boolean" | "enum";
+  description: string;
+  default: string;
+  options: string[];
+  section: string;
+}
+
+export interface InstanceConfig {
+  schema: { id: string; label: string; file: string; fields: ConfigFieldDef[] };
+  values: Record<string, string>;
+  file_exists: boolean;
+}
+
+const ROLE_PERMS: Record<AuthUser["role"], string[]> = {
+  owner: ["*"],
+  admin: [
+    "instances.read", "instances.write", "content.read", "content.write",
+    "power.use", "console.use", "audit.read",
+    "files.read", "files.write", "config.read", "config.write",
+  ],
+  moderator: ["instances.read", "content.read", "power.use", "console.use"],
+  viewer: ["instances.read", "content.read"],
+};
+
+export function can(user: AuthUser | null, permission: string): boolean {
+  if (!user) return false;
+  const perms = ROLE_PERMS[user.role] ?? [];
+  return perms.includes("*") || perms.includes(permission);
+}
 
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;

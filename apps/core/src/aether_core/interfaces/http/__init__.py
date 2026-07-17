@@ -14,7 +14,16 @@ from aether_core.infrastructure.registry import EntryPointProviderRegistry
 from aether_core.infrastructure.security import load_or_create_secret
 from aether_core.infrastructure.settings import AppSettings
 from aether_core.interfaces.http.errors import register_error_handlers
-from aether_core.interfaces.http.routes import auth, content, instances, meta, power, users
+from aether_core.interfaces.http.routes import (
+    auth,
+    config,
+    content,
+    files,
+    instances,
+    meta,
+    power,
+    users,
+)
 from aether_core.interfaces.http.ws import router as ws_router
 
 
@@ -51,6 +60,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(instances.router)
     api.include_router(content.router)
     api.include_router(power.router)
+    api.include_router(files.router)
+    api.include_router(config.router)
     app.include_router(api)
     app.include_router(ws_router)
 

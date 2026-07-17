@@ -7,7 +7,9 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aether_core.application.auth import AuthService
+from aether_core.application.config import ConfigService
 from aether_core.application.content import ContentService
+from aether_core.application.files import FilesService
 from aether_core.application.instances import InstanceService
 from aether_core.application.power import PowerService
 from aether_core.domain.errors import AuthenticationError, ForbiddenError
@@ -87,6 +89,10 @@ PowerUse = Annotated[User, Depends(_require("power.use"))]
 ConsoleUse = Annotated[User, Depends(_require("console.use"))]
 AuditRead = Annotated[User, Depends(_require("audit.read"))]
 UsersManage = Annotated[User, Depends(_require("users.manage"))]
+FilesRead = Annotated[User, Depends(_require("files.read"))]
+FilesWrite = Annotated[User, Depends(_require("files.write"))]
+ConfigRead = Annotated[User, Depends(_require("config.read"))]
+ConfigWrite = Annotated[User, Depends(_require("config.write"))]
 
 
 def get_instance_service(request: Request, session: SessionDep) -> InstanceService:
@@ -116,6 +122,22 @@ def get_power_service(request: Request) -> PowerService:
     return PowerService(providers=state.providers, supervisor=state.supervisor)
 
 
+def get_files_service(request: Request) -> FilesService:
+    state = request.app.state
+    return FilesService(trash_root=state.settings.trash_dir, bus=state.bus)
+
+
+def get_config_service(request: Request) -> ConfigService:
+    state = request.app.state
+    return ConfigService(
+        providers=state.providers,
+        files=get_files_service(request),
+        bus=state.bus,
+    )
+
+
 InstanceServiceDep = Annotated[InstanceService, Depends(get_instance_service)]
 ContentServiceDep = Annotated[ContentService, Depends(get_content_service)]
 PowerServiceDep = Annotated[PowerService, Depends(get_power_service)]
+FilesServiceDep = Annotated[FilesService, Depends(get_files_service)]
+ConfigServiceDep = Annotated[ConfigService, Depends(get_config_service)]
