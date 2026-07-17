@@ -32,6 +32,8 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "files.write",
         "config.read",
         "config.write",
+        "sync.read",
+        "sync.write",
     },
     Role.MODERATOR: {
         "instances.read",

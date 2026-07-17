@@ -46,6 +46,20 @@ class UserRow(Base):
     created_at: Mapped[str] = mapped_column(String(40))
 
 
+class SyncProfileRow(Base):
+    __tablename__ = "sync_profiles"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    instance_id: Mapped[str] = mapped_column(String(32))
+    name: Mapped[str] = mapped_column(String(100))
+    channel: Mapped[str] = mapped_column(String(20), default="stable")
+    rules: Mapped[str] = mapped_column(Text, default="{}")
+    manifest: Mapped[str | None] = mapped_column(Text, nullable=True)
+    signature: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    published_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40))
+
+
 class AuditLogRow(Base):
     __tablename__ = "audit_log"
 

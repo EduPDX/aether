@@ -10,7 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aether_core.application.ports import CachedContent
 from aether_core.domain.instances import Instance
 from aether_core.domain.users import Role, User
-from aether_core.infrastructure.db import AuditLogRow, ContentCacheRow, InstanceRow, UserRow
+from aether_core.infrastructure.db import (
+    AuditLogRow,
+    ContentCacheRow,
+    InstanceRow,
+    SyncProfileRow,
+    UserRow,
+)
 
 _CHUNK = 500  # stay under SQLite's bound-parameter limit
 
@@ -182,3 +188,70 @@ class SqlAuditLog:
             }
             for r in rows
         ]
+
+
+def _row_to_profile(row: "SyncProfileRow"):
+    from aether_core.application.sync import SyncProfile, SyncRules
+
+    return SyncProfile(
+        id=row.id,
+        instance_id=row.instance_id,
+        name=row.name,
+        channel=row.channel,
+        rules=SyncRules.model_validate_json(row.rules or "{}"),
+        manifest=json.loads(row.manifest) if row.manifest else None,
+        signature=row.signature,
+        published_at=datetime.fromisoformat(row.published_at) if row.published_at else None,
+        created_at=datetime.fromisoformat(row.created_at),
+    )
+
+
+class SqlSyncProfileRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, profile) -> None:
+        self._session.add(
+            SyncProfileRow(
+                id=profile.id,
+                instance_id=profile.instance_id,
+                name=profile.name,
+                channel=profile.channel,
+                rules=profile.rules.model_dump_json(),
+                created_at=profile.created_at.isoformat(),
+            )
+        )
+        await self._session.commit()
+
+    async def get(self, profile_id: str):
+        row = await self._session.get(SyncProfileRow, profile_id)
+        return _row_to_profile(row) if row else None
+
+    async def list_for_instance(self, instance_id: str):
+        rows = await self._session.scalars(
+            select(SyncProfileRow)
+            .where(SyncProfileRow.instance_id == instance_id)
+            .order_by(SyncProfileRow.created_at)
+        )
+        return [_row_to_profile(r) for r in rows]
+
+    async def save(self, profile) -> None:
+        row = await self._session.get(SyncProfileRow, profile.id)
+        if row is None:
+            return
+        row.name = profile.name
+        row.channel = profile.channel
+        row.rules = profile.rules.model_dump_json()
+        row.manifest = (
+            json.dumps(profile.manifest, ensure_ascii=False) if profile.manifest else None
+        )
+        row.signature = profile.signature
+        row.published_at = profile.published_at.isoformat() if profile.published_at else None
+        await self._session.commit()
+
+    async def delete(self, profile_id: str) -> bool:
+        result = await self._session.execute(
+            delete(SyncProfileRow).where(SyncProfileRow.id == profile_id)
+        )
+        await self._session.commit()
+        return result.rowcount > 0

@@ -11,7 +11,12 @@ from aether_core.infrastructure.db import make_engine, make_session_factory, run
 from aether_core.infrastructure.filesystem import FileIconStore, LocalContentFilesystem
 from aether_core.infrastructure.processes import LocalProcessSupervisor
 from aether_core.infrastructure.registry import EntryPointProviderRegistry
-from aether_core.infrastructure.security import load_or_create_secret
+from aether_core.infrastructure.security import (
+    load_or_create_secret,
+    load_or_create_sync_key,
+    public_key_hex,
+    sign_payload,
+)
 from aether_core.infrastructure.settings import AppSettings
 from aether_core.interfaces.http.errors import register_error_handlers
 from aether_core.interfaces.http.routes import (
@@ -22,9 +27,22 @@ from aether_core.interfaces.http.routes import (
     instances,
     meta,
     power,
+    public,
+    sync,
     users,
 )
 from aether_core.interfaces.http.ws import router as ws_router
+
+
+class _SyncSigner:
+    def __init__(self, key) -> None:
+        self._key = key
+
+    def sign(self, payload: bytes) -> str:
+        return sign_payload(self._key, payload)
+
+    def public_key(self) -> str:
+        return public_key_hex(self._key)
 
 
 def create_app(settings: AppSettings | None = None) -> FastAPI:
@@ -52,6 +70,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.state.icons = FileIconStore(settings.icons_dir)
     app.state.supervisor = LocalProcessSupervisor(app.state.bus)
     app.state.jwt_secret = load_or_create_secret(settings.data_dir)
+    app.state.sync_signer = _SyncSigner(load_or_create_sync_key(settings.data_dir))
 
     if settings.static_dir and settings.static_dir.is_dir():
         from fastapi.staticfiles import StaticFiles
@@ -73,6 +92,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(power.router)
     api.include_router(files.router)
     api.include_router(config.router)
+    api.include_router(sync.router)
+    api.include_router(public.router)
     app.include_router(api)
     app.include_router(ws_router)
 

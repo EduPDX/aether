@@ -12,12 +12,14 @@ from aether_core.application.content import ContentService
 from aether_core.application.files import FilesService
 from aether_core.application.instances import InstanceService
 from aether_core.application.power import PowerService
+from aether_core.application.sync import SyncService
 from aether_core.domain.errors import AuthenticationError, ForbiddenError
 from aether_core.domain.users import User
 from aether_core.infrastructure import security
 from aether_core.infrastructure.repositories import (
     SqlContentCache,
     SqlInstanceRepository,
+    SqlSyncProfileRepository,
     SqlUserRepository,
 )
 
@@ -93,6 +95,8 @@ FilesRead = Annotated[User, Depends(_require("files.read"))]
 FilesWrite = Annotated[User, Depends(_require("files.write"))]
 ConfigRead = Annotated[User, Depends(_require("config.read"))]
 ConfigWrite = Annotated[User, Depends(_require("config.write"))]
+SyncRead = Annotated[User, Depends(_require("sync.read"))]
+SyncWrite = Annotated[User, Depends(_require("sync.write"))]
 
 
 def get_instance_service(request: Request, session: SessionDep) -> InstanceService:
@@ -136,8 +140,18 @@ def get_config_service(request: Request) -> ConfigService:
     )
 
 
+def get_sync_service(request: Request, session: SessionDep) -> SyncService:
+    state = request.app.state
+    return SyncService(
+        repo=SqlSyncProfileRepository(session),
+        signer=state.sync_signer,
+        bus=state.bus,
+    )
+
+
 InstanceServiceDep = Annotated[InstanceService, Depends(get_instance_service)]
 ContentServiceDep = Annotated[ContentService, Depends(get_content_service)]
 PowerServiceDep = Annotated[PowerService, Depends(get_power_service)]
 FilesServiceDep = Annotated[FilesService, Depends(get_files_service)]
 ConfigServiceDep = Annotated[ConfigService, Depends(get_config_service)]
+SyncServiceDep = Annotated[SyncService, Depends(get_sync_service)]

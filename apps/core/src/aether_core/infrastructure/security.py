@@ -8,6 +8,13 @@ from typing import Literal
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
+)
 
 from aether_core.domain.errors import AuthenticationError
 
@@ -39,6 +46,25 @@ def load_or_create_secret(data_dir: Path) -> str:
     secret = secrets.token_hex(32)
     path.write_text(secret)
     return secret
+
+
+def load_or_create_sync_key(data_dir: Path) -> Ed25519PrivateKey:
+    """Ed25519 signing key for sync manifests, generated once per install."""
+    path = data_dir / "sync_signing.key"
+    if path.is_file():
+        return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(path.read_text().strip()))
+    key = Ed25519PrivateKey.generate()
+    raw = key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+    path.write_text(raw.hex())
+    return key
+
+
+def sign_payload(key: Ed25519PrivateKey, payload: bytes) -> str:
+    return key.sign(payload).hex()
+
+
+def public_key_hex(key: Ed25519PrivateKey) -> str:
+    return key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
 
 
 TokenType = Literal["access", "refresh"]
