@@ -12,11 +12,16 @@ from pydantic import BaseModel, Field
 
 
 class ContentType(BaseModel):
-    """A kind of content a provider knows how to manage (e.g. ``mod``)."""
+    """A kind of content a provider knows how to manage (e.g. ``mod``).
+
+    ``default_directory`` is where this content lives relative to the
+    instance root (e.g. ``mods``); instances may override it per type.
+    """
 
     id: str
     label: str
     file_patterns: list[str] = Field(default_factory=list)
+    default_directory: str = ""
 
 
 class ContentDependency(BaseModel):

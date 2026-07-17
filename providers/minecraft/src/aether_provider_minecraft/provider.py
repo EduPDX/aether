@@ -12,7 +12,12 @@ MANIFEST = ProviderManifest(
 )
 
 CONTENT_TYPES = [
-    ContentType(id="mod", label="Mods", file_patterns=["*.jar", "*.jar.disabled"]),
+    ContentType(
+        id="mod",
+        label="Mods",
+        file_patterns=["*.jar", "*.jar.disabled"],
+        default_directory="mods",
+    ),
 ]
 
 

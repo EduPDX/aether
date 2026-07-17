@@ -2,13 +2,16 @@
 
 import uvicorn
 
+from aether_core.infrastructure.settings import AppSettings
+
 
 def main() -> None:
+    settings = AppSettings()
     uvicorn.run(
         "aether_core.interfaces.http:create_app",
         factory=True,
-        host="127.0.0.1",
-        port=8600,
+        host=settings.host,
+        port=settings.port,
         reload=True,
     )
 
