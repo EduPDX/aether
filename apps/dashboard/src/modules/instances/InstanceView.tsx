@@ -10,6 +10,7 @@ import { ConfigView } from "../config/ConfigView";
 import { ConsoleView } from "../console/ConsoleView";
 import { ContentView } from "../content/ContentView";
 import { FilesView } from "../files/FilesView";
+import { SyncView } from "../sync/SyncView";
 
 const STATE_LABEL: Record<InstanceState, string> = {
   stopped: "parado",
@@ -27,7 +28,7 @@ const STATE_TONE: Record<InstanceState, "neutral" | "green" | "orange" | "red"> 
   crashed: "red",
 };
 
-type Tab = "content" | "console" | "files" | "config";
+type Tab = "content" | "console" | "files" | "config" | "sync";
 
 export function InstanceView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
@@ -97,6 +98,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
               ["console", "Console"],
               ...(can(user, "files.read") ? [["files", "Arquivos"] as [Tab, string]] : []),
               ...(can(user, "config.read") ? [["config", "Config"] as [Tab, string]] : []),
+              ...(can(user, "sync.read") ? [["sync", "Sync"] as [Tab, string]] : []),
             ] as [Tab, string][]
           ).map(([key, label]) => (
             <button
@@ -117,6 +119,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
         {tab === "console" && <ConsoleView instance={instance} />}
         {tab === "files" && <FilesView instance={instance} />}
         {tab === "config" && <ConfigView instance={instance} />}
+        {tab === "sync" && <SyncView instance={instance} />}
       </div>
     </div>
   );

@@ -206,7 +206,47 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ schema_id: schemaId, values }),
     }),
+  syncProfiles: (id: string) => request<SyncProfileOut[]>(`/api/v1/instances/${id}/sync-profiles`),
+  createSyncProfile: (id: string, body: { name: string; channel: string; rules: SyncRules }) =>
+    request<SyncProfileOut>(`/api/v1/instances/${id}/sync-profiles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  publishSyncProfile: (id: string, profileId: string) =>
+    request<SyncProfileOut>(`/api/v1/instances/${id}/sync-profiles/${profileId}/publish`, {
+      method: "POST",
+    }),
+  updateSyncRules: (id: string, profileId: string, rules: SyncRules) =>
+    request<SyncProfileOut>(`/api/v1/instances/${id}/sync-profiles/${profileId}/rules`, {
+      method: "PUT",
+      body: JSON.stringify({ rules }),
+    }),
+  deleteSyncProfile: (id: string, profileId: string) =>
+    request<void>(`/api/v1/instances/${id}/sync-profiles/${profileId}`, { method: "DELETE" }),
 };
+
+export interface SyncRule {
+  dir: string;
+  patterns: string[];
+  recursive: boolean;
+  action: "require" | "optional";
+}
+
+export interface SyncRules {
+  rules: SyncRule[];
+  exclude: string[];
+}
+
+export interface SyncProfileOut {
+  id: string;
+  instance_id: string;
+  name: string;
+  channel: string;
+  rules: SyncRules;
+  published_at: string | null;
+  files: number | null;
+  total_size: number | null;
+}
 
 export interface FileEntry {
   name: string;
@@ -237,6 +277,7 @@ const ROLE_PERMS: Record<AuthUser["role"], string[]> = {
     "instances.read", "instances.write", "content.read", "content.write",
     "power.use", "console.use", "audit.read",
     "files.read", "files.write", "config.read", "config.write",
+    "sync.read", "sync.write",
   ],
   moderator: ["instances.read", "content.read", "power.use", "console.use"],
   viewer: ["instances.read", "content.read"],
