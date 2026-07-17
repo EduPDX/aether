@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  // Caminhos relativos: o build funciona servido em qualquer prefixo
+  // (o Core monta o dashboard em /app).
+  base: "./",
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
