@@ -21,6 +21,7 @@ from aether_core.infrastructure.settings import AppSettings
 from aether_core.interfaces.http.errors import register_error_handlers
 from aether_core.interfaces.http.routes import (
     auth,
+    browse,
     config,
     content,
     files,
@@ -94,6 +95,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(config.router)
     api.include_router(sync.router)
     api.include_router(public.router)
+    api.include_router(browse.router)
     app.include_router(api)
     app.include_router(ws_router)
 

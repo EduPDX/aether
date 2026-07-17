@@ -127,8 +127,19 @@ async function request<T>(path: string, init?: RequestInit, retried = false): Pr
   return res.json() as Promise<T>;
 }
 
+export interface BrowseResult {
+  path: string | null;
+  parent: string | null;
+  separator: string;
+  entries: { name: string; path: string }[];
+}
+
 export const api = {
   authStatus: () => request<{ setup_required: boolean }>("/api/v1/auth/status"),
+  browse: (path?: string | null) =>
+    request<BrowseResult>(
+      `/api/v1/fs/browse${path ? `?path=${encodeURIComponent(path)}` : ""}`,
+    ),
   setup: (username: string, password: string) =>
     request<{ user: AuthUser; access_token: string; refresh_token: string }>(
       "/api/v1/auth/setup",
