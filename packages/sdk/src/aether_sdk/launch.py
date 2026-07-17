@@ -58,3 +58,16 @@ class SupportsLaunch(Protocol):
     def launch_spec(self, ctx: LaunchContext) -> LaunchSpec | None: ...
 
     def console_codec(self) -> ConsoleCodec: ...
+
+
+@runtime_checkable
+class SupportsGameMetadata(Protocol):
+    """Optional provider capability: describe the game build of an instance.
+
+    Returned dict is provider-defined but should be launcher-consumable
+    (e.g. ``{"minecraft": "1.20.1", "loader": "forge",
+    "loader_version": "47.2.0"}``). Included in published sync manifests
+    so clients know exactly what to install.
+    """
+
+    def game_metadata(self, ctx: LaunchContext) -> dict | None: ...

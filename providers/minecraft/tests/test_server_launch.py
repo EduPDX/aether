@@ -64,3 +64,25 @@ def test_console_codec_parses_levels_and_ready():
     unknown = codec.parse("some raw text without format")
     assert unknown.level == ""
     assert unknown.message == "some raw text without format"
+
+
+def test_game_metadata_detects_forge(tmp_path):
+    from aether_provider_minecraft.server.game_meta import detect_game_metadata
+
+    forge = tmp_path / "libraries" / "net" / "minecraftforge" / "forge" / "1.20.1-47.2.0"
+    forge.mkdir(parents=True)
+    meta = detect_game_metadata(tmp_path, {})
+    assert meta == {"minecraft": "1.20.1", "loader": "forge", "loader_version": "47.2.0"}
+
+
+def test_game_metadata_explicit_override_wins(tmp_path):
+    from aether_provider_minecraft.server.game_meta import detect_game_metadata
+
+    meta = detect_game_metadata(tmp_path, {"game": {"minecraft": "1.19.2", "loader": "forge"}})
+    assert meta["minecraft"] == "1.19.2"
+
+
+def test_game_metadata_none_when_unknown(tmp_path):
+    from aether_provider_minecraft.server.game_meta import detect_game_metadata
+
+    assert detect_game_metadata(tmp_path, {}) is None

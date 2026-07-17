@@ -22,6 +22,7 @@ from aether_sdk.launch import (
     ConsoleLine,
     LaunchContext,
     LaunchSpec,
+    SupportsGameMetadata,
     SupportsLaunch,
 )
 from aether_sdk.manifest import SDK_VERSION, ProviderManifest
@@ -44,5 +45,6 @@ __all__ = [
     "LaunchSpec",
     "ProviderManifest",
     "SupportsConfig",
+    "SupportsGameMetadata",
     "SupportsLaunch",
 ]

@@ -22,6 +22,7 @@ from typing import Literal, Protocol
 from pydantic import BaseModel, Field
 
 from aether_core.application.events import EventBus
+from aether_core.application.ports import ProviderRegistry
 from aether_core.domain.errors import (
     ForbiddenError,
     NotFoundError,
@@ -94,10 +95,17 @@ def canonical_manifest_bytes(manifest: dict) -> bytes:
 
 
 class SyncService:
-    def __init__(self, repo: SyncProfileRepository, signer: ManifestSigner, bus: EventBus) -> None:
+    def __init__(
+        self,
+        repo: SyncProfileRepository,
+        signer: ManifestSigner,
+        bus: EventBus,
+        providers: "ProviderRegistry | None" = None,
+    ) -> None:
         self._repo = repo
         self._signer = signer
         self._bus = bus
+        self._providers = providers
 
     # -------------------------------------------------------------- profiles --
     async def create_profile(
@@ -149,12 +157,31 @@ class SyncService:
             ],
             "total_size": sum(f["size"] for f in files),
         }
+        game = await asyncio.to_thread(self._game_metadata, instance)
+        if game:
+            manifest["game"] = game
         profile.manifest = manifest
         profile.signature = self._signer.sign(canonical_manifest_bytes(manifest))
         profile.published_at = datetime.now(UTC)
         await self._repo.save(profile)
         await self._bus.publish("sync.published", {"profile_id": profile.id, "files": len(files)})
         return profile
+
+    def _game_metadata(self, instance: Instance) -> dict | None:
+        """Asks the provider what game build this instance runs (optional)."""
+        from aether_sdk import LaunchContext, SupportsGameMetadata
+
+        if self._providers is None:
+            return instance.provider_data.get("game")
+        try:
+            provider = self._providers.get(instance.provider_id)
+        except Exception:  # noqa: BLE001 — metadata é opcional
+            return None
+        if not isinstance(provider, SupportsGameMetadata):
+            return instance.provider_data.get("game")
+        return provider.game_metadata(
+            LaunchContext(root_dir=Path(instance.root_dir), provider_data=instance.provider_data)
+        )
 
     def _collect(self, instance: Instance, rules: SyncRules) -> list[dict]:
         root = Path(instance.root_dir).resolve()

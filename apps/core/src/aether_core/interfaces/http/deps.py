@@ -146,6 +146,7 @@ def get_sync_service(request: Request, session: SessionDep) -> SyncService:
         repo=SqlSyncProfileRepository(session),
         signer=state.sync_signer,
         bus=state.bus,
+        providers=state.providers,
     )
 
 

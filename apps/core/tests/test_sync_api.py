@@ -139,3 +139,26 @@ def test_sync_forbidden_for_moderator(client, tmp_path):
     ).json()
     mod.headers["Authorization"] = f"Bearer {login['access_token']}"
     assert mod.get(f"/api/v1/instances/{iid}/sync-profiles").status_code == 403
+
+
+def test_manifest_includes_game_metadata(client, tmp_path):
+    root = tmp_path / "srv2"
+    (root / "mods").mkdir(parents=True)
+    (root / "mods" / "m.jar").write_bytes(b"m")
+    forge = root / "libraries" / "net" / "minecraftforge" / "forge" / "1.20.1-47.2.0"
+    forge.mkdir(parents=True)
+    iid = create_instance(client, root)
+
+    res = client.post(
+        f"/api/v1/instances/{iid}/sync-profiles",
+        json={"name": "ComJogo", "channel": "stable", "rules": RULES},
+    )
+    pid = res.json()["id"]
+    client.post(f"/api/v1/instances/{iid}/sync-profiles/{pid}/publish")
+
+    manifest = client.get(f"/api/v1/public/sync/{pid}").json()["manifest"]
+    assert manifest["game"] == {
+        "minecraft": "1.20.1",
+        "loader": "forge",
+        "loader_version": "47.2.0",
+    }

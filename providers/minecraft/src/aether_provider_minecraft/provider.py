@@ -13,6 +13,7 @@ from aether_sdk import (
 
 from aether_provider_minecraft.content.jar_analyzer import JarModAnalyzer
 from aether_provider_minecraft.server.console import MinecraftConsoleCodec
+from aether_provider_minecraft.server.game_meta import detect_game_metadata
 from aether_provider_minecraft.server.launch import build_launch_spec
 from aether_provider_minecraft.server.properties import (
     SERVER_PROPERTIES_SCHEMA,
@@ -56,6 +57,9 @@ class MinecraftProvider:
 
     def console_codec(self) -> ConsoleCodec:
         return MinecraftConsoleCodec()
+
+    def game_metadata(self, ctx: LaunchContext) -> dict | None:
+        return detect_game_metadata(ctx.root_dir, ctx.provider_data)
 
     def config_schemas(self) -> list[ConfigSchema]:
         return [SERVER_PROPERTIES_SCHEMA]
