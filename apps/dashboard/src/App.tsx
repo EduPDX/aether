@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { Spinner } from "./components/ui";
 import { api } from "./lib/api";
 import { CompareView } from "./modules/content/CompareView";
-import { ContentView } from "./modules/content/ContentView";
 import { CreateInstanceDialog } from "./modules/instances/CreateInstanceDialog";
+import { InstanceView } from "./modules/instances/InstanceView";
 
 type View = { kind: "instance"; id: string } | { kind: "compare" };
 
@@ -65,7 +65,20 @@ export default function App() {
               }`}
               onClick={() => setView({ kind: "instance", id: inst.id })}
             >
-              <Server size={15} className="shrink-0" />
+              <span className="relative shrink-0">
+                <Server size={15} />
+                <span
+                  className={`absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full border border-surface ${
+                    inst.state === "running"
+                      ? "bg-accent"
+                      : inst.state === "crashed"
+                        ? "bg-danger"
+                        : inst.state === "stopped"
+                          ? "bg-surface-3"
+                          : "bg-warn"
+                  }`}
+                />
+              </span>
               <span className="truncate">{inst.name}</span>
               <button
                 title="Remover instância (não apaga arquivos)"
@@ -139,7 +152,9 @@ export default function App() {
               </button>
             </div>
           )}
-          {view?.kind === "instance" && active && <ContentView key={active.id} instance={active} />}
+          {view?.kind === "instance" && active && (
+            <InstanceView key={active.id} instance={active} />
+          )}
           {view?.kind === "compare" && instances.length >= 2 && (
             <CompareView instances={instances} />
           )}

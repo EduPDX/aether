@@ -1,12 +1,16 @@
 /** Typed client for the Aether Core v1 API. */
 
+export type InstanceState = "stopped" | "starting" | "running" | "stopping" | "crashed";
+
 export interface Instance {
   id: string;
   name: string;
   provider_id: string;
   root_dir: string;
   content_dirs: Record<string, string>;
+  provider_data: Record<string, unknown>;
   created_at: string;
+  state: InstanceState;
 }
 
 export interface ContentDependency {
@@ -108,6 +112,19 @@ export const api = {
     request<CompareResult>(
       `/api/v1/instances/${aId}/content/compare?with=${bId}&type=${type}`,
     ),
+  power: (id: string, action: "start" | "stop" | "restart" | "kill") =>
+    request<{ state: InstanceState }>(`/api/v1/instances/${id}/power`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }),
+  status: (id: string) => request<{ state: InstanceState }>(`/api/v1/instances/${id}/status`),
+  command: (id: string, command: string) =>
+    request<void>(`/api/v1/instances/${id}/command`, {
+      method: "POST",
+      body: JSON.stringify({ command }),
+    }),
+  logs: (id: string, tail = 500) =>
+    request<{ lines: string[] }>(`/api/v1/instances/${id}/logs?tail=${tail}`),
 };
 
 export function formatBytes(n: number): string {

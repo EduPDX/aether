@@ -27,11 +27,12 @@ class InstanceService:
         provider_id: str,
         root_dir: str,
         content_dirs: dict[str, str] | None = None,
+        provider_data: dict | None = None,
     ) -> Instance:
         self._providers.get(provider_id)  # raises ProviderNotFoundError
         if not self._fs.is_dir(Path(root_dir)):
             raise ValidationFailedError(f"root_dir is not a directory: {root_dir}")
-        instance = Instance.new(name, provider_id, root_dir, content_dirs)
+        instance = Instance.new(name, provider_id, root_dir, content_dirs, provider_data)
         await self._repo.add(instance)
         await self._bus.publish("instance.created", {"instance_id": instance.id, "name": name})
         return instance

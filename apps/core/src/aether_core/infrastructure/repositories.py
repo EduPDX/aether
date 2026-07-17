@@ -21,6 +21,7 @@ def _row_to_instance(row: InstanceRow) -> Instance:
         provider_id=row.provider_id,
         root_dir=row.root_dir,
         content_dirs=json.loads(row.content_dirs or "{}"),
+        provider_data=json.loads(row.provider_data or "{}"),
         created_at=datetime.fromisoformat(row.created_at),
     )
 
@@ -37,6 +38,7 @@ class SqlInstanceRepository:
                 provider_id=instance.provider_id,
                 root_dir=instance.root_dir,
                 content_dirs=json.dumps(instance.content_dirs),
+                provider_data=json.dumps(instance.provider_data),
                 created_at=instance.created_at.isoformat(),
             )
         )

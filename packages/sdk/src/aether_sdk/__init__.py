@@ -10,15 +10,27 @@ from aether_sdk.content import (
     ContentMetadata,
     ContentType,
 )
+from aether_sdk.launch import (
+    ConsoleCodec,
+    ConsoleLine,
+    LaunchContext,
+    LaunchSpec,
+    SupportsLaunch,
+)
 from aether_sdk.manifest import SDK_VERSION, ProviderManifest
 from aether_sdk.provider import GameProvider
 
 __all__ = [
     "SDK_VERSION",
+    "ConsoleCodec",
+    "ConsoleLine",
     "ContentAnalyzer",
     "ContentDependency",
     "ContentMetadata",
     "ContentType",
     "GameProvider",
+    "LaunchContext",
+    "LaunchSpec",
     "ProviderManifest",
+    "SupportsLaunch",
 ]

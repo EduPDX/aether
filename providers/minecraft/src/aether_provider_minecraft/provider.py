@@ -1,8 +1,17 @@
-"""Minecraft provider implementation (contract v0: content analysis)."""
+"""Minecraft provider implementation (content analysis + server launch)."""
 
-from aether_sdk import ContentAnalyzer, ContentType, ProviderManifest
+from aether_sdk import (
+    ConsoleCodec,
+    ContentAnalyzer,
+    ContentType,
+    LaunchContext,
+    LaunchSpec,
+    ProviderManifest,
+)
 
 from aether_provider_minecraft.content.jar_analyzer import JarModAnalyzer
+from aether_provider_minecraft.server.console import MinecraftConsoleCodec
+from aether_provider_minecraft.server.launch import build_launch_spec
 
 MANIFEST = ProviderManifest(
     id="minecraft",
@@ -35,3 +44,9 @@ class MinecraftProvider:
             return self._analyzers[content_type]
         except KeyError:
             raise LookupError(f"unknown content type: {content_type!r}") from None
+
+    def launch_spec(self, ctx: LaunchContext) -> LaunchSpec | None:
+        return build_launch_spec(ctx)
+
+    def console_codec(self) -> ConsoleCodec:
+        return MinecraftConsoleCodec()

@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "aether-sdk",
     "fastapi>=0.115",
-    "uvicorn>=0.32",
+    "uvicorn[standard]>=0.32",
     "sqlalchemy>=2.0",
     "aiosqlite>=0.20",
     "alembic>=1.13",

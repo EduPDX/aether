@@ -14,6 +14,7 @@ class CreateInstanceRequest(BaseModel):
     provider_id: str
     root_dir: str
     content_dirs: dict[str, str] = Field(default_factory=dict)
+    provider_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class InstanceOut(BaseModel):
@@ -22,11 +23,13 @@ class InstanceOut(BaseModel):
     provider_id: str
     root_dir: str
     content_dirs: dict[str, str]
+    provider_data: dict[str, Any]
     created_at: datetime
+    state: str = "stopped"
 
     @staticmethod
-    def from_domain(instance: Instance) -> "InstanceOut":
-        return InstanceOut(**instance.__dict__)
+    def from_domain(instance: Instance, state: str = "stopped") -> "InstanceOut":
+        return InstanceOut(**instance.__dict__, state=state)
 
 
 class ContentFileRequest(BaseModel):

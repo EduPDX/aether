@@ -51,9 +51,12 @@ def make_mod_jar(
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> TestClient:
+def client(tmp_path: Path):
     settings = AppSettings(data_dir=tmp_path / "aether-data")
-    return TestClient(create_app(settings))
+    # Context manager: keeps a single event loop for every request (the
+    # supervisor holds asyncio state) and runs the lifespan shutdown.
+    with TestClient(create_app(settings)) as c:
+        yield c
 
 
 @pytest.fixture

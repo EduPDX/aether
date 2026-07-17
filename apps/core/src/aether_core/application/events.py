@@ -22,6 +22,9 @@ class EventBus:
     def subscribe(self, topic_prefix: str, handler: Handler) -> None:
         self._subscribers.append((topic_prefix, handler))
 
+    def unsubscribe(self, handler: Handler) -> None:
+        self._subscribers = [(p, h) for p, h in self._subscribers if h is not handler]
+
     async def publish(self, topic: str, payload: dict[str, Any] | None = None) -> None:
         payload = payload or {}
         for prefix, handler in self._subscribers:

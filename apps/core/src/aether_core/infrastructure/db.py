@@ -23,6 +23,7 @@ class InstanceRow(Base):
     provider_id: Mapped[str] = mapped_column(String(64))
     root_dir: Mapped[str] = mapped_column(Text)
     content_dirs: Mapped[str] = mapped_column(Text, default="{}")
+    provider_data: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[str] = mapped_column(String(40))
 
 

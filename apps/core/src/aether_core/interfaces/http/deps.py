@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aether_core.application.content import ContentService
 from aether_core.application.instances import InstanceService
+from aether_core.application.power import PowerService
 from aether_core.infrastructure.repositories import SqlContentCache, SqlInstanceRepository
 
 
@@ -41,5 +42,11 @@ def get_content_service(request: Request, session: SessionDep) -> ContentService
     )
 
 
+def get_power_service(request: Request) -> PowerService:
+    state = request.app.state
+    return PowerService(providers=state.providers, supervisor=state.supervisor)
+
+
 InstanceServiceDep = Annotated[InstanceService, Depends(get_instance_service)]
 ContentServiceDep = Annotated[ContentService, Depends(get_content_service)]
+PowerServiceDep = Annotated[PowerService, Depends(get_power_service)]
