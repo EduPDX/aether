@@ -95,29 +95,29 @@ export function FileIcon({
   const color =
     chosen === "neutro" ? "text-muted" : chosen === "destaque" ? "text-accent" : base.color;
 
-  // Os pacotes com pastilha ocupam mais espaço que o ícone nu; o contêiner
-  // cresce junto para as duas variantes ficarem alinhadas na mesma grade.
-  if (chosen === "solido" || chosen === "contraste") {
-    const preenchido = chosen === "contraste";
-    return (
-      <span
-        className={`flex shrink-0 items-center justify-center rounded-lg ${color} ${
-          preenchido ? "bg-current" : "bg-current/15"
-        }`}
-        style={{ width: size * 1.35, height: size * 1.35 }}
-      >
-        <Icon
-          size={size * 0.72}
-          // No preenchido o ícone é vazado: herda o fundo da página.
-          className={preenchido ? "text-bg" : color}
-        />
-      </span>
-    );
-  }
+  const pastilha = chosen === "solido" || chosen === "contraste";
+  const preenchido = chosen === "contraste";
 
-  if (chosen === "pastel") {
-    return <Icon size={size} strokeWidth={1.4} className={`shrink-0 ${color} opacity-70`} />;
-  }
+  // Todos os pacotes ocupam a MESMA caixa, independente de terem pastilha ou
+  // não. Antes o ícone nu media `size` e a pastilha `size * 1.35`: trocar de
+  // pacote mudava a altura das linhas, e na tela de configurações isso movia a
+  // grade sob o cursor parado — o hover pulava para o cartão vizinho, que
+  // restaurava a altura anterior, e a prévia ficava tremendo entre os dois.
+  const caixa = size * 1.35;
 
-  return <Icon size={size} className={`shrink-0 ${color}`} />;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center ${
+        pastilha ? `rounded-lg ${color} ${preenchido ? "bg-current" : "bg-current/15"}` : ""
+      }`}
+      style={{ width: caixa, height: caixa }}
+    >
+      <Icon
+        size={pastilha ? size * 0.72 : size}
+        strokeWidth={chosen === "pastel" ? 1.4 : 2}
+        // No preenchido o ícone é vazado: herda o fundo da página.
+        className={`${preenchido ? "text-bg" : color} ${chosen === "pastel" ? "opacity-70" : ""}`}
+      />
+    </span>
+  );
 }

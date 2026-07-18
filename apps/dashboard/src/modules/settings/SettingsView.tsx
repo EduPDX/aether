@@ -301,10 +301,15 @@ export function SettingsView({ initialSection = "tema" }: { initialSection?: Sec
                 title="Prévia — mods por loader"
                 hint={`${CATEGORY_OPTIONS.find((o) => o.id === (hoverCat ?? catKind))?.label} — usado nos painéis de contagem da Visão geral.`}
               >
-                <CategoryChart
-                  data={AMOSTRA.map((d, i) => ({ ...d, color: preview.chart[i] }))}
-                  kind={hoverCat ?? catKind}
-                />
+                {/* Altura reservada: rosca/pizza medem ~168px e barras ~60px.
+                    Sem isso a grade abaixo se desloca ao passar o mouse e o
+                    hover salta para o cartão vizinho, piscando entre os dois. */}
+                <div className="flex min-h-[168px] items-center">
+                  <CategoryChart
+                    data={AMOSTRA.map((d, i) => ({ ...d, color: preview.chart[i] }))}
+                    kind={hoverCat ?? catKind}
+                  />
+                </div>
               </Panel>
 
               <Panel
