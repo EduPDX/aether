@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Search } from "lucide-react";
+import { Download, LayoutGrid, List, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { UploadButton } from "../../components/UploadButton";
 import { Badge, Button, Input, Select, Spinner } from "../../components/ui";
@@ -7,9 +7,13 @@ import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
 import { ModCard } from "./ModCard";
 import { ModDetails } from "./ModDetails";
+import { ModTable } from "./ModTable";
 
 type StatusFilter = "all" | "enabled" | "disabled";
 type SortKey = "name" | "size" | "mtime";
+type ViewMode = "grid" | "list";
+
+const VIEW_KEY = "aether.content.view";
 
 export function ContentView({
   instance,
@@ -25,6 +29,14 @@ export function ContentView({
   const [sort, setSort] = useState<SortKey>("name");
   const [dupsOnly, setDupsOnly] = useState(false);
   const [detail, setDetail] = useState<ContentItem | null>(null);
+  const [view, setView] = useState<ViewMode>(
+    () => (localStorage.getItem(VIEW_KEY) as ViewMode | null) ?? "grid",
+  );
+
+  function changeView(next: ViewMode) {
+    setView(next);
+    localStorage.setItem(VIEW_KEY, next);
+  }
 
   const query = useQuery({
     queryKey: ["content", instance.id, contentType],
@@ -81,6 +93,10 @@ export function ContentView({
     const size = items.reduce((s, i) => s + i.size_bytes, 0);
     return { total: items.length, enabled, disabled: items.length - enabled, dups, size };
   }, [items]);
+
+  function askTrash(item: ContentItem) {
+    if (confirm(`Mover "${item.file}" para a lixeira?`)) trash.mutate(item.file);
+  }
 
   function exportList() {
     const lines = [
@@ -147,6 +163,25 @@ export function ContentView({
           />
           Só duplicados
         </label>
+        <span className="flex overflow-hidden rounded-md border border-border">
+          {(
+            [
+              ["grid", LayoutGrid, "Cartões"],
+              ["list", List, "Lista compacta"],
+            ] as const
+          ).map(([mode, Icon, label]) => (
+            <button
+              key={mode}
+              title={label}
+              onClick={() => changeView(mode)}
+              className={`cursor-pointer px-2 py-1.5 transition-colors ${
+                view === mode ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2"
+              }`}
+            >
+              <Icon size={15} />
+            </button>
+          ))}
+        </span>
         <UploadButton
           instanceId={instance.id}
           path={uploadDir}
@@ -168,24 +203,32 @@ export function ContentView({
         <span className="ml-auto">{formatBytes(stats.size)} no total</span>
       </div>
 
-      <div className="grid flex-1 auto-rows-min grid-cols-1 gap-2.5 overflow-y-auto px-4 pb-6 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((item) => (
-          <ModCard
-            key={item.file}
-            item={item}
-            onToggle={() => toggle.mutate(item.file)}
-            onTrash={() => {
-              if (confirm(`Mover "${item.file}" para a lixeira?`)) trash.mutate(item.file);
-            }}
-            onOpen={() => setDetail(item)}
+      {filtered.length === 0 ? (
+        <div className="flex-1 py-16 text-center text-sm text-muted">
+          Nenhum mod encontrado com os filtros atuais.
+        </div>
+      ) : view === "list" ? (
+        <div className="flex-1 overflow-y-auto pb-6">
+          <ModTable
+            items={filtered}
+            onToggle={(file) => toggle.mutate(file)}
+            onTrash={askTrash}
+            onOpen={setDetail}
           />
-        ))}
-        {filtered.length === 0 && (
-          <div className="col-span-full py-16 text-center text-sm text-muted">
-            Nenhum mod encontrado com os filtros atuais.
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="grid flex-1 auto-rows-min grid-cols-1 gap-2.5 overflow-y-auto px-4 pb-6 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((item) => (
+            <ModCard
+              key={item.file}
+              item={item}
+              onToggle={() => toggle.mutate(item.file)}
+              onTrash={() => askTrash(item)}
+              onOpen={() => setDetail(item)}
+            />
+          ))}
+        </div>
+      )}
 
       <ModDetails item={detail} onClose={() => setDetail(null)} />
     </div>

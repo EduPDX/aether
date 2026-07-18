@@ -1,27 +1,30 @@
 import Editor from "@monaco-editor/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowUpDown,
   ChevronRight,
-  File,
-  FilePlus,
-  Folder,
-  FolderPlus,
+  CornerLeftUp,
   Download,
+  FilePlus,
+  FolderPlus,
   Pencil,
   Save,
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { UploadButton } from "../../components/UploadButton";
 import { Button, Spinner } from "../../components/ui";
-import type { Instance } from "../../lib/api";
+import type { FileEntry, Instance } from "../../lib/api";
 import { api, formatBytes, getAccessToken } from "../../lib/api";
 import { languageFor } from "../../lib/monaco";
+import { FileIcon, fileKind } from "./FileIcon";
 
 function join(dir: string, name: string): string {
   return dir ? `${dir}/${name}` : name;
 }
+
+type SortKey = "name" | "size" | "mtime";
 
 export function FilesView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
@@ -30,18 +33,45 @@ export function FilesView({ instance }: { instance: Instance }) {
   const [content, setContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
+  const [sort, setSort] = useState<SortKey>("name");
+  const [asc, setAsc] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState("");
 
   const listing = useQuery({
     queryKey: ["files", instance.id, path],
     queryFn: () => api.listFiles(instance.id, path),
   });
 
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ["files", instance.id, path] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["files", instance.id, path] });
 
-  /** Baixa via token no cabeçalho: cria um blob e dispara o save. */
+  // Trocar de pasta limpa a seleção: ela é por diretório.
+  useEffect(() => setSelected(new Set()), [path]);
+
+  const rows = useMemo(() => {
+    const data = [...(listing.data ?? [])];
+    const dir = asc ? 1 : -1;
+    data.sort((a, b) => {
+      // Pastas sempre antes dos arquivos, como no Explorer.
+      if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+      if (sort === "size") return (a.size - b.size) * dir;
+      if (sort === "mtime") return (a.mtime - b.mtime) * dir;
+      return a.name.localeCompare(b.name, "pt-BR") * dir;
+    });
+    return data;
+  }, [listing.data, sort, asc]);
+
+  function toggleSort(key: SortKey) {
+    if (sort === key) setAsc(!asc);
+    else {
+      setSort(key);
+      setAsc(true);
+    }
+  }
+
   async function download(rel: string) {
     setError("");
+    setBusy(rel);
     try {
       const res = await fetch(api.downloadUrl(instance.id, rel), {
         headers: { Authorization: `Bearer ${getAccessToken()}` },
@@ -49,9 +79,7 @@ export function FilesView({ instance }: { instance: Instance }) {
       if (!res.ok) throw new Error(`falha ao baixar (${res.status})`);
       const blob = await res.blob();
       const nome =
-        res.headers
-          .get("content-disposition")
-          ?.match(/filename="?([^";]+)"?/)?.[1] ??
+        res.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/)?.[1] ??
         (rel.split("/").pop() || `${instance.name}.zip`);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -60,6 +88,8 @@ export function FilesView({ instance }: { instance: Instance }) {
       URL.revokeObjectURL(a.href);
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
+    } finally {
+      setBusy("");
     }
   }
 
@@ -90,14 +120,14 @@ export function FilesView({ instance }: { instance: Instance }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && openFile !== null) {
         e.preventDefault();
         save();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [save]);
+  }, [save, openFile]);
 
   const op = useMutation({
     mutationFn: ({
@@ -113,137 +143,257 @@ export function FilesView({ instance }: { instance: Instance }) {
     onError: (e) => setError(String(e)),
   });
 
+  async function deleteSelected() {
+    const nomes = [...selected];
+    if (!confirm(`Mover ${nomes.length} item(ns) para a lixeira?`)) return;
+    for (const n of nomes) await op.mutateAsync({ kind: "delete", target: join(path, n) });
+    setSelected(new Set());
+  }
+
   const crumbs = path ? path.split("/") : [];
+  const allSelected = rows.length > 0 && selected.size === rows.length;
 
   return (
-    <div className="flex h-full min-h-0">
-      {/* Lista de arquivos */}
-      <div className="flex w-72 shrink-0 flex-col border-r border-border">
-        <div className="flex items-center gap-1 border-b border-border px-2 py-1.5 text-xs">
-          <button className="cursor-pointer text-muted hover:text-text" onClick={() => setPath("")}>
-            {instance.name}
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Barra de caminho e ações */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-border px-3 py-2 text-xs">
+        {path && (
+          <button
+            title="Subir um nível"
+            className="cursor-pointer rounded p-1 text-muted hover:bg-surface-2 hover:text-text"
+            onClick={() => setPath(crumbs.slice(0, -1).join("/"))}
+          >
+            <CornerLeftUp size={14} />
           </button>
-          {crumbs.map((c, i) => (
-            <span key={i} className="flex items-center gap-1">
-              <ChevronRight size={11} className="text-muted" />
-              <button
-                className="cursor-pointer text-muted hover:text-text"
-                onClick={() => setPath(crumbs.slice(0, i + 1).join("/"))}
-              >
-                {c}
-              </button>
-            </span>
-          ))}
-          <span className="ml-auto flex items-center gap-1">
-            <UploadButton instanceId={instance.id} path={path} label="" />
+        )}
+        <button
+          className="cursor-pointer rounded px-1.5 py-0.5 font-medium text-muted hover:bg-surface-2 hover:text-text"
+          onClick={() => setPath("")}
+        >
+          {instance.name}
+        </button>
+        {crumbs.map((c, i) => (
+          <span key={i} className="flex items-center">
+            <ChevronRight size={11} className="text-muted/60" />
             <button
-              title="Novo arquivo"
-              className="cursor-pointer p-1 text-muted hover:text-text"
-              onClick={() => {
-                const name = prompt("Nome do novo arquivo:");
-                if (name) {
-                  setOpenFile(join(path, name));
-                  setContent("");
-                  setDirty(true);
-                }
-              }}
+              className="cursor-pointer rounded px-1.5 py-0.5 text-muted hover:bg-surface-2 hover:text-text"
+              onClick={() => setPath(crumbs.slice(0, i + 1).join("/"))}
             >
-              <FilePlus size={14} />
-            </button>
-            <button
-              title="Baixar esta pasta (.zip)"
-              className="cursor-pointer p-1 text-muted hover:text-text"
-              onClick={() => download(path)}
-            >
-              <Download size={14} />
-            </button>
-            <button
-              title="Nova pasta"
-              className="cursor-pointer p-1 text-muted hover:text-text"
-              onClick={() => {
-                const name = prompt("Nome da nova pasta:");
-                if (name) op.mutate({ kind: "mkdir", target: join(path, name) });
-              }}
-            >
-              <FolderPlus size={14} />
+              {c}
             </button>
           </span>
-        </div>
+        ))}
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-1">
-          {listing.isLoading && <Spinner />}
-          {listing.data?.map((entry) => (
-            <div
-              key={entry.name}
-              className="group flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-muted hover:bg-surface-2 hover:text-text"
-              onClick={() =>
-                entry.is_dir ? setPath(join(path, entry.name)) : open(join(path, entry.name))
+        <span className="ml-auto flex items-center gap-1">
+          <UploadButton instanceId={instance.id} path={path} label="Enviar" />
+          <button
+            title="Novo arquivo"
+            className="cursor-pointer rounded p-1.5 text-muted hover:bg-surface-2 hover:text-text"
+            onClick={() => {
+              const name = prompt("Nome do novo arquivo:");
+              if (name) {
+                setOpenFile(join(path, name));
+                setContent("");
+                setDirty(true);
               }
-            >
-              {entry.is_dir ? (
-                <Folder size={14} className="shrink-0 text-info" />
-              ) : (
-                <File size={14} className="shrink-0" />
-              )}
-              <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-              <span className="hidden text-[10px] group-hover:block">
-                {!entry.is_dir && formatBytes(entry.size)}
-              </span>
-              <button
-                title={entry.is_dir ? "Baixar pasta (.zip)" : "Baixar arquivo"}
-                className="hidden cursor-pointer text-muted hover:text-text group-hover:block"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  download(join(path, entry.name));
-                }}
-              >
-                <Download size={12} />
-              </button>
-              <button
-                title="Renomear"
-                className="hidden cursor-pointer text-muted hover:text-text group-hover:block"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const name = prompt("Novo nome:", entry.name);
-                  if (name && name !== entry.name)
-                    op.mutate({ kind: "rename", target: join(path, entry.name), newName: name });
-                }}
-              >
-                <Pencil size={12} />
-              </button>
-              <button
-                title="Mover para a lixeira"
-                className="hidden cursor-pointer text-muted hover:text-danger group-hover:block"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (confirm(`Mover "${entry.name}" para a lixeira?`))
-                    op.mutate({ kind: "delete", target: join(path, entry.name) });
-                }}
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ))}
-          {listing.data?.length === 0 && (
-            <p className="p-3 text-xs text-muted">Pasta vazia.</p>
-          )}
-        </div>
+            }}
+          >
+            <FilePlus size={15} />
+          </button>
+          <button
+            title="Nova pasta"
+            className="cursor-pointer rounded p-1.5 text-muted hover:bg-surface-2 hover:text-text"
+            onClick={() => {
+              const name = prompt("Nome da nova pasta:");
+              if (name) op.mutate({ kind: "mkdir", target: join(path, name) });
+            }}
+          >
+            <FolderPlus size={15} />
+          </button>
+          <button
+            title="Baixar esta pasta (.zip)"
+            className="cursor-pointer rounded p-1.5 text-muted hover:bg-surface-2 hover:text-text"
+            onClick={() => download(path)}
+          >
+            <Download size={15} />
+          </button>
+        </span>
       </div>
 
-      {/* Editor */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {openFile === null ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted">
-            Selecione um arquivo para editar.
+      {/* Ações em lote */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 border-b border-border bg-surface-2 px-3 py-1.5 text-xs">
+          <span className="font-medium">{selected.size} selecionado(s)</span>
+          <Button
+            variant="default"
+            onClick={async () => {
+              for (const n of selected) await download(join(path, n));
+            }}
+          >
+            <Download size={13} /> Baixar
+          </Button>
+          <Button variant="danger" onClick={deleteSelected}>
+            <Trash2 size={13} /> Mover para a lixeira
+          </Button>
+          <button
+            className="ml-auto cursor-pointer text-muted hover:text-text"
+            onClick={() => setSelected(new Set())}
+          >
+            limpar seleção
+          </button>
+        </div>
+      )}
+
+      {error && <div className="border-b border-border px-3 py-1.5 text-xs text-danger">{error}</div>}
+
+      <div className="flex min-h-0 flex-1">
+        {/* Tabela de arquivos */}
+        <div
+          className={`flex min-h-0 flex-col ${
+            openFile !== null ? "w-80 shrink-0 border-r border-border" : "flex-1"
+          }`}
+        >
+          <div className="min-h-0 flex-1 overflow-auto">
+            {listing.isLoading && <Spinner />}
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-surface-2 text-muted">
+                <tr>
+                  <th className="w-8 px-2 py-1.5">
+                    <input
+                      type="checkbox"
+                      className="accent-(--color-accent-dim)"
+                      checked={allSelected}
+                      onChange={(e) =>
+                        setSelected(e.target.checked ? new Set(rows.map((r) => r.name)) : new Set())
+                      }
+                    />
+                  </th>
+                  <ThSort label="Nome" active={sort === "name"} asc={asc} onClick={() => toggleSort("name")} />
+                  {openFile === null && (
+                    <>
+                      <ThSort
+                        label="Tamanho"
+                        active={sort === "size"}
+                        asc={asc}
+                        onClick={() => toggleSort("size")}
+                        className="w-28"
+                      />
+                      <th className="w-32 px-2 py-1.5 font-semibold">Tipo</th>
+                      <ThSort
+                        label="Modificado"
+                        active={sort === "mtime"}
+                        asc={asc}
+                        onClick={() => toggleSort("mtime")}
+                        className="w-40"
+                      />
+                    </>
+                  )}
+                  <th className="w-24 px-2 py-1.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rows.map((entry: FileEntry) => {
+                  const rel = join(path, entry.name);
+                  const isSel = selected.has(entry.name);
+                  return (
+                    <tr
+                      key={entry.name}
+                      className={`group cursor-pointer ${isSel ? "bg-surface-3" : "hover:bg-surface-2"}`}
+                      onClick={() => (entry.is_dir ? setPath(rel) : open(rel))}
+                    >
+                      <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="accent-(--color-accent-dim)"
+                          checked={isSel}
+                          onChange={(e) => {
+                            const next = new Set(selected);
+                            if (e.target.checked) next.add(entry.name);
+                            else next.delete(entry.name);
+                            setSelected(next);
+                          }}
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <span className="flex items-center gap-2">
+                          <FileIcon name={entry.name} isDir={entry.is_dir} />
+                          <span className="truncate" title={entry.name}>
+                            {entry.name}
+                          </span>
+                        </span>
+                      </td>
+                      {openFile === null && (
+                        <>
+                          <td className="px-2 py-1.5 text-muted tabular-nums">
+                            {entry.is_dir ? "—" : formatBytes(entry.size)}
+                          </td>
+                          <td className="px-2 py-1.5 text-muted">
+                            {fileKind(entry.name, entry.is_dir)}
+                          </td>
+                          <td className="px-2 py-1.5 text-muted whitespace-nowrap">
+                            {new Date(entry.mtime * 1000).toLocaleString("pt-BR")}
+                          </td>
+                        </>
+                      )}
+                      <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                        <span className="flex justify-end gap-1 opacity-0 group-hover:opacity-100">
+                          <button
+                            title={entry.is_dir ? "Baixar pasta (.zip)" : "Baixar"}
+                            className="cursor-pointer text-muted hover:text-text"
+                            onClick={() => download(rel)}
+                            disabled={busy === rel}
+                          >
+                            <Download size={13} />
+                          </button>
+                          <button
+                            title="Renomear"
+                            className="cursor-pointer text-muted hover:text-text"
+                            onClick={() => {
+                              const name = prompt("Novo nome:", entry.name);
+                              if (name && name !== entry.name)
+                                op.mutate({ kind: "rename", target: rel, newName: name });
+                            }}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            title="Mover para a lixeira"
+                            className="cursor-pointer text-muted hover:text-danger"
+                            onClick={() => {
+                              if (confirm(`Mover "${entry.name}" para a lixeira?`))
+                                op.mutate({ kind: "delete", target: rel });
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {!listing.isLoading && rows.length === 0 && (
+              <p className="p-6 text-center text-xs text-muted">Pasta vazia.</p>
+            )}
           </div>
-        ) : (
-          <>
+
+          <div className="border-t border-border px-3 py-1 text-[11px] text-muted">
+            {rows.filter((r) => r.is_dir).length} pasta(s) · {rows.filter((r) => !r.is_dir).length}{" "}
+            arquivo(s) ·{" "}
+            {formatBytes(rows.reduce((s, r) => s + (r.is_dir ? 0 : r.size), 0))}
+          </div>
+        </div>
+
+        {/* Editor */}
+        {openFile !== null && (
+          <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+              <FileIcon name={openFile} isDir={false} />
               <span className="truncate text-xs font-medium">
                 {openFile}
                 {dirty && <span className="text-warn"> ●</span>}
               </span>
-              {error && <span className="truncate text-xs text-danger">{error}</span>}
               <span className="ml-auto flex gap-1.5">
                 <Button variant="primary" disabled={!dirty} onClick={save} title="Ctrl+S">
                   <Save size={13} /> Salvar
@@ -274,9 +424,38 @@ export function FilesView({ instance }: { instance: Instance }) {
                 }}
               />
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+function ThSort({
+  label,
+  active,
+  asc,
+  onClick,
+  className = "",
+}: {
+  label: string;
+  active: boolean;
+  asc: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <th className={`px-2 py-1.5 font-semibold ${className}`}>
+      <button
+        className={`flex cursor-pointer items-center gap-1 hover:text-text ${
+          active ? "text-text" : ""
+        }`}
+        onClick={onClick}
+      >
+        {label}
+        <ArrowUpDown size={11} className={active ? "opacity-100" : "opacity-40"} />
+        {active && <span className="text-[9px]">{asc ? "▲" : "▼"}</span>}
+      </button>
+    </th>
   );
 }
