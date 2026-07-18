@@ -235,62 +235,60 @@ export function ProfileContent() {
   const permitidas = CAPACIDADES.filter((c) => can(user, c.perm));
 
   return (
-    <div className="grid w-full max-w-4xl gap-3 lg:grid-cols-[minmax(0,300px)_1fr]">
-      <div className="space-y-3">
-        <div className="rounded-xl border border-border bg-surface p-5 text-center">
-          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-dim text-2xl font-bold text-black">
-            {user?.username.charAt(0).toUpperCase()}
-          </span>
-          <div className="mt-3 text-lg font-bold">{user?.username}</div>
-          <Badge tone={ROLE_TONE[user?.role ?? ""] ?? "neutral"}>{user?.role}</Badge>
-          <p className="mt-2 text-[11px] text-muted">{ROLE_DESC[user?.role ?? ""]}</p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <KeyRound size={14} /> Sessão
+    <div className="flex w-full flex-col gap-4">
+      {/* Cabeçalho em faixa: o avatar em coluna estreita espremia o texto e
+          quebrava "Controle total, incluindo usuários" no meio. */}
+      <div className="flex flex-wrap items-center gap-5 rounded-xl border border-border bg-surface p-6">
+        <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-accent-dim text-3xl font-bold text-black">
+          {user?.username.charAt(0).toUpperCase()}
+        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-2xl font-bold">{user?.username}</span>
+            <Badge tone={ROLE_TONE[user?.role ?? ""] ?? "neutral"}>{user?.role}</Badge>
           </div>
-          <ul className="mt-2 space-y-1.5 text-xs text-muted">
-            <li className="flex items-center justify-between gap-2">
-              <span>Renovação automática</span>
-              <Badge tone="green">ativa</Badge>
-            </li>
-            <li className="flex items-center justify-between gap-2">
-              <span>Acesso expira em</span>
-              <b className="text-text">30 min</b>
-            </li>
-            <li className="flex items-center justify-between gap-2">
-              <span>Sessão dura</span>
-              <b className="text-text">7 dias</b>
-            </li>
-          </ul>
-          <p className="mt-2.5 text-[10px] text-muted">
-            A troca de senha ainda não está disponível pelo painel — peça ao dono da
-            instalação.
-          </p>
+          <p className="mt-1 text-sm text-muted">{ROLE_DESC[user?.role ?? ""]}</p>
+        </div>
+        <div className="ml-auto flex gap-8 text-sm">
+          <div>
+            <div className="text-[11px] font-semibold tracking-wider text-muted uppercase">
+              Permissões
+            </div>
+            <div className="mt-1 text-2xl font-bold tabular-nums">
+              {permitidas.length}
+              <span className="text-base font-normal text-muted">/{CAPACIDADES.length}</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold tracking-wider text-muted uppercase">
+              Sessão
+            </div>
+            <div className="mt-1 text-2xl font-bold text-accent">ativa</div>
+          </div>
         </div>
       </div>
 
-      <div className="space-y-3">
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <Shield size={14} /> O que você pode fazer
-            <span className="ml-auto text-[11px] font-normal text-muted">
-              {permitidas.length} de {CAPACIDADES.length}
-            </span>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="rounded-xl border border-border bg-surface p-5">
+          <div className="flex items-center gap-2 text-base font-semibold">
+            <Shield size={16} /> O que você pode fazer
           </div>
-          <ul className="mt-2.5 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+          {/* Coluna única: os rótulos são frases e em duas colunas estreitas
+              elas quebravam em pontos arbitrários. */}
+          <ul className="mt-3 space-y-1.5 text-sm">
             {CAPACIDADES.map((c) => {
               const ok = can(user, c.perm);
               return (
                 <li
                   key={c.perm}
-                  className={`flex items-center gap-1.5 ${ok ? "text-text" : "text-muted/60"}`}
+                  className={`flex items-start gap-2.5 rounded-md px-2 py-1.5 ${
+                    ok ? "bg-surface-2 text-text" : "text-muted/70"
+                  }`}
                 >
                   {ok ? (
-                    <Check size={12} className="shrink-0 text-accent" />
+                    <Check size={15} className="mt-px shrink-0 text-accent" />
                   ) : (
-                    <X size={12} className="shrink-0" />
+                    <X size={15} className="mt-px shrink-0" />
                   )}
                   <span className={ok ? "" : "line-through decoration-muted/40"}>{c.label}</span>
                 </li>
@@ -299,32 +297,58 @@ export function ProfileContent() {
           </ul>
         </div>
 
-        {podeAuditar && (
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <History size={14} /> Sua atividade recente
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl border border-border bg-surface p-5">
+            <div className="flex items-center gap-2 text-base font-semibold">
+              <KeyRound size={16} /> Sessão e acesso
             </div>
-            {minhas.length === 0 ? (
-              <p className="mt-2 text-xs text-muted">
-                {atividade.isLoading ? "Carregando…" : "Nada registrado ainda."}
-              </p>
-            ) : (
-              <ul className="mt-2 space-y-1">
-                {minhas.map((e) => (
-                  <li
-                    key={e.id}
-                    className="flex items-center gap-2 rounded-md bg-surface-2 px-2 py-1 text-xs"
-                  >
-                    <span className="truncate font-mono text-[11px]">{e.action}</span>
-                    <span className="ml-auto shrink-0 text-[10px] text-muted">
-                      {new Date(e.created_at).toLocaleString("pt-BR")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <dl className="mt-3 space-y-2 text-sm">
+              {[
+                ["Renovação automática", "ativa"],
+                ["Token de acesso expira em", "30 minutos"],
+                ["Sessão completa dura", "7 dias"],
+              ].map(([rotulo, valor]) => (
+                <div
+                  key={rotulo}
+                  className="flex items-center justify-between gap-4 border-b border-border pb-2 last:border-0 last:pb-0"
+                >
+                  <dt className="text-muted">{rotulo}</dt>
+                  <dd className="shrink-0 font-medium">{valor}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-xs text-muted">
+              Trocar a senha ainda não é possível pelo painel — peça ao dono da instalação.
+            </p>
           </div>
-        )}
+
+          {podeAuditar && (
+            <div className="rounded-xl border border-border bg-surface p-5">
+              <div className="flex items-center gap-2 text-base font-semibold">
+                <History size={16} /> Sua atividade recente
+              </div>
+              {minhas.length === 0 ? (
+                <p className="mt-3 text-sm text-muted">
+                  {atividade.isLoading ? "Carregando…" : "Nada registrado ainda."}
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-1.5">
+                  {minhas.map((e) => (
+                    <li
+                      key={e.id}
+                      className="flex items-center gap-3 rounded-md bg-surface-2 px-3 py-2 text-sm"
+                    >
+                      <span className="truncate font-mono text-xs">{e.action}</span>
+                      <span className="ml-auto shrink-0 text-xs whitespace-nowrap text-muted">
+                        {new Date(e.created_at).toLocaleString("pt-BR")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

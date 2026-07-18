@@ -63,6 +63,25 @@ export function HBarChart({
   );
 }
 
+/** Escolhe a forma do gráfico de categoria conforme a preferência do usuário. */
+export function CategoryChart({
+  data,
+  kind,
+  format,
+  emptyText,
+  size,
+}: {
+  data: BarDatum[];
+  kind: CategoryKind;
+  format?: (n: number) => string;
+  emptyText?: string;
+  /** Diâmetro da rosca/pizza — reduzido nas prévias das configurações. */
+  size?: number;
+}) {
+  if (kind === "barras") return <HBarChart data={data} format={format} emptyText={emptyText} />;
+  return <Donut data={data} variant={kind} size={size} />;
+}
+
 /** Legenda — obrigatória com 2+ entidades, para identidade nunca ser só cor. */
 export function Legend({ items }: { items: { label: string; color: string }[] }) {
   return (
@@ -114,7 +133,42 @@ export function Gauge({
   );
 }
 
-export type SeriesKind = "linha" | "area" | "barras";
+/**
+ * Tipos para métrica contínua no tempo (CPU, memória).
+ *
+ * "barras" saiu daqui de propósito: amostra de uso ao longo do tempo é um
+ * sinal contínuo, e barras sugerem contagens discretas e independentes —
+ * fica ruim de ler. Barras agora só existem em {@link CategoryKind}.
+ */
+export type SeriesKind = "area" | "linha" | "degrau" | "suave";
+
+/** Tipos para composição/ranking por categoria (mods por loader, por instância). */
+export type CategoryKind = "rosca" | "pizza" | "barras";
+
+/** Caminho em degraus: o valor vale até a próxima amostra. */
+function stepPath(pts: { x: number; y: number }[]): string {
+  return pts
+    .map((p, i) => (i === 0 ? `${p.x},${p.y}` : `${p.x},${pts[i - 1].y} ${p.x},${p.y}`))
+    .join(" ");
+}
+
+/** Curva suave (Catmull-Rom convertida em Bézier cúbica). */
+function smoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length < 2) return "";
+  let d = `M ${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
+  }
+  return d;
+}
 
 /** Série temporal com o tipo de visualização escolhido pelo usuário. */
 export function TimeSeries({
@@ -145,6 +199,8 @@ export function TimeSeries({
     v,
   }));
   const line = pts.map((p) => `${p.x},${p.y}`).join(" ");
+  const step = stepPath(pts);
+  const smooth = smoothPath(pts);
   const last = points[points.length - 1];
 
   return (
@@ -161,29 +217,30 @@ export function TimeSeries({
         role="img"
         aria-label={`Série temporal, valor atual ${format(last)}`}
       >
-        {kind === "barras" ? (
-          pts.map((p, i) => (
-            <rect
-              key={i}
-              x={p.x - w / points.length / 2 + 0.3}
-              y={p.y}
-              width={Math.max(w / points.length - 0.6, 0.4)}
-              height={height - p.y}
+        {kind === "suave" ? (
+          <>
+            <path
+              d={`${smooth} L ${w},${height} L 0,${height} Z`}
               fill={color}
-              rx="0.4"
+              opacity="0.18"
             />
-          ))
+            <path
+              d={smooth}
+              fill="none"
+              stroke={color}
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </>
         ) : (
           <>
             {kind === "area" && (
-              <polygon
-                points={`0,${height} ${line} ${w},${height}`}
-                fill={color}
-                opacity="0.18"
-              />
+              <polygon points={`0,${height} ${line} ${w},${height}`} fill={color} opacity="0.18" />
             )}
             <polyline
-              points={line}
+              points={kind === "degrau" ? step : line}
               fill="none"
               stroke={color}
               strokeWidth="2"
@@ -206,15 +263,22 @@ export function TimeSeries({
 export function Donut({
   data,
   size = 168,
+  variant = "rosca",
 }: {
   data: { label: string; value: number; color?: string }[];
   size?: number;
+  /** "pizza" preenche o miolo; o número central some por falta de espaço. */
+  variant?: "rosca" | "pizza";
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return <p className="py-6 text-center text-xs text-muted">Sem dados.</p>;
 
-  const r = 60;
+  const pizza = variant === "pizza";
+  // Na pizza o raio do traço é metade do disco e a espessura o preenche até
+  // o centro; na rosca o anel é fino e sobra miolo para o número.
+  const r = pizza ? 38 : 60;
+  const espessura = pizza ? 76 : 20;
   const c = 2 * Math.PI * r;
   let offset = 0;
   const focused = hover !== null ? data[hover] : null;
@@ -233,7 +297,7 @@ export function Donut({
                 r={r}
                 fill="none"
                 stroke={d.color ?? "var(--color-accent-dim)"}
-                strokeWidth={hover === i ? 26 : 20}
+                strokeWidth={hover === i ? espessura + 6 : espessura}
                 strokeDasharray={dash}
                 strokeDashoffset={-offset}
                 onMouseEnter={() => setHover(i)}
@@ -247,24 +311,22 @@ export function Donut({
             return el;
           })}
         </g>
-        <text
-          x="80"
-          y="76"
-          textAnchor="middle"
-          className="fill-text"
-          style={{ fontSize: 22, fontWeight: 700 }}
-        >
-          {focused ? focused.value : total}
-        </text>
-        <text
-          x="80"
-          y="92"
-          textAnchor="middle"
-          className="fill-muted"
-          style={{ fontSize: 9 }}
-        >
-          {focused ? focused.label : "total"}
-        </text>
+        {!pizza && (
+          <>
+            <text
+              x="80"
+              y="76"
+              textAnchor="middle"
+              className="fill-text"
+              style={{ fontSize: 22, fontWeight: 700 }}
+            >
+              {focused ? focused.value : total}
+            </text>
+            <text x="80" y="92" textAnchor="middle" className="fill-muted" style={{ fontSize: 9 }}>
+              {focused ? focused.label : "total"}
+            </text>
+          </>
+        )}
       </svg>
 
       <div className="flex min-w-0 flex-col gap-1">

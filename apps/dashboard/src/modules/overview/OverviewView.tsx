@@ -1,13 +1,11 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Boxes, HardDrive, Package, Server } from "lucide-react";
-import { useState } from "react";
-import { Donut, Gauge, HBarChart, TimeSeries } from "../../components/BarChart";
-import type { SeriesKind } from "../../components/BarChart";
-import { Badge, Panel, Select, Spinner, StatTile } from "../../components/ui";
+import { CategoryChart, Gauge, HBarChart, TimeSeries } from "../../components/BarChart";
+import { Badge, Panel, Spinner, StatTile } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
+import { useCategoryKind, useSeriesKind } from "../../lib/charts";
 import { chartPalette } from "../../lib/themes";
-import { preferredChartKind } from "../settings/SettingsView";
 
 const STATE_LABEL: Record<string, string> = {
   running: "online",
@@ -18,7 +16,8 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 export function OverviewView({ instances }: { instances: Instance[] }) {
-  const [seriesKind, setSeriesKind] = useState<SeriesKind>(preferredChartKind);
+  const seriesKind = useSeriesKind();
+  const categoryKind = useCategoryKind();
   const palette = chartPalette();
 
   const metrics = useQuery({
@@ -136,21 +135,7 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Panel
-                title="CPU ao longo do tempo"
-                aside={
-                  <Select
-                    className="py-1 text-xs"
-                    value={seriesKind}
-                    onChange={(e) => setSeriesKind(e.target.value as SeriesKind)}
-                    title="Tipo de gráfico"
-                  >
-                    <option value="area">Área</option>
-                    <option value="linha">Linha</option>
-                    <option value="barras">Barras</option>
-                  </Select>
-                }
-              >
+              <Panel title="CPU ao longo do tempo">
                 <TimeSeries
                   points={metrics.data.history.map((h) => h.cpu)}
                   kind={seriesKind}
@@ -215,13 +200,15 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
 
         <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           <Panel title="Mods por loader">
-            <Donut data={loaders} />
+            <CategoryChart data={loaders} kind={categoryKind} />
           </Panel>
 
           <Panel title="Mods por instância">
-            <HBarChart data={perInstance} />
+            <CategoryChart data={perInstance} kind={categoryKind} />
           </Panel>
 
+          {/* Ranking por tamanho: barras sempre — rosca/pizza são para
+              composição, e 8 fatias de bytes não se comparam a olho. */}
           <Panel
             title="Maiores mods"
             aside={<span className="text-[11px] text-muted">top 8</span>}

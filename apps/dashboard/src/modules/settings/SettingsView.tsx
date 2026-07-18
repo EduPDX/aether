@@ -1,9 +1,17 @@
-import { BarChart3, Check, Palette, Shapes, UserRound } from "lucide-react";
+import { Activity, BarChart3, Check, Palette, Shapes, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Donut, TimeSeries } from "../../components/BarChart";
-import type { SeriesKind } from "../../components/BarChart";
-import { Panel, Select } from "../../components/ui";
+import { CategoryChart, TimeSeries } from "../../components/BarChart";
+import type { CategoryKind, SeriesKind } from "../../components/BarChart";
+import { Panel } from "../../components/ui";
+import {
+  CATEGORY_OPTIONS,
+  SERIES_OPTIONS,
+  preferredCategoryKind,
+  preferredSeriesKind,
+  setCategoryKind,
+  setSeriesKind,
+} from "../../lib/charts";
 import type { IconPack } from "../../lib/icons";
 import { ICON_PACKS, currentIconPack, setIconPack } from "../../lib/icons";
 import type { ThemeName } from "../../lib/themes";
@@ -11,13 +19,6 @@ import { THEMES, THEME_NAMES, applyTheme, currentTheme } from "../../lib/themes"
 import { ProfileContent } from "../admin/AdminViews";
 import { FileIcon } from "../files/FileIcon";
 import { IconPreview, ThemePreview } from "./Previews";
-
-const CHART_KEY = "aether.chartKind";
-
-export function preferredChartKind(): SeriesKind {
-  const v = localStorage.getItem(CHART_KEY) as SeriesKind | null;
-  return v === "linha" || v === "barras" || v === "area" ? v : "area";
-}
 
 /** Série de exemplo para a prévia reagir ao tipo escolhido. */
 const SERIE = [12, 18, 15, 27, 34, 30, 45, 38, 52, 47, 61, 55, 48, 40, 33];
@@ -46,20 +47,56 @@ const SECOES: { id: Secao; label: string; icon: ReactNode; grupo: string }[] = [
   { id: "perfil", label: "Meu perfil", icon: <UserRound size={15} />, grupo: "Conta" },
 ];
 
+/** Cartão selecionável com prévia viva do gráfico dentro. */
+function EscolhaGrafico({
+  label,
+  hint,
+  ativo,
+  onSelect,
+  onHover,
+  children,
+}: {
+  label: string;
+  hint: string;
+  ativo: boolean;
+  onSelect: () => void;
+  onHover: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      onMouseEnter={onHover}
+      onFocus={onHover}
+      className={`cursor-pointer rounded-lg border p-3 text-left transition-all ${
+        ativo ? "border-accent ring-1 ring-accent" : "border-border hover:border-muted"
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold">{label}</span>
+        {ativo && <Check size={13} className="text-accent" />}
+      </div>
+      <div className="mt-2">{children}</div>
+      <p className="mt-2 text-[11px] text-muted">{hint}</p>
+    </button>
+  );
+}
+
 export function SettingsView({ initialSection = "tema" }: { initialSection?: Secao }) {
   const [secao, setSecao] = useState<Secao>(initialSection);
   const [theme, setTheme] = useState<ThemeName>(currentTheme);
-  const [chartKind, setChartKind] = useState<SeriesKind>(preferredChartKind);
+  const [serieKind, setSerie] = useState<SeriesKind>(preferredSeriesKind);
+  const [catKind, setCat] = useState<CategoryKind>(preferredCategoryKind);
   const [pack, setPack] = useState<IconPack>(currentIconPack);
   // Hover apenas alimenta a prévia — não aplica nada até o clique.
   const [hoverTheme, setHoverTheme] = useState<ThemeName | null>(null);
   const [hoverPack, setHoverPack] = useState<IconPack | null>(null);
+  const [hoverSerie, setHoverSerie] = useState<SeriesKind | null>(null);
+  const [hoverCat, setHoverCat] = useState<CategoryKind | null>(null);
 
   useEffect(() => applyTheme(theme), [theme]);
-  useEffect(() => {
-    localStorage.setItem(CHART_KEY, chartKind);
-    window.dispatchEvent(new Event("aether:chartkind"));
-  }, [chartKind]);
+  useEffect(() => setSeriesKind(serieKind), [serieKind]);
+  useEffect(() => setCategoryKind(catKind), [catKind]);
   useEffect(() => setIconPack(pack), [pack]);
 
   const preview = THEMES[theme];
@@ -93,7 +130,13 @@ export function SettingsView({ initialSection = "tema" }: { initialSection?: Sec
       </nav>
 
       <div className="min-w-0 flex-1 overflow-y-auto p-4">
-        <div className="flex w-full max-w-4xl flex-col gap-4">
+        {/* O perfil tem listas de frases e respira melhor largo; as demais
+            seções são grades de cartões e ficam estranhas muito esticadas. */}
+        <div
+          className={`flex w-full flex-col gap-4 ${
+            secao === "perfil" ? "max-w-6xl" : "max-w-4xl"
+          }`}
+        >
           {secao === "tema" && (
             <>
               <Panel
@@ -213,42 +256,84 @@ export function SettingsView({ initialSection = "tema" }: { initialSection?: Sec
           )}
 
           {secao === "graficos" && (
-            <Panel
-              title="Gráficos"
-              icon={<BarChart3 size={15} />}
-              hint="Tipo padrão das séries temporais na Visão geral."
-              aside={
-                <Select
-                  className="py-1 text-xs"
-                  value={chartKind}
-                  onChange={(e) => setChartKind(e.target.value as SeriesKind)}
-                >
-                  <option value="area">Área</option>
-                  <option value="linha">Linha</option>
-                  <option value="barras">Barras</option>
-                </Select>
-              }
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <div className="mb-2 text-[11px] text-muted">Prévia — rosca</div>
-                  <Donut data={AMOSTRA.map((d, i) => ({ ...d, color: preview.chart[i] }))} />
+            <>
+              <Panel
+                title="Prévia — CPU e memória ao longo do tempo"
+                hint={`${SERIES_OPTIONS.find((o) => o.id === (hoverSerie ?? serieKind))?.label} — é assim que a Visão geral desenha as métricas.`}
+              >
+                <TimeSeries
+                  points={SERIE}
+                  kind={hoverSerie ?? serieKind}
+                  color={preview.chart[0]}
+                  format={(n) => `${n.toFixed(0)}%`}
+                  height={150}
+                />
+              </Panel>
+
+              <Panel
+                title="Séries temporais"
+                icon={<Activity size={15} />}
+                hint="Usado nos painéis de CPU e memória. Barras não entram aqui: uso ao longo do tempo é um sinal contínuo e barras sugerem contagens separadas."
+              >
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" onMouseLeave={() => setHoverSerie(null)}>
+                  {SERIES_OPTIONS.map((o) => (
+                    <EscolhaGrafico
+                      key={o.id}
+                      label={o.label}
+                      hint={o.hint}
+                      ativo={o.id === serieKind}
+                      onSelect={() => setSerie(o.id)}
+                      onHover={() => setHoverSerie(o.id)}
+                    >
+                      <TimeSeries
+                        points={SERIE}
+                        kind={o.id}
+                        color={preview.chart[0]}
+                        format={() => ""}
+                        height={54}
+                      />
+                    </EscolhaGrafico>
+                  ))}
                 </div>
-                <div>
-                  <div className="mb-2 text-[11px] text-muted">
-                    Prévia — série temporal ({chartKind})
-                  </div>
-                  {/* Reage ao seletor: era estática e não mudava com a escolha. */}
-                  <TimeSeries
-                    points={SERIE}
-                    kind={chartKind}
-                    color={preview.chart[0]}
-                    format={(n) => `${n.toFixed(0)}%`}
-                    height={110}
-                  />
+              </Panel>
+
+              <Panel
+                title="Prévia — mods por loader"
+                hint={`${CATEGORY_OPTIONS.find((o) => o.id === (hoverCat ?? catKind))?.label} — usado nos painéis de contagem da Visão geral.`}
+              >
+                <CategoryChart
+                  data={AMOSTRA.map((d, i) => ({ ...d, color: preview.chart[i] }))}
+                  kind={hoverCat ?? catKind}
+                />
+              </Panel>
+
+              <Panel
+                title="Gráficos de categoria"
+                icon={<BarChart3 size={15} />}
+                hint="Usado em mods por loader, mods por instância e maiores mods."
+              >
+                <div className="grid gap-2 sm:grid-cols-3" onMouseLeave={() => setHoverCat(null)}>
+                  {CATEGORY_OPTIONS.map((o) => (
+                    <EscolhaGrafico
+                      key={o.id}
+                      label={o.label}
+                      hint={o.hint}
+                      ativo={o.id === catKind}
+                      onSelect={() => setCat(o.id)}
+                      onHover={() => setHoverCat(o.id)}
+                    >
+                      <div className="pointer-events-none flex h-[104px] items-center justify-center">
+                        <CategoryChart
+                          data={AMOSTRA.map((d, i) => ({ ...d, color: preview.chart[i] }))}
+                          kind={o.id}
+                          size={96}
+                        />
+                      </div>
+                    </EscolhaGrafico>
+                  ))}
                 </div>
-              </div>
-            </Panel>
+              </Panel>
+            </>
           )}
 
           {secao === "perfil" && <ProfileContent />}
