@@ -35,9 +35,20 @@ MANIFEST_VERSION = 1
 
 class SyncRule(BaseModel):
     dir: str
+    """Pasta de origem, relativa à raiz da instância."""
+    target: str | None = None
+    """Pasta de destino no cliente. ``None`` = mesma de ``dir``.
+
+    É o que permite o perfil de cliente: os arquivos vivem em
+    ``aether-client/mods`` no servidor e caem em ``mods`` no PC do jogador.
+    """
     patterns: list[str] = Field(default_factory=lambda: ["*"])
     recursive: bool = True
     action: Literal["require", "optional"] = "require"
+
+    @property
+    def client_dir(self) -> str:
+        return (self.target if self.target is not None else self.dir).strip("/")
 
 
 class SyncRules(BaseModel):
@@ -151,7 +162,7 @@ class SyncService:
             "generated_at": datetime.now(UTC).isoformat(),
             "files": files,
             "managed": [
-                {"dir": r.dir, "patterns": r.patterns, "recursive": r.recursive}
+                {"dir": r.client_dir, "patterns": r.patterns, "recursive": r.recursive}
                 for r in profile.rules.rules
                 if r.action == "require"
             ],
@@ -201,11 +212,17 @@ class SyncService:
                     continue
                 if not any(fnmatch.fnmatch(name.lower(), p.lower()) for p in rule.patterns):
                     continue
-                rel = path.relative_to(root).as_posix()
+                source = path.relative_to(root).as_posix()
+                sub = path.relative_to(base).as_posix()
+                client_dir = rule.client_dir
+                rel = f"{client_dir}/{sub}" if client_dir else sub
                 if rel in seen:
                     continue
                 seen[rel] = {
+                    # 'path' é onde o arquivo cai no cliente; 'source' é onde
+                    # ele está no servidor (usado só pelo download).
                     "path": rel,
+                    "source": source,
                     "sha256": _sha256_file(path),
                     "size": path.stat().st_size,
                     "action": rule.action,
@@ -229,10 +246,11 @@ class SyncService:
         if profile.manifest is None:
             raise NotFoundError("profile has no published manifest")
         rel_path = rel_path.replace("\\", "/").lstrip("/")
-        listed = {f["path"] for f in profile.manifest["files"]}
-        if rel_path not in listed:
+        entry = next((f for f in profile.manifest["files"] if f["path"] == rel_path), None)
+        if entry is None:
             raise NotFoundError(f"file is not part of the manifest: {rel_path}")
-        full = (Path(instance.root_dir) / rel_path).resolve()
+        # Manifestos antigos não têm 'source': o destino era a própria origem.
+        full = (Path(instance.root_dir) / entry.get("source", rel_path)).resolve()
         root = Path(instance.root_dir).resolve()
         if root not in full.parents:
             raise ForbiddenError("path escapes the instance root")

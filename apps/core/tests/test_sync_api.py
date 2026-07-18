@@ -162,3 +162,48 @@ def test_manifest_includes_game_metadata(client, tmp_path):
         "loader": "forge",
         "loader_version": "47.2.0",
     }
+
+
+def test_client_profile_maps_source_dir_to_client_dir(client, tmp_path):
+    """Perfil de cliente: arquivos de aether-client/mods caem em mods/."""
+    root = tmp_path / "srv-cliente"
+    (root / "aether-client" / "mods").mkdir(parents=True)
+    (root / "mods").mkdir()
+    (root / "aether-client" / "mods" / "Jade.jar").write_bytes(b"mod-do-cliente")
+    (root / "mods" / "spark.jar").write_bytes(b"so-do-servidor")
+    iid = create_instance(client, root)
+
+    res = client.post(
+        f"/api/v1/instances/{iid}/sync-profiles",
+        json={
+            "name": "Jogadores",
+            "channel": "stable",
+            "rules": {
+                "rules": [
+                    {
+                        "dir": "aether-client/mods",
+                        "target": "mods",
+                        "patterns": ["*.jar"],
+                        "action": "require",
+                    }
+                ],
+                "exclude": [],
+            },
+        },
+    )
+    pid = res.json()["id"]
+    client.post(f"/api/v1/instances/{iid}/sync-profiles/{pid}/publish")
+
+    manifest = client.get(f"/api/v1/public/sync/{pid}").json()["manifest"]
+    paths = {f["path"] for f in manifest["files"]}
+    # o jogador recebe em mods/, não em aether-client/mods/
+    assert paths == {"mods/Jade.jar"}
+    # o mod exclusivo do servidor não vai junto
+    assert not any("spark" in p for p in paths)
+    # a pasta gerenciada (para aposentar extras) é a do cliente
+    assert manifest["managed"][0]["dir"] == "mods"
+
+    # o download resolve de volta para o arquivo real no servidor
+    dl = client.get(f"/api/v1/public/sync/{pid}/file", params={"path": "mods/Jade.jar"})
+    assert dl.status_code == 200
+    assert dl.content == b"mod-do-cliente"

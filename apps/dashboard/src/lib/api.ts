@@ -287,6 +287,8 @@ export interface MetricsPayload {
 
 export interface SyncRule {
   dir: string;
+  /** Onde cai no PC do jogador. Ausente = mesma pasta de origem. */
+  target?: string | null;
   patterns: string[];
   recursive: boolean;
   action: "require" | "optional";

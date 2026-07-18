@@ -5,18 +5,37 @@ import { Badge, Button, Input, Modal, Select, Spinner } from "../../components/u
 import type { Instance, SyncProfileOut, SyncRule, SyncRules } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
 
-const MINECRAFT_PRESET: SyncRules = {
+/** Padrão correto para jogadores: entrega o PERFIL DE CLIENTE
+ *  (aether-client/mods) na pasta mods/ do PC deles. */
+const PRESET_CLIENTE: SyncRules = {
   rules: [
-    { dir: "mods", patterns: ["*.jar"], recursive: true, action: "require" },
-    { dir: "config", patterns: ["*"], recursive: true, action: "optional" },
-    { dir: "resourcepacks", patterns: ["*"], recursive: true, action: "optional" },
+    {
+      dir: "aether-client/mods",
+      target: "mods",
+      patterns: ["*.jar"],
+      recursive: true,
+      action: "require",
+    },
+    { dir: "config", target: "config", patterns: ["*"], recursive: true, action: "optional" },
   ],
+  exclude: ["*.bak", "*.tmp"],
+};
+
+/** Espelha a pasta do servidor (útil para réplicas, não para jogadores). */
+const PRESET_SERVIDOR: SyncRules = {
+  rules: [{ dir: "mods", target: "mods", patterns: ["*.jar"], recursive: true, action: "require" }],
   exclude: ["*.bak", "*.tmp"],
 };
 
 function ruleSummary(rules: SyncRules): string {
   return rules.rules
-    .map((r) => `${r.dir}/ (${r.patterns.join(", ")}) ${r.action === "require" ? "obrigatório" : "opcional"}`)
+    .map((r) => {
+      const dest = r.target ?? r.dir;
+      const seta = dest !== r.dir ? ` → ${dest}/` : "";
+      return `${r.dir}/${seta} (${r.patterns.join(", ")}) ${
+        r.action === "require" ? "obrigatório" : "opcional"
+      }`;
+    })
     .join(" · ");
 }
 
@@ -154,7 +173,7 @@ function CreateProfileDialog({
   const qc = useQueryClient();
   const [name, setName] = useState("Jogadores");
   const [channel, setChannel] = useState("stable");
-  const [rules, setRules] = useState<SyncRules>(MINECRAFT_PRESET);
+  const [rules, setRules] = useState<SyncRules>(PRESET_CLIENTE);
   const [error, setError] = useState("");
 
   const create = useMutation({
@@ -192,15 +211,39 @@ function CreateProfileDialog({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs text-muted">Regras</label>
+          <label className="mb-1 block text-xs text-muted">Modelo</label>
+          <div className="flex gap-2">
+            <Button variant="default" onClick={() => setRules(PRESET_CLIENTE)}>
+              Perfil de cliente
+            </Button>
+            <Button variant="ghost" onClick={() => setRules(PRESET_SERVIDOR)}>
+              Espelhar servidor
+            </Button>
+          </div>
+          <p className="mt-1 text-[11px] text-muted/80">
+            O perfil de cliente entrega os mods de <code>aether-client/mods</code> na pasta{" "}
+            <code>mods</code> do jogador — é o que o launcher deve usar.
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted">
+            Regras <span className="text-muted/70">(origem no servidor → destino no cliente)</span>
+          </label>
           <div className="space-y-1.5">
             {rules.rules.map((rule, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <Input
-                  className="w-28"
+                  className="w-32 text-xs"
                   value={rule.dir}
                   onChange={(e) => setRule(i, { dir: e.target.value })}
-                  placeholder="pasta"
+                  placeholder="origem"
+                />
+                <span className="text-muted">→</span>
+                <Input
+                  className="w-24 text-xs"
+                  value={rule.target ?? ""}
+                  onChange={(e) => setRule(i, { target: e.target.value || null })}
+                  placeholder="destino"
                 />
                 <Input
                   className="flex-1"
@@ -242,7 +285,7 @@ function CreateProfileDialog({
                 ...prev,
                 rules: [
                   ...prev.rules,
-                  { dir: "", patterns: ["*"], recursive: true, action: "require" },
+                  { dir: "", target: "", patterns: ["*"], recursive: true, action: "require" },
                 ],
               }))
             }
