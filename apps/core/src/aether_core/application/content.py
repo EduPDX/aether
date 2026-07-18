@@ -22,7 +22,11 @@ from aether_core.application.ports import (
     ProviderRegistry,
 )
 from aether_core.domain.content import ContentItem, is_enabled, mark_duplicates, toggled_name
-from aether_core.domain.errors import ContentFolderMissingError, ContentTypeNotFoundError
+from aether_core.domain.errors import (
+    ContentFolderMissingError,
+    ContentTypeNotFoundError,
+    ValidationFailedError,
+)
 from aether_core.domain.instances import Instance
 
 
@@ -146,19 +150,48 @@ class ContentService:
         await self._bus.publish("content.trashed", {"instance_id": instance.id, "file": file_name})
         return moved_to
 
-    async def copy(self, source: Instance, target: Instance, ctype_id: str, file_name: str) -> None:
+    async def copy(
+        self,
+        source: Instance,
+        target: Instance,
+        ctype_id: str,
+        file_name: str,
+        target_ctype_id: str | None = None,
+    ) -> None:
+        """Copia um arquivo entre conjuntos de conteúdo.
+
+        O tipo de destino pode diferir do de origem: é assim que um mod do
+        servidor é levado para o perfil do cliente da mesma instância.
+        """
         src_folder = self._folder(source, self._content_type(source, ctype_id))
-        dst_folder = self._folder(target, self._content_type(target, ctype_id))
+        dst_folder = self._folder(
+            target, self._content_type(target, target_ctype_id or ctype_id)
+        )
         file_name = Path(file_name).name
+        if src_folder == dst_folder:
+            raise ValidationFailedError("origem e destino são a mesma pasta")
         await asyncio.to_thread(self._fs.copy, src_folder, file_name, dst_folder)
         await self._bus.publish(
             "content.copied",
             {"from": source.id, "to": target.id, "file": file_name},
         )
 
-    async def compare(self, a: Instance, b: Instance, ctype_id: str) -> CompareResult:
+    async def compare(
+        self,
+        a: Instance,
+        b: Instance,
+        ctype_id: str,
+        b_ctype_id: str | None = None,
+    ) -> CompareResult:
+        """Diferença entre dois conjuntos de conteúdo.
+
+        Os lados são pares (instância, tipo) independentes. Com o mesmo tipo
+        dos dois lados compara dois servidores; com tipos diferentes na mesma
+        instância compara os mods do servidor com os do cliente, que é como se
+        descobre incompatibilidade antes de o jogo crashar.
+        """
         items_a = await self.list_content(a, ctype_id)
-        items_b = await self.list_content(b, ctype_id)
+        items_b = await self.list_content(b, b_ctype_id or ctype_id)
 
         def key(item: ContentItem) -> str:
             return item.metadata.content_id or item.file.lower()

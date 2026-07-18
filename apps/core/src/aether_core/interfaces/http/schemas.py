@@ -39,6 +39,11 @@ class ContentFileRequest(BaseModel):
 
 class CopyContentRequest(ContentFileRequest):
     to_instance_id: str
+    """Tipo de destino; ausente = mesmo tipo da origem.
+
+    Difere ao levar um mod do servidor para o perfil de cliente da instância.
+    """
+    to_type: str | None = None
 
 
 class ContentItemOut(BaseModel):

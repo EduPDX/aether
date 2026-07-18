@@ -204,14 +204,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ type, file }),
     }),
-  copy: (fromId: string, toId: string, file: string, type = "mod") =>
+  /** `toType` difere de `type` ao levar um mod do servidor para o cliente. */
+  copy: (fromId: string, toId: string, file: string, type = "mod", toType?: string) =>
     request<void>(`/api/v1/instances/${fromId}/content/copy`, {
       method: "POST",
-      body: JSON.stringify({ type, file, to_instance_id: toId }),
+      body: JSON.stringify({ type, file, to_instance_id: toId, to_type: toType ?? null }),
     }),
-  compare: (aId: string, bId: string, type = "mod") =>
+  compare: (aId: string, bId: string, type = "mod", withType?: string) =>
     request<CompareResult>(
-      `/api/v1/instances/${aId}/content/compare?with=${bId}&type=${type}`,
+      `/api/v1/instances/${aId}/content/compare?with=${bId}&type=${type}` +
+        (withType ? `&with_type=${withType}` : ""),
     ),
   power: (id: string, action: "start" | "stop" | "restart" | "kill") =>
     request<{ state: InstanceState }>(`/api/v1/instances/${id}/power`, {

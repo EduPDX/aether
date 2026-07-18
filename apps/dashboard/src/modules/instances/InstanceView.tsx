@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthGate";
 import { ConfigView } from "../config/ConfigView";
 import { ConsoleView } from "../console/ConsoleView";
 import { ContentView } from "../content/ContentView";
+import { ServerClientDiff } from "../content/ServerClientDiff";
 import { FilesView } from "../files/FilesView";
 import { SyncView } from "../sync/SyncView";
 
@@ -28,7 +29,7 @@ const STATE_TONE: Record<InstanceState, "neutral" | "green" | "orange" | "red"> 
   crashed: "red",
 };
 
-type Tab = "content" | "client" | "console" | "files" | "config" | "sync";
+type Tab = "content" | "client" | "diff" | "console" | "files" | "config" | "sync";
 
 export function InstanceView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
@@ -96,7 +97,10 @@ export function InstanceView({ instance }: { instance: Instance }) {
             [
               ["content", "Mods do servidor"],
               ...(can(user, "content.read")
-                ? [["client", "Mods do cliente"] as [Tab, string]]
+                ? ([
+                    ["client", "Mods do cliente"],
+                    ["diff", "Servidor × Cliente"],
+                  ] as [Tab, string][])
                 : []),
               ["console", "Console"],
               ...(can(user, "files.read") ? [["files", "Arquivos"] as [Tab, string]] : []),
@@ -122,6 +126,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
         {tab === "client" && (
           <ContentView instance={instance} contentType="mod_client" />
         )}
+        {tab === "diff" && <ServerClientDiff instance={instance} />}
         {tab === "console" && <ConsoleView instance={instance} />}
         {tab === "files" && <FilesView instance={instance} />}
         {tab === "config" && <ConfigView instance={instance} />}

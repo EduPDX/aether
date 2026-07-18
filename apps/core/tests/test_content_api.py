@@ -121,6 +121,73 @@ def test_compare(client, mods_dir, tmp_path):
     assert diff["b"]["version"] == "2.0.0"
 
 
+def test_compare_server_against_client_profile(client, tmp_path):
+    """Diff entre os dois lados da MESMA instância.
+
+    É como se descobre que o cliente está sem um mod que o servidor exige
+    antes de o jogo crashar ao entrar no mundo.
+    """
+    root = tmp_path / "instancia"
+    (root / "mods").mkdir(parents=True)
+    (root / "aether-client" / "mods").mkdir(parents=True)
+    make_mod_jar(root / "mods", "shared-1.0.jar", "shared", "1.0.0")
+    make_mod_jar(root / "mods", "so-no-servidor.jar", "servidor")
+    make_mod_jar(root / "aether-client" / "mods", "shared-2.0.jar", "shared", "2.0.0")
+    make_mod_jar(root / "aether-client" / "mods", "so-no-cliente.jar", "cliente")
+
+    res = client.post(
+        "/api/v1/instances",
+        json={"name": "Servidor", "provider_id": "minecraft", "root_dir": str(root)},
+    )
+    assert res.status_code == 201, res.text
+    iid = res.json()["id"]
+
+    res = client.get(
+        f"/api/v1/instances/{iid}/content/compare",
+        params={"with": iid, "type": "mod", "with_type": "mod_client"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert [i["file"] for i in body["only_in_a"]] == ["so-no-servidor.jar"]
+    assert [i["file"] for i in body["only_in_b"]] == ["so-no-cliente.jar"]
+    assert len(body["version_diffs"]) == 1
+    diff = body["version_diffs"][0]
+    assert diff["content_id"] == "shared"
+    assert (diff["a"]["version"], diff["b"]["version"]) == ("1.0.0", "2.0.0")
+
+
+def test_copy_from_server_to_client_profile(client, tmp_path):
+    root = tmp_path / "instancia2"
+    (root / "mods").mkdir(parents=True)
+    make_mod_jar(root / "mods", "levar.jar", "levar")
+    res = client.post(
+        "/api/v1/instances",
+        json={"name": "Servidor", "provider_id": "minecraft", "root_dir": str(root)},
+    )
+    iid = res.json()["id"]
+
+    res = client.post(
+        f"/api/v1/instances/{iid}/content/copy",
+        json={"to_instance_id": iid, "type": "mod", "to_type": "mod_client", "file": "levar.jar"},
+    )
+    assert res.status_code == 204, res.text
+    assert (root / "aether-client" / "mods" / "levar.jar").exists()
+    # o original continua no servidor: é cópia, não movimentação
+    assert (root / "mods" / "levar.jar").exists()
+
+
+def test_copy_into_the_same_folder_is_rejected(client, mods_dir):
+    """Sem isso, copiar para o mesmo tipo na mesma instância se copiaria
+    sobre si mesmo — silenciosamente ou corrompendo o arquivo."""
+    make_mod_jar(mods_dir, "alpha.jar", "alpha")
+    iid = create_instance(client, mods_dir)
+    res = client.post(
+        f"/api/v1/instances/{iid}/content/copy",
+        json={"to_instance_id": iid, "type": "mod", "file": "alpha.jar"},
+    )
+    assert res.status_code == 400, res.text
+
+
 def test_cache_survives_relisting(client, mods_dir):
     make_mod_jar(mods_dir, "alpha-1.0.jar", "alpha")
     iid = create_instance(client, mods_dir)

@@ -73,7 +73,7 @@ async def copy_content(
 ) -> None:
     source = await instances.get(instance_id)
     target = await instances.get(body.to_instance_id)
-    await content.copy(source, target, body.type, body.file)
+    await content.copy(source, target, body.type, body.file, body.to_type)
 
 
 @router.get("/instances/{instance_id}/content/compare")
@@ -84,10 +84,11 @@ async def compare_content(
     instances: InstanceServiceDep,
     content: ContentServiceDep,
     _: ContentRead,
+    with_type: Annotated[str | None, Query(alias="with_type")] = None,
 ) -> CompareOut:
     a = await instances.get(instance_id)
     b = await instances.get(with_instance)
-    result = await content.compare(a, b, type)
+    result = await content.compare(a, b, type, with_type)
     return CompareOut(
         only_in_a=[ContentItemOut.from_domain(i) for i in result.only_in_a],
         only_in_b=[ContentItemOut.from_domain(i) for i in result.only_in_b],
