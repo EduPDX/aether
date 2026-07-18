@@ -104,6 +104,23 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.include_router(ws_router)
 
     @app.middleware("http")
+    async def no_cache_html(request, call_next):
+        """O index.html nunca pode ficar em cache.
+
+        Os assets têm hash no nome (podem ser cacheados para sempre), mas
+        se o navegador guardar o index.html antigo ele continua pedindo o
+        bundle antigo — foi assim que uma atualização do painel não
+        apareceu para o usuário.
+        """
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/app") and (path.endswith("/") or path.endswith(".html")):
+            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        elif path.startswith("/app/assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+    @app.middleware("http")
     async def audit_middleware(request, call_next):
         response = await call_next(request)
         if (

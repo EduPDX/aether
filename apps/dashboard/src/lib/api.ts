@@ -351,6 +351,35 @@ export function can(user: AuthUser | null, permission: string): boolean {
   return perms.includes("*") || perms.includes(permission);
 }
 
+/** Copia texto funcionando também fora de contexto seguro (http://IP).
+ *  navigator.clipboard só existe em HTTPS/localhost — no acesso por IP da
+ *  rede ele é indefinido, por isso o fallback com textarea. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* cai no fallback */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;

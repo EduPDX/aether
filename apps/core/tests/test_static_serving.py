@@ -24,3 +24,19 @@ def test_no_static_dir_means_api_only(tmp_path):
     with TestClient(create_app(settings)) as client:
         assert client.get("/").status_code == 404
         assert client.get("/api/v1/health").status_code == 200
+
+
+def test_index_html_is_never_cached(tmp_path):
+    """Atualização do painel precisa aparecer sem hard refresh."""
+    static = tmp_path / "dist"
+    (static / "assets").mkdir(parents=True)
+    (static / "index.html").write_text("<html><body>Aether</body></html>", encoding="utf-8")
+    (static / "assets" / "app-abc123.js").write_text("console.log(1)", encoding="utf-8")
+
+    settings = AppSettings(data_dir=tmp_path / "data", static_dir=static)
+    with TestClient(create_app(settings)) as client:
+        html = client.get("/app/")
+        assert "no-cache" in html.headers.get("cache-control", "")
+
+        asset = client.get("/app/assets/app-abc123.js")
+        assert "immutable" in asset.headers.get("cache-control", "")

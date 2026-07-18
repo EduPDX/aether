@@ -3,7 +3,7 @@ import { Copy, Plus, Trash2, UploadCloud } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Input, Modal, Select, Spinner } from "../../components/ui";
 import type { Instance, SyncProfileOut, SyncRule, SyncRules } from "../../lib/api";
-import { api, formatBytes } from "../../lib/api";
+import { api, copyText, formatBytes } from "../../lib/api";
 
 /** Padrão correto para jogadores: entrega o PERFIL DE CLIENTE
  *  (aether-client/mods) na pasta mods/ do PC deles. */
@@ -64,11 +64,10 @@ export function SyncView({ instance }: { instance: Instance }) {
     onError: (e) => setError(String(e)),
   });
 
-  function copyCommand(profile: SyncProfileOut) {
-    const cmd = `aether-sync ${location.origin} ${profile.id} --dir <pasta-do-minecraft>`;
-    navigator.clipboard.writeText(cmd);
-    setCopied(profile.id);
-    setTimeout(() => setCopied(""), 2000);
+  async function copyProfileId(profile: SyncProfileOut) {
+    const ok = await copyText(profile.id);
+    setCopied(ok ? profile.id : `falhou:${profile.id}`);
+    setTimeout(() => setCopied(""), 2500);
   }
 
   if (query.isLoading) return <Spinner />;
@@ -125,8 +124,17 @@ export function SyncView({ instance }: { instance: Instance }) {
                       : "Publicar"}
                 </Button>
                 {p.published_at && (
-                  <Button variant="ghost" onClick={() => copyCommand(p)} title="Copiar comando">
-                    <Copy size={13} /> {copied === p.id ? "Copiado!" : "Comando"}
+                  <Button
+                    variant="ghost"
+                    onClick={() => copyProfileId(p)}
+                    title="Copiar o código do perfil para colar no launcher"
+                  >
+                    <Copy size={13} />
+                    {copied === p.id
+                      ? "Copiado!"
+                      : copied === `falhou:${p.id}`
+                        ? "Copie abaixo"
+                        : "Copiar código"}
                   </Button>
                 )}
                 <Button
@@ -144,9 +152,18 @@ export function SyncView({ instance }: { instance: Instance }) {
               <p className="text-[11px] text-muted/70">Exclui: {p.rules.exclude.join(", ")}</p>
             )}
             {p.published_at && (
-              <p className="mt-1 text-[11px] text-muted/70">
-                Manifesto público: <code>/api/v1/public/sync/{p.id}</code>
-              </p>
+              <div className="mt-2 rounded-md border border-border bg-surface-2 p-2">
+                <div className="text-[11px] text-muted">
+                  Código do perfil — cole no launcher (clique para selecionar):
+                </div>
+                <input
+                  readOnly
+                  value={p.id}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onClick={(e) => e.currentTarget.select()}
+                  className="mt-1 w-full cursor-text bg-transparent font-mono text-xs text-text outline-none"
+                />
+              </div>
             )}
           </div>
         ))}
