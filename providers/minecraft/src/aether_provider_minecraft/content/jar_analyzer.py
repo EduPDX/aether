@@ -213,9 +213,14 @@ def _guess_game_version_from_filename(file_name: str) -> str:
 
 
 class JarModAnalyzer:
-    """ContentAnalyzer for Minecraft mod jars (Forge, NeoForge, Fabric)."""
+    """ContentAnalyzer for Minecraft mod jars (Forge, NeoForge, Fabric).
 
-    content_type = "mod"
+    The same logic serves both the server mods and the client profile, so
+    the content type it answers for is configurable.
+    """
+
+    def __init__(self, content_type: str = "mod") -> None:
+        self.content_type = content_type
 
     def analyze(self, path: Path) -> ContentMetadata:
         file_name = path.name

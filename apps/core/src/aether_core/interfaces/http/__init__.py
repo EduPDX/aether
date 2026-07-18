@@ -7,6 +7,7 @@ from fastapi import APIRouter, FastAPI
 
 from aether_core import __version__
 from aether_core.application.events import EventBus
+from aether_core.application.metrics import MetricsService
 from aether_core.infrastructure.db import make_engine, make_session_factory, run_migrations
 from aether_core.infrastructure.filesystem import FileIconStore, LocalContentFilesystem
 from aether_core.infrastructure.processes import LocalProcessSupervisor
@@ -27,6 +28,7 @@ from aether_core.interfaces.http.routes import (
     files,
     instances,
     meta,
+    metrics,
     power,
     public,
     sync,
@@ -70,6 +72,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.state.fs = LocalContentFilesystem()
     app.state.icons = FileIconStore(settings.icons_dir)
     app.state.supervisor = LocalProcessSupervisor(app.state.bus)
+    app.state.metrics = MetricsService(app.state.supervisor)
     app.state.jwt_secret = load_or_create_secret(settings.data_dir)
     app.state.sync_signer = _SyncSigner(load_or_create_sync_key(settings.data_dir))
 
@@ -96,6 +99,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(sync.router)
     api.include_router(public.router)
     api.include_router(browse.router)
+    api.include_router(metrics.router)
     app.include_router(api)
     app.include_router(ws_router)
 

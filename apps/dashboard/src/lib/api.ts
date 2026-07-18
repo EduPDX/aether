@@ -183,6 +183,7 @@ export const api = {
   }) => request<Instance>("/api/v1/instances", { method: "POST", body: JSON.stringify(body) }),
   deleteInstance: (id: string) =>
     request<void>(`/api/v1/instances/${id}`, { method: "DELETE" }),
+  metrics: () => request<MetricsPayload>("/api/v1/metrics"),
   content: (id: string, type = "mod") =>
     request<ContentItem[]>(`/api/v1/instances/${id}/content?type=${type}`),
   toggle: (id: string, file: string, type = "mod") =>
@@ -267,6 +268,22 @@ export const api = {
   deleteSyncProfile: (id: string, profileId: string) =>
     request<void>(`/api/v1/instances/${id}/sync-profiles/${profileId}`, { method: "DELETE" }),
 };
+
+export interface HostMetrics {
+  cpu_percent: number; cpu_count: number;
+  mem_total: number; mem_used: number; mem_percent: number;
+  disk_total: number; disk_used: number; disk_percent: number;
+  uptime_seconds: number; load_avg: number[];
+}
+export interface ProcMetrics {
+  instance_id: string; name: string; pid: number | null;
+  cpu_percent: number; mem_bytes: number; running: boolean;
+}
+export interface MetricsPayload {
+  host: HostMetrics;
+  instances: ProcMetrics[];
+  history: { ts: number; cpu: number; mem_percent: number; mem_used: number }[];
+}
 
 export interface SyncRule {
   dir: string;

@@ -1,11 +1,13 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Boxes, HardDrive, Package, Server } from "lucide-react";
+import { useState } from "react";
 import type { ReactNode } from "react";
-import { HBarChart, Legend } from "../../components/BarChart";
-import { Badge, Spinner } from "../../components/ui";
+import { Gauge, HBarChart, Legend, TimeSeries } from "../../components/BarChart";
+import type { SeriesKind } from "../../components/BarChart";
+import { Badge, Select, Spinner } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
-import { CHART_CATEGORICAL } from "../../lib/themes";
+import { chartPalette } from "../../lib/themes";
 
 function StatTile({
   icon,
@@ -52,6 +54,15 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 export function OverviewView({ instances }: { instances: Instance[] }) {
+  const [seriesKind, setSeriesKind] = useState<SeriesKind>("area");
+  const palette = chartPalette();
+
+  const metrics = useQuery({
+    queryKey: ["metrics"],
+    queryFn: api.metrics,
+    refetchInterval: 5000,
+  });
+
   const statuses = useQuery({
     queryKey: ["instances"],
     queryFn: api.instances,
@@ -89,7 +100,7 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
     .map(([label, value], idx) => ({
       label,
       value,
-      color: CHART_CATEGORICAL[idx % CHART_CATEGORICAL.length],
+      color: palette[idx % palette.length],
     }));
 
   // Ranking: maiores mods (série única → cor de destaque, sem legenda).
@@ -120,6 +131,88 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+        {metrics.data && (
+          <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Gauge
+                percent={metrics.data.host.cpu_percent}
+                label="CPU"
+                detail={`${metrics.data.host.cpu_count} núcleos${
+                  metrics.data.host.load_avg.length
+                    ? ` · carga ${metrics.data.host.load_avg[0].toFixed(2)}`
+                    : ""
+                }`}
+                color={palette[0]}
+              />
+              <Gauge
+                percent={metrics.data.host.mem_percent}
+                label="Memória RAM"
+                detail={`${formatBytes(metrics.data.host.mem_used)} de ${formatBytes(
+                  metrics.data.host.mem_total,
+                )}`}
+                color={palette[1]}
+              />
+              <Gauge
+                percent={metrics.data.host.disk_percent}
+                label="Armazenamento"
+                detail={`${formatBytes(metrics.data.host.disk_used)} de ${formatBytes(
+                  metrics.data.host.disk_total,
+                )}`}
+                color={palette[2]}
+              />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Panel
+                title="CPU ao longo do tempo"
+                aside={
+                  <Select
+                    className="py-1 text-xs"
+                    value={seriesKind}
+                    onChange={(e) => setSeriesKind(e.target.value as SeriesKind)}
+                    title="Tipo de gráfico"
+                  >
+                    <option value="area">Área</option>
+                    <option value="linha">Linha</option>
+                    <option value="barras">Barras</option>
+                  </Select>
+                }
+              >
+                <TimeSeries
+                  points={metrics.data.history.map((h) => h.cpu)}
+                  kind={seriesKind}
+                  color={palette[0]}
+                  format={(n) => `${n.toFixed(0)}%`}
+                />
+              </Panel>
+              <Panel title="Memória ao longo do tempo">
+                <TimeSeries
+                  points={metrics.data.history.map((h) => h.mem_percent)}
+                  kind={seriesKind}
+                  color={palette[1]}
+                  format={(n) => `${n.toFixed(0)}%`}
+                />
+              </Panel>
+            </div>
+
+            {metrics.data.instances.some((i) => i.running) && (
+              <Panel title="Consumo por servidor">
+                <HBarChart
+                  data={metrics.data.instances
+                    .filter((i) => i.running)
+                    .map((i, idx) => ({
+                      label: i.name,
+                      value: i.mem_bytes,
+                      color: palette[idx % palette.length],
+                      hint: `${i.name}: ${formatBytes(i.mem_bytes)} · CPU ${i.cpu_percent}%`,
+                    }))}
+                  format={formatBytes}
+                />
+              </Panel>
+            )}
+          </>
+        )}
+
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile
             icon={<Server size={14} />}

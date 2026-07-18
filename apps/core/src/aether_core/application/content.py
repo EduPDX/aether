@@ -66,9 +66,17 @@ class ContentService:
         )
 
     def _folder(self, instance: Instance, ct: ContentType) -> Path:
+        """Pasta do tipo de conteúdo; criada sob demanda.
+
+        Tipos gerenciados (ex.: o perfil de cliente) não existem numa
+        instalação nova — criar na primeira visita evita erro confuso.
+        """
         folder = instance.resolve_content_dir(ct)
         if not self._fs.is_dir(folder):
-            raise ContentFolderMissingError(f"content folder does not exist: {folder}")
+            root = Path(instance.root_dir)
+            if not self._fs.is_dir(root):
+                raise ContentFolderMissingError(f"instance root does not exist: {root}")
+            folder.mkdir(parents=True, exist_ok=True)
         return folder
 
     # ------------------------------------------------------------ use cases --

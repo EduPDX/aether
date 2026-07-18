@@ -10,7 +10,13 @@ import { ModCard } from "./ModCard";
 type StatusFilter = "all" | "enabled" | "disabled";
 type SortKey = "name" | "size" | "mtime";
 
-export function ContentView({ instance }: { instance: Instance }) {
+export function ContentView({
+  instance,
+  contentType = "mod",
+}: {
+  instance: Instance;
+  contentType?: string;
+}) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [loader, setLoader] = useState("all");
@@ -19,20 +25,25 @@ export function ContentView({ instance }: { instance: Instance }) {
   const [dupsOnly, setDupsOnly] = useState(false);
 
   const query = useQuery({
-    queryKey: ["content", instance.id],
-    queryFn: () => api.content(instance.id),
+    queryKey: ["content", instance.id, contentType],
+    queryFn: () => api.content(instance.id, contentType),
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["content", instance.id] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["content", instance.id, contentType] });
   const toggle = useMutation({
-    mutationFn: (file: string) => api.toggle(instance.id, file),
+    mutationFn: (file: string) => api.toggle(instance.id, file, contentType),
     onSettled: invalidate,
   });
   const trash = useMutation({
-    mutationFn: (file: string) => api.trash(instance.id, file),
+    mutationFn: (file: string) => api.trash(instance.id, file, contentType),
     onSettled: invalidate,
   });
 
+  const uploadDir =
+    instance.content_dirs[contentType] === "."
+      ? ""
+      : (instance.content_dirs[contentType] ??
+        (contentType === "mod_client" ? "aether-client/mods" : "mods"));
   const items = query.data ?? [];
   const loaders = useMemo(
     () => [...new Set(items.map((i) => i.metadata.loader).filter(Boolean))].sort(),
@@ -136,7 +147,7 @@ export function ContentView({ instance }: { instance: Instance }) {
         </label>
         <UploadButton
           instanceId={instance.id}
-          path={instance.content_dirs.mod === "." ? "" : (instance.content_dirs.mod ?? "mods")}
+          path={uploadDir}
           label="Adicionar mods"
           accept=".jar"
         />

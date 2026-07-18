@@ -48,6 +48,12 @@ class LocalProcessSupervisor:
         rp = self._procs.get(instance_id)
         return rp.state if rp else InstanceState.STOPPED
 
+    def pid_of(self, instance_id: str) -> int | None:
+        rp = self._procs.get(instance_id)
+        if rp and rp.process.returncode is None:
+            return rp.process.pid
+        return None
+
     def logs(self, instance_id: str, tail: int = 200) -> list[str]:
         rp = self._procs.get(instance_id)
         if not rp:

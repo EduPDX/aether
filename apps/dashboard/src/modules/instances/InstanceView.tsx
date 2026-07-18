@@ -28,7 +28,7 @@ const STATE_TONE: Record<InstanceState, "neutral" | "green" | "orange" | "red"> 
   crashed: "red",
 };
 
-type Tab = "content" | "console" | "files" | "config" | "sync";
+type Tab = "content" | "client" | "console" | "files" | "config" | "sync";
 
 export function InstanceView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
@@ -94,7 +94,10 @@ export function InstanceView({ instance }: { instance: Instance }) {
         <div className="ml-auto flex rounded-md border border-border p-0.5">
           {(
             [
-              ["content", "Conteúdo"],
+              ["content", "Mods do servidor"],
+              ...(can(user, "content.read")
+                ? [["client", "Mods do cliente"] as [Tab, string]]
+                : []),
               ["console", "Console"],
               ...(can(user, "files.read") ? [["files", "Arquivos"] as [Tab, string]] : []),
               ...(can(user, "config.read") ? [["config", "Config"] as [Tab, string]] : []),
@@ -115,7 +118,10 @@ export function InstanceView({ instance }: { instance: Instance }) {
       </div>
 
       <div className="min-h-0 flex-1">
-        {tab === "content" && <ContentView instance={instance} />}
+        {tab === "content" && <ContentView instance={instance} contentType="mod" />}
+        {tab === "client" && (
+          <ContentView instance={instance} contentType="mod_client" />
+        )}
         {tab === "console" && <ConsoleView instance={instance} />}
         {tab === "files" && <FilesView instance={instance} />}
         {tab === "config" && <ConfigView instance={instance} />}

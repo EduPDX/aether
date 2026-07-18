@@ -30,9 +30,17 @@ MANIFEST = ProviderManifest(
 CONTENT_TYPES = [
     ContentType(
         id="mod",
-        label="Mods",
+        label="Mods do servidor",
         file_patterns=["*.jar", "*.jar.disabled"],
         default_directory="mods",
+    ),
+    # Perfil do cliente: mods que os jogadores recebem via launcher. Vive
+    # dentro da própria instância, ao lado dos mods do servidor.
+    ContentType(
+        id="mod_client",
+        label="Mods do cliente",
+        file_patterns=["*.jar", "*.jar.disabled"],
+        default_directory="aether-client/mods",
     ),
 ]
 
@@ -41,7 +49,10 @@ class MinecraftProvider:
     manifest = MANIFEST
 
     def __init__(self) -> None:
-        self._analyzers: dict[str, ContentAnalyzer] = {"mod": JarModAnalyzer()}
+        self._analyzers: dict[str, ContentAnalyzer] = {
+            "mod": JarModAnalyzer("mod"),
+            "mod_client": JarModAnalyzer("mod_client"),
+        }
 
     def content_types(self) -> list[ContentType]:
         return list(CONTENT_TYPES)
