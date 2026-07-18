@@ -22,15 +22,19 @@ export function ModCard({
   item,
   onToggle,
   onTrash,
+  onOpen,
 }: {
   item: ContentItem;
   onToggle: () => void;
   onTrash: () => void;
+  onOpen?: () => void;
 }) {
   const m = item.metadata;
   return (
     <div
-      className={`group flex gap-3 rounded-lg border bg-surface p-3 transition-colors hover:bg-surface-2 ${
+      onClick={onOpen}
+      title="Ver detalhes do mod"
+      className={`group flex cursor-pointer gap-3 rounded-lg border bg-surface p-3 transition-colors hover:bg-surface-2 ${
         item.duplicate ? "border-warn/50" : "border-border"
       } ${item.enabled ? "" : "opacity-55"}`}
     >
@@ -56,13 +60,18 @@ export function ModCard({
           </span>
           <div className="flex shrink-0 items-center gap-1.5">
             <button
-              onClick={onTrash}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTrash();
+              }}
               title="Mover para a lixeira"
               className="cursor-pointer text-muted opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
             >
               <Trash2 size={15} />
             </button>
-            <Switch checked={item.enabled} onChange={onToggle} title={item.enabled ? "Desativar" : "Ativar"} />
+            <span onClick={(e) => e.stopPropagation()}>
+              <Switch checked={item.enabled} onChange={onToggle} title={item.enabled ? "Desativar" : "Ativar"} />
+            </span>
           </div>
         </div>
 

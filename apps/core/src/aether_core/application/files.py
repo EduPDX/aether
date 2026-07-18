@@ -149,6 +149,31 @@ class FilesService:
         )
         return {"name": name, "size": written}
 
+    async def resolve_download(self, instance: Instance, rel_path: str) -> tuple[Path, bool]:
+        """Caminho a baixar e se é pasta (que vira zip). Sempre no sandbox."""
+        target = self._resolve(instance, rel_path)
+        if not target.exists():
+            raise NotFoundError(f"não encontrado: {rel_path}")
+        return target, target.is_dir()
+
+    async def zip_dir(self, instance: Instance, rel_path: str, dest_zip: Path) -> Path:
+        """Compacta uma pasta da instância para download."""
+        import zipfile
+
+        folder = self._resolve(instance, rel_path)
+        if not folder.is_dir():
+            raise NotFoundError(f"pasta não encontrada: {rel_path}")
+
+        def _zip() -> Path:
+            dest_zip.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+                for path in folder.rglob("*"):
+                    if path.is_file():
+                        zf.write(path, path.relative_to(folder).as_posix())
+            return dest_zip
+
+        return await asyncio.to_thread(_zip)
+
     async def mkdir(self, instance: Instance, rel_path: str) -> None:
         target = self._resolve(instance, rel_path)
         if target.exists():

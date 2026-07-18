@@ -237,6 +237,8 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ path, content }),
     }),
+  downloadUrl: (id: string, path: string) =>
+    `/api/v1/instances/${id}/files/download?path=${encodeURIComponent(path)}`,
   uploadFiles: (id: string, path: string, files: FileList | File[], overwrite = false) => {
     const form = new FormData();
     form.append("path", path);

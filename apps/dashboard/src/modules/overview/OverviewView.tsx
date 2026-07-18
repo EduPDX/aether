@@ -70,24 +70,32 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
     refetchInterval: 15000,
   });
 
-  // Conteúdo de cada instância, em paralelo (cacheado pelo Core).
+  // Cada instância tem DOIS conjuntos: mods do servidor e do cliente.
+  // Contar só um deles subestimava o total (bug relatado no uso real).
+  const TIPOS = ["mod", "mod_client"] as const;
   const contentQueries = useQueries({
-    queries: instances.map((i) => ({
-      queryKey: ["content", i.id],
-      queryFn: () => api.content(i.id),
-      retry: false,
-    })),
+    queries: instances.flatMap((i) =>
+      TIPOS.map((t) => ({
+        queryKey: ["content", i.id, t],
+        queryFn: () => api.content(i.id, t),
+        retry: false,
+      })),
+    ),
   });
 
   const loading = contentQueries.some((q) => q.isLoading);
-  const all: { instance: Instance; items: ContentItem[] }[] = instances.map((inst, idx) => ({
-    instance: inst,
-    items: (contentQueries[idx]?.data as ContentItem[] | undefined) ?? [],
-  }));
+  const all: { instance: Instance; server: ContentItem[]; client: ContentItem[] }[] =
+    instances.map((inst, idx) => ({
+      instance: inst,
+      server: (contentQueries[idx * 2]?.data as ContentItem[] | undefined) ?? [],
+      client: (contentQueries[idx * 2 + 1]?.data as ContentItem[] | undefined) ?? [],
+    }));
 
-  const items = all.flatMap((a) => a.items);
+  const items = all.flatMap((a) => [...a.server, ...a.client]);
+  const totalServer = all.reduce((s, a) => s + a.server.length, 0);
+  const totalClient = all.reduce((s, a) => s + a.client.length, 0);
   const totalSize = items.reduce((s, i) => s + i.size_bytes, 0);
-  const enabled = items.filter((i) => i.enabled).length;
+
   const live = (statuses.data ?? instances).filter((i) => i.state === "running").length;
 
   // Magnitude por entidade (loader) — cores categóricas em ordem fixa.
@@ -123,8 +131,8 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
 
   const perInstance = all.map((a) => ({
     label: a.instance.name,
-    value: a.items.length,
-    hint: `${a.instance.name}: ${a.items.length} mods`,
+    value: a.server.length + a.client.length,
+    hint: `${a.instance.name}: ${a.server.length} do servidor + ${a.client.length} do cliente`,
   }));
 
   if (loading && items.length === 0) return <Spinner />;
@@ -225,7 +233,7 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
             icon={<Package size={14} />}
             label="Mods"
             value={String(items.length)}
-            sub={`${enabled} ativados`}
+            sub={`${totalServer} servidor · ${totalClient} cliente`}
           />
           <StatTile
             icon={<HardDrive size={14} />}

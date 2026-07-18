@@ -1,6 +1,6 @@
 import { Check, Palette } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Donut, HBarChart } from "../../components/BarChart";
+import { Donut, TimeSeries } from "../../components/BarChart";
 import type { SeriesKind } from "../../components/BarChart";
 import { Select } from "../../components/ui";
 import type { ThemeName } from "../../lib/themes";
@@ -12,6 +12,9 @@ export function preferredChartKind(): SeriesKind {
   const v = localStorage.getItem(CHART_KEY) as SeriesKind | null;
   return v === "linha" || v === "barras" || v === "area" ? v : "area";
 }
+
+/** Série de exemplo para a prévia reagir ao tipo escolhido. */
+const SERIE = [12, 18, 15, 27, 34, 30, 45, 38, 52, 47, 61, 55, 48, 40, 33];
 
 const AMOSTRA = [
   { label: "Forge", value: 279 },
@@ -101,8 +104,17 @@ export function SettingsView() {
               <Donut data={AMOSTRA.map((d, i) => ({ ...d, color: preview.chart[i] }))} />
             </div>
             <div>
-              <div className="mb-2 text-[11px] text-muted">Prévia — barras</div>
-              <HBarChart data={AMOSTRA.map((d, i) => ({ ...d, color: preview.chart[i] }))} />
+              <div className="mb-2 text-[11px] text-muted">
+                Prévia — série temporal ({chartKind})
+              </div>
+              {/* Reage ao seletor: era estática e não mudava com a escolha. */}
+              <TimeSeries
+                points={SERIE}
+                kind={chartKind}
+                color={preview.chart[0]}
+                format={(n) => `${n.toFixed(0)}%`}
+                height={110}
+              />
             </div>
           </div>
         </section>

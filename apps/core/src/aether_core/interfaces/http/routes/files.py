@@ -1,8 +1,10 @@
 """File explorer routes (sandboxed to the instance root)."""
 
+from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from aether_core.interfaces.http.deps import (
@@ -61,6 +63,38 @@ async def write_file(
 ) -> None:
     instance = await instances.get(instance_id)
     await files.write_text(instance, body.path, body.content)
+
+
+@router.get("/download")
+async def download(
+    instance_id: str,
+    path: str,
+    request: Request,
+    background: BackgroundTasks,
+    instances: InstanceServiceDep,
+    files: FilesServiceDep,
+    _: FilesRead,
+) -> FileResponse:
+    """Baixa um arquivo; se for pasta, compacta em zip na hora."""
+    import tempfile
+    import uuid as _uuid
+
+    instance = await instances.get(instance_id)
+    target, is_dir = await files.resolve_download(instance, path)
+
+    if not is_dir:
+        return FileResponse(target, filename=target.name, media_type="application/octet-stream")
+
+    tmp = Path(tempfile.gettempdir()) / f"aether-{_uuid.uuid4().hex}.zip"
+    await files.zip_dir(instance, path, tmp)
+    # apaga o zip temporário depois que a resposta for enviada
+    background.add_task(lambda: tmp.unlink(missing_ok=True))
+    return FileResponse(
+        tmp,
+        filename=f"{target.name or instance.name}.zip",
+        media_type="application/zip",
+        background=background,
+    )
 
 
 @router.post("/upload")

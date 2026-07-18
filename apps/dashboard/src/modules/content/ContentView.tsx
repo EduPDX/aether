@@ -6,6 +6,7 @@ import { Badge, Button, Input, Select, Spinner } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
 import { ModCard } from "./ModCard";
+import { ModDetails } from "./ModDetails";
 
 type StatusFilter = "all" | "enabled" | "disabled";
 type SortKey = "name" | "size" | "mtime";
@@ -23,6 +24,7 @@ export function ContentView({
   const [status, setStatus] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortKey>("name");
   const [dupsOnly, setDupsOnly] = useState(false);
+  const [detail, setDetail] = useState<ContentItem | null>(null);
 
   const query = useQuery({
     queryKey: ["content", instance.id, contentType],
@@ -175,6 +177,7 @@ export function ContentView({
             onTrash={() => {
               if (confirm(`Mover "${item.file}" para a lixeira?`)) trash.mutate(item.file);
             }}
+            onOpen={() => setDetail(item)}
           />
         ))}
         {filtered.length === 0 && (
@@ -183,6 +186,8 @@ export function ContentView({
           </div>
         )}
       </div>
+
+      <ModDetails item={detail} onClose={() => setDetail(null)} />
     </div>
   );
 }

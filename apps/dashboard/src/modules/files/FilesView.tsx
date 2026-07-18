@@ -6,6 +6,7 @@ import {
   FilePlus,
   Folder,
   FolderPlus,
+  Download,
   Pencil,
   Save,
   Trash2,
@@ -15,7 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import { UploadButton } from "../../components/UploadButton";
 import { Button, Spinner } from "../../components/ui";
 import type { Instance } from "../../lib/api";
-import { api, formatBytes } from "../../lib/api";
+import { api, formatBytes, getAccessToken } from "../../lib/api";
 import { languageFor } from "../../lib/monaco";
 
 function join(dir: string, name: string): string {
@@ -37,6 +38,30 @@ export function FilesView({ instance }: { instance: Instance }) {
 
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["files", instance.id, path] });
+
+  /** Baixa via token no cabeçalho: cria um blob e dispara o save. */
+  async function download(rel: string) {
+    setError("");
+    try {
+      const res = await fetch(api.downloadUrl(instance.id, rel), {
+        headers: { Authorization: `Bearer ${getAccessToken()}` },
+      });
+      if (!res.ok) throw new Error(`falha ao baixar (${res.status})`);
+      const blob = await res.blob();
+      const nome =
+        res.headers
+          .get("content-disposition")
+          ?.match(/filename="?([^";]+)"?/)?.[1] ??
+        (rel.split("/").pop() || `${instance.name}.zip`);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = nome;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    }
+  }
 
   async function open(file: string) {
     setError("");
@@ -126,6 +151,13 @@ export function FilesView({ instance }: { instance: Instance }) {
               <FilePlus size={14} />
             </button>
             <button
+              title="Baixar esta pasta (.zip)"
+              className="cursor-pointer p-1 text-muted hover:text-text"
+              onClick={() => download(path)}
+            >
+              <Download size={14} />
+            </button>
+            <button
               title="Nova pasta"
               className="cursor-pointer p-1 text-muted hover:text-text"
               onClick={() => {
@@ -157,6 +189,16 @@ export function FilesView({ instance }: { instance: Instance }) {
               <span className="hidden text-[10px] group-hover:block">
                 {!entry.is_dir && formatBytes(entry.size)}
               </span>
+              <button
+                title={entry.is_dir ? "Baixar pasta (.zip)" : "Baixar arquivo"}
+                className="hidden cursor-pointer text-muted hover:text-text group-hover:block"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  download(join(path, entry.name));
+                }}
+              >
+                <Download size={12} />
+              </button>
               <button
                 title="Renomear"
                 className="hidden cursor-pointer text-muted hover:text-text group-hover:block"
