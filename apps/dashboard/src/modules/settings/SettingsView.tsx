@@ -10,6 +10,7 @@ import type { ThemeName } from "../../lib/themes";
 import { THEMES, THEME_NAMES, applyTheme, currentTheme } from "../../lib/themes";
 import { ProfileContent } from "../admin/AdminViews";
 import { FileIcon } from "../files/FileIcon";
+import { IconPreview, ThemePreview } from "./Previews";
 
 const CHART_KEY = "aether.chartKind";
 
@@ -50,6 +51,9 @@ export function SettingsView({ initialSection = "tema" }: { initialSection?: Sec
   const [theme, setTheme] = useState<ThemeName>(currentTheme);
   const [chartKind, setChartKind] = useState<SeriesKind>(preferredChartKind);
   const [pack, setPack] = useState<IconPack>(currentIconPack);
+  // Hover apenas alimenta a prévia — não aplica nada até o clique.
+  const [hoverTheme, setHoverTheme] = useState<ThemeName | null>(null);
+  const [hoverPack, setHoverPack] = useState<IconPack | null>(null);
 
   useEffect(() => applyTheme(theme), [theme]);
   useEffect(() => {
@@ -91,12 +95,25 @@ export function SettingsView({ initialSection = "tema" }: { initialSection?: Sec
       <div className="min-w-0 flex-1 overflow-y-auto p-4">
         <div className="flex w-full max-w-4xl flex-col gap-4">
           {secao === "tema" && (
+            <>
+              <Panel
+                title="Prévia"
+                hint={`${THEMES[hoverTheme ?? theme].label} — passe o mouse sobre um tema para espiar antes de aplicar.`}
+              >
+                <div className="max-w-md">
+                  <ThemePreview theme={THEMES[hoverTheme ?? theme]} />
+                </div>
+              </Panel>
+
             <Panel
               title="Tema"
               icon={<Palette size={15} />}
               hint="Muda a interface inteira e a paleta dos gráficos. Fica salvo neste navegador."
             >
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              <div
+                className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4"
+                onMouseLeave={() => setHoverTheme(null)}
+              >
                 {THEME_NAMES.map((name) => {
                   const t = THEMES[name];
                   const active = name === theme;
@@ -104,6 +121,8 @@ export function SettingsView({ initialSection = "tema" }: { initialSection?: Sec
                     <button
                       key={name}
                       onClick={() => setTheme(name)}
+                      onMouseEnter={() => setHoverTheme(name)}
+                      onFocus={() => setHoverTheme(name)}
                       className={`cursor-pointer rounded-lg border p-2 text-left transition-all ${
                         active ? "border-accent ring-1 ring-accent" : "border-border hover:border-muted"
                       }`}
@@ -133,21 +152,35 @@ export function SettingsView({ initialSection = "tema" }: { initialSection?: Sec
                 })}
               </div>
             </Panel>
+            </>
           )}
 
           {secao === "icones" && (
+            <>
+              <Panel
+                title="Prévia"
+                hint={`${ICON_PACKS.find((p) => p.id === (hoverPack ?? pack))?.label} — como fica no gerenciador de arquivos.`}
+              >
+                <IconPreview pack={hoverPack ?? pack} />
+              </Panel>
+
             <Panel
               title="Ícones de arquivos e pastas"
               icon={<Shapes size={15} />}
               hint="Estilo dos ícones no gerenciador de arquivos."
             >
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div
+                className="grid gap-2 sm:grid-cols-3"
+                onMouseLeave={() => setHoverPack(null)}
+              >
                 {ICON_PACKS.map((p) => {
                   const active = p.id === pack;
                   return (
                     <button
                       key={p.id}
                       onClick={() => setPack(p.id)}
+                      onMouseEnter={() => setHoverPack(p.id)}
+                      onFocus={() => setHoverPack(p.id)}
                       className={`cursor-pointer rounded-lg border p-3 text-left transition-all ${
                         active
                           ? "border-accent ring-1 ring-accent"
@@ -176,6 +209,7 @@ export function SettingsView({ initialSection = "tema" }: { initialSection?: Sec
                 })}
               </div>
             </Panel>
+            </>
           )}
 
           {secao === "graficos" && (

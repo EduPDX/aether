@@ -10,6 +10,7 @@ import {
   Package,
 } from "lucide-react";
 import { useSyncExternalStore } from "react";
+import type { IconPack } from "../../lib/icons";
 import { currentIconPack, subscribeIconPack } from "../../lib/icons";
 
 const BY_EXT: Record<string, { Icon: typeof FileText; color: string }> = {
@@ -80,7 +81,7 @@ export function FileIcon({
   isDir: boolean;
   size?: number;
   /** Força um pacote (usado nas prévias das configurações). */
-  pack?: ReturnType<typeof currentIconPack>;
+  pack?: IconPack;
 }) {
   const active = useIconPack();
   const chosen = pack ?? active;
@@ -90,18 +91,32 @@ export function FileIcon({
     ? { Icon: Folder, color: "text-info" }
     : (BY_EXT[ext] ?? { Icon: FileText, color: "text-muted" });
   const { Icon } = base;
-  const color = chosen === "neutro" ? "text-muted" : base.color;
 
-  if (chosen === "solido") {
-    // Pastilha tingida com a cor do tipo: o ícone fica em cima, em contraste.
+  const color =
+    chosen === "neutro" ? "text-muted" : chosen === "destaque" ? "text-accent" : base.color;
+
+  // Os pacotes com pastilha ocupam mais espaço que o ícone nu; o contêiner
+  // cresce junto para as duas variantes ficarem alinhadas na mesma grade.
+  if (chosen === "solido" || chosen === "contraste") {
+    const preenchido = chosen === "contraste";
     return (
       <span
-        className={`flex shrink-0 items-center justify-center rounded-lg ${color} bg-current/15`}
+        className={`flex shrink-0 items-center justify-center rounded-lg ${color} ${
+          preenchido ? "bg-current" : "bg-current/15"
+        }`}
         style={{ width: size * 1.35, height: size * 1.35 }}
       >
-        <Icon size={size * 0.72} className={color} />
+        <Icon
+          size={size * 0.72}
+          // No preenchido o ícone é vazado: herda o fundo da página.
+          className={preenchido ? "text-bg" : color}
+        />
       </span>
     );
+  }
+
+  if (chosen === "pastel") {
+    return <Icon size={size} strokeWidth={1.4} className={`shrink-0 ${color} opacity-70`} />;
   }
 
   return <Icon size={size} className={`shrink-0 ${color}`} />;

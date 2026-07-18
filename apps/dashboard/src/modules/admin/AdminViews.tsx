@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Plus, Shield, Trash2, UserRound } from "lucide-react";
+import { Check, History, KeyRound, Plus, Shield, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Input, Modal, Select, Spinner } from "../../components/ui";
-import { api } from "../../lib/api";
+import { api, can } from "../../lib/api";
 import { useAuth } from "../auth/AuthGate";
 
 const ROLE_TONE: Record<string, "green" | "blue" | "orange" | "neutral"> = {
@@ -202,11 +202,41 @@ export function AuditView() {
   );
 }
 
+/** O que cada permissão significa em português, na ordem em que é exibida. */
+const CAPACIDADES: { perm: string; label: string }[] = [
+  { perm: "instances.read", label: "Ver servidores e seus status" },
+  { perm: "content.read", label: "Ver a lista de mods" },
+  { perm: "content.write", label: "Adicionar, ativar e remover mods" },
+  { perm: "power.use", label: "Ligar e desligar servidores" },
+  { perm: "console.use", label: "Usar o console e enviar comandos" },
+  { perm: "files.read", label: "Navegar pelos arquivos" },
+  { perm: "files.write", label: "Editar, enviar e apagar arquivos" },
+  { perm: "config.write", label: "Alterar configurações do servidor" },
+  { perm: "sync.write", label: "Gerenciar perfis de sincronização" },
+  { perm: "audit.read", label: "Ver o registro de auditoria" },
+  { perm: "users.write", label: "Gerenciar usuários do painel" },
+];
+
 /** Perfil do usuário — exibido como uma seção das configurações. */
 export function ProfileContent() {
   const { user } = useAuth();
+
+  // O próprio usuário sempre pode ver a própria atividade; quem não tem
+  // audit.read recebe 403 e a seção simplesmente não aparece.
+  const podeAuditar = can(user, "audit.read");
+  const atividade = useQuery({
+    queryKey: ["audit", "me"],
+    queryFn: () => api.audit(200),
+    enabled: podeAuditar,
+    retry: false,
+  });
+
+  const minhas = (atividade.data ?? []).filter((e) => e.username === user?.username).slice(0, 8);
+  const permitidas = CAPACIDADES.filter((c) => can(user, c.perm));
+
   return (
-      <div className="w-full max-w-md space-y-3">
+    <div className="grid w-full max-w-4xl gap-3 lg:grid-cols-[minmax(0,300px)_1fr]">
+      <div className="space-y-3">
         <div className="rounded-xl border border-border bg-surface p-5 text-center">
           <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-dim text-2xl font-bold text-black">
             {user?.username.charAt(0).toUpperCase()}
@@ -215,19 +245,87 @@ export function ProfileContent() {
           <Badge tone={ROLE_TONE[user?.role ?? ""] ?? "neutral"}>{user?.role}</Badge>
           <p className="mt-2 text-[11px] text-muted">{ROLE_DESC[user?.role ?? ""]}</p>
         </div>
+
         <div className="rounded-xl border border-border bg-surface p-4">
           <div className="flex items-center gap-2 text-sm font-semibold">
-            <Shield size={14} /> Suas permissões
+            <KeyRound size={14} /> Sessão
           </div>
-          <ul className="mt-2 space-y-1 text-xs text-muted">
-            <li className="flex items-center gap-2">
-              <UserRound size={12} /> Papel: <b className="text-text">{user?.role}</b>
+          <ul className="mt-2 space-y-1.5 text-xs text-muted">
+            <li className="flex items-center justify-between gap-2">
+              <span>Renovação automática</span>
+              <Badge tone="green">ativa</Badge>
             </li>
-            <li className="flex items-center gap-2">
-              <KeyRound size={12} /> Sessão com renovação automática
+            <li className="flex items-center justify-between gap-2">
+              <span>Acesso expira em</span>
+              <b className="text-text">30 min</b>
+            </li>
+            <li className="flex items-center justify-between gap-2">
+              <span>Sessão dura</span>
+              <b className="text-text">7 dias</b>
             </li>
           </ul>
+          <p className="mt-2.5 text-[10px] text-muted">
+            A troca de senha ainda não está disponível pelo painel — peça ao dono da
+            instalação.
+          </p>
         </div>
       </div>
+
+      <div className="space-y-3">
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Shield size={14} /> O que você pode fazer
+            <span className="ml-auto text-[11px] font-normal text-muted">
+              {permitidas.length} de {CAPACIDADES.length}
+            </span>
+          </div>
+          <ul className="mt-2.5 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+            {CAPACIDADES.map((c) => {
+              const ok = can(user, c.perm);
+              return (
+                <li
+                  key={c.perm}
+                  className={`flex items-center gap-1.5 ${ok ? "text-text" : "text-muted/60"}`}
+                >
+                  {ok ? (
+                    <Check size={12} className="shrink-0 text-accent" />
+                  ) : (
+                    <X size={12} className="shrink-0" />
+                  )}
+                  <span className={ok ? "" : "line-through decoration-muted/40"}>{c.label}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        {podeAuditar && (
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <History size={14} /> Sua atividade recente
+            </div>
+            {minhas.length === 0 ? (
+              <p className="mt-2 text-xs text-muted">
+                {atividade.isLoading ? "Carregando…" : "Nada registrado ainda."}
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-1">
+                {minhas.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex items-center gap-2 rounded-md bg-surface-2 px-2 py-1 text-xs"
+                  >
+                    <span className="truncate font-mono text-[11px]">{e.action}</span>
+                    <span className="ml-auto shrink-0 text-[10px] text-muted">
+                      {new Date(e.created_at).toLocaleString("pt-BR")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
