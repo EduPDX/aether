@@ -2,12 +2,13 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Boxes, HardDrive, Package, Server } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Gauge, HBarChart, Legend, TimeSeries } from "../../components/BarChart";
+import { Donut, Gauge, HBarChart, TimeSeries } from "../../components/BarChart";
 import type { SeriesKind } from "../../components/BarChart";
 import { Badge, Select, Spinner } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
 import { chartPalette } from "../../lib/themes";
+import { preferredChartKind } from "../settings/SettingsView";
 
 function StatTile({
   icon,
@@ -54,7 +55,7 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 export function OverviewView({ instances }: { instances: Instance[] }) {
-  const [seriesKind, setSeriesKind] = useState<SeriesKind>("area");
+  const [seriesKind, setSeriesKind] = useState<SeriesKind>(preferredChartKind);
   const palette = chartPalette();
 
   const metrics = useQuery({
@@ -241,11 +242,8 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <Panel
-            title="Mods por loader"
-            aside={<Legend items={loaders.map((l) => ({ label: l.label, color: l.color }))} />}
-          >
-            <HBarChart data={loaders} />
+          <Panel title="Mods por loader">
+            <Donut data={loaders} />
           </Panel>
 
           <Panel title="Mods por instância">

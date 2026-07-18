@@ -195,3 +195,95 @@ export function TimeSeries({
     </div>
   );
 }
+
+/**
+ * Rosca (donut) para parte-de-todo com poucas categorias.
+ * Legenda sempre presente e rótulo direto no centro — identidade nunca
+ * depende só da cor. Segmentos separados por 2px de respiro.
+ */
+export function Donut({
+  data,
+  size = 168,
+}: {
+  data: { label: string; value: number; color?: string }[];
+  size?: number;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return <p className="py-6 text-center text-xs text-muted">Sem dados.</p>;
+
+  const r = 60;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+  const focused = hover !== null ? data[hover] : null;
+
+  return (
+    <div className="flex items-center gap-4">
+      <svg viewBox="0 0 160 160" style={{ width: size, height: size }} className="shrink-0">
+        <g transform="translate(80,80) rotate(-90)">
+          {data.map((d, i) => {
+            const frac = d.value / total;
+            const len = Math.max(frac * c - 2, 0); // 2px de respiro entre fatias
+            const dash = `${len} ${c - len}`;
+            const el = (
+              <circle
+                key={d.label}
+                r={r}
+                fill="none"
+                stroke={d.color ?? "var(--color-accent-dim)"}
+                strokeWidth={hover === i ? 26 : 20}
+                strokeDasharray={dash}
+                strokeDashoffset={-offset}
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover(null)}
+                style={{ transition: "stroke-width 150ms" }}
+              >
+                <title>{`${d.label}: ${d.value} (${(frac * 100).toFixed(1)}%)`}</title>
+              </circle>
+            );
+            offset += frac * c;
+            return el;
+          })}
+        </g>
+        <text
+          x="80"
+          y="76"
+          textAnchor="middle"
+          className="fill-text"
+          style={{ fontSize: 22, fontWeight: 700 }}
+        >
+          {focused ? focused.value : total}
+        </text>
+        <text
+          x="80"
+          y="92"
+          textAnchor="middle"
+          className="fill-muted"
+          style={{ fontSize: 9 }}
+        >
+          {focused ? focused.label : "total"}
+        </text>
+      </svg>
+
+      <div className="flex min-w-0 flex-col gap-1">
+        {data.map((d, i) => (
+          <span
+            key={d.label}
+            className="flex items-center gap-2 text-[11px]"
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+          >
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+              style={{ background: d.color ?? "var(--color-accent-dim)" }}
+            />
+            <span className="truncate text-muted">{d.label}</span>
+            <span className="ml-auto font-mono tabular-nums text-text">
+              {((d.value / total) * 100).toFixed(0)}%
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -107,21 +107,31 @@ export function Modal({
   onClose,
   title,
   children,
+  size = "md",
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  size?: "md" | "lg";
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      {/* max-h + overflow: formulários longos rolam dentro do modal em vez
+          de vazar para fora da tela. */}
       <div
-        className="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-2xl"
+        className={clsx(
+          "flex max-h-[90vh] w-full flex-col rounded-lg border border-border bg-surface shadow-2xl",
+          size === "lg" ? "max-w-2xl" : "max-w-md",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-4 text-base font-semibold">{title}</h2>
-        {children}
+        <h2 className="border-b border-border px-5 py-3 text-base font-semibold">{title}</h2>
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
       </div>
     </div>
   );

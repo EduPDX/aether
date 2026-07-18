@@ -211,7 +211,7 @@ function CreateProfileDialog({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Novo perfil de sincronização">
+    <Modal open={open} onClose={onClose} title="Novo perfil de sincronização" size="lg">
       <div className="space-y-3">
         <div className="flex gap-2">
           <div className="flex-1">
@@ -248,50 +248,60 @@ function CreateProfileDialog({
           </label>
           <div className="space-y-1.5">
             {rules.rules.map((rule, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <Input
-                  className="w-32 text-xs"
-                  value={rule.dir}
-                  onChange={(e) => setRule(i, { dir: e.target.value })}
-                  placeholder="origem"
-                />
-                <span className="text-muted">→</span>
-                <Input
-                  className="w-24 text-xs"
-                  value={rule.target ?? ""}
-                  onChange={(e) => setRule(i, { target: e.target.value || null })}
-                  placeholder="destino"
-                />
-                <Input
-                  className="flex-1"
-                  value={rule.patterns.join(", ")}
-                  onChange={(e) =>
-                    setRule(i, {
-                      patterns: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                    })
-                  }
-                  placeholder="*.jar"
-                />
-                <Select
-                  value={rule.action}
-                  onChange={(e) =>
-                    setRule(i, { action: e.target.value as SyncRule["action"] })
-                  }
-                >
-                  <option value="require">obrigatório</option>
-                  <option value="optional">opcional</option>
-                </Select>
-                <button
-                  className="cursor-pointer p-1 text-muted hover:text-danger"
-                  onClick={() =>
-                    setRules((prev) => ({
-                      ...prev,
-                      rules: prev.rules.filter((_, idx) => idx !== i),
-                    }))
-                  }
-                >
-                  <Trash2 size={13} />
-                </button>
+              <div
+                key={i}
+                className="rounded-md border border-border bg-surface-2 p-2"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    className="min-w-0 flex-1 text-xs"
+                    value={rule.dir}
+                    onChange={(e) => setRule(i, { dir: e.target.value })}
+                    placeholder="pasta no servidor"
+                    title="Pasta de origem, dentro da instância"
+                  />
+                  <span className="shrink-0 text-muted">→</span>
+                  <Input
+                    className="min-w-0 flex-1 text-xs"
+                    value={rule.target ?? ""}
+                    onChange={(e) => setRule(i, { target: e.target.value || null })}
+                    placeholder="pasta no cliente"
+                    title="Onde cai no PC do jogador"
+                  />
+                  <button
+                    className="shrink-0 cursor-pointer p-1 text-muted hover:text-danger"
+                    title="Remover regra"
+                    onClick={() =>
+                      setRules((prev) => ({
+                        ...prev,
+                        rules: prev.rules.filter((_, idx) => idx !== i),
+                      }))
+                    }
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <Input
+                    className="min-w-0 flex-1 text-xs"
+                    value={rule.patterns.join(", ")}
+                    onChange={(e) =>
+                      setRule(i, {
+                        patterns: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+                      })
+                    }
+                    placeholder="*.jar"
+                    title="Padrões de arquivo"
+                  />
+                  <Select
+                    className="shrink-0 text-xs"
+                    value={rule.action}
+                    onChange={(e) => setRule(i, { action: e.target.value as SyncRule["action"] })}
+                  >
+                    <option value="require">obrigatório</option>
+                    <option value="optional">opcional</option>
+                  </Select>
+                </div>
               </div>
             ))}
           </div>

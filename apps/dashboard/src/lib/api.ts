@@ -184,6 +184,14 @@ export const api = {
   deleteInstance: (id: string) =>
     request<void>(`/api/v1/instances/${id}`, { method: "DELETE" }),
   metrics: () => request<MetricsPayload>("/api/v1/metrics"),
+  users: () => request<UserOut[]>("/api/v1/users"),
+  createUser: (username: string, password: string, role: string) =>
+    request<UserOut>("/api/v1/users", {
+      method: "POST",
+      body: JSON.stringify({ username, password, role }),
+    }),
+  deleteUser: (id: string) => request<void>(`/api/v1/users/${id}`, { method: "DELETE" }),
+  audit: (limit = 100) => request<AuditEntry[]>(`/api/v1/audit?limit=${limit}`),
   content: (id: string, type = "mod") =>
     request<ContentItem[]>(`/api/v1/instances/${id}/content?type=${type}`),
   toggle: (id: string, file: string, type = "mod") =>
@@ -268,6 +276,21 @@ export const api = {
   deleteSyncProfile: (id: string, profileId: string) =>
     request<void>(`/api/v1/instances/${id}/sync-profiles/${profileId}`, { method: "DELETE" }),
 };
+
+export interface UserOut {
+  id: string;
+  username: string;
+  role: string;
+  created_at?: string;
+}
+
+export interface AuditEntry {
+  id: number;
+  username: string | null;
+  action: string;
+  ip: string | null;
+  created_at: string;
+}
 
 export interface HostMetrics {
   cpu_percent: number; cpu_count: number;
