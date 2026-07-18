@@ -1,50 +1,13 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Boxes, HardDrive, Package, Server } from "lucide-react";
 import { useState } from "react";
-import type { ReactNode } from "react";
 import { Donut, Gauge, HBarChart, TimeSeries } from "../../components/BarChart";
 import type { SeriesKind } from "../../components/BarChart";
-import { Badge, Select, Spinner } from "../../components/ui";
+import { Badge, Panel, Select, Spinner, StatTile } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
 import { chartPalette } from "../../lib/themes";
 import { preferredChartKind } from "../settings/SettingsView";
-
-function StatTile({
-  icon,
-  label,
-  value,
-  sub,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-center gap-2 text-muted">
-        {icon}
-        <span className="text-[11px] font-semibold tracking-wider uppercase">{label}</span>
-      </div>
-      {/* Número-herói: a leitura principal do bloco. */}
-      <div className="mt-1.5 text-2xl font-bold tabular-nums">{value}</div>
-      {sub && <div className="text-[11px] text-muted">{sub}</div>}
-    </div>
-  );
-}
-
-function Panel({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
-  return (
-    <section className="rounded-xl border border-border bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        {aside}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 const STATE_LABEL: Record<string, string> = {
   running: "online",

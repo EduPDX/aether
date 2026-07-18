@@ -7,6 +7,9 @@ import {
   Download,
   FilePlus,
   FolderPlus,
+  Grid2x2,
+  LayoutGrid,
+  List,
   Pencil,
   Save,
   Trash2,
@@ -14,10 +17,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { UploadButton } from "../../components/UploadButton";
-import { Button, Spinner } from "../../components/ui";
+import { Button, Segmented, Select, Spinner } from "../../components/ui";
 import type { FileEntry, Instance } from "../../lib/api";
 import { api, formatBytes, getAccessToken } from "../../lib/api";
 import { languageFor } from "../../lib/monaco";
+import { FileGrid } from "./FileGrid";
 import { FileIcon, fileKind } from "./FileIcon";
 
 function join(dir: string, name: string): string {
@@ -25,6 +29,15 @@ function join(dir: string, name: string): string {
 }
 
 type SortKey = "name" | "size" | "mtime";
+type ViewMode = "lg" | "md" | "list";
+
+const VIEW_KEY = "aether.files.view";
+
+const VIEW_OPTIONS = [
+  { value: "lg" as const, icon: <LayoutGrid size={15} />, label: "Ícones grandes" },
+  { value: "md" as const, icon: <Grid2x2 size={15} />, label: "Ícones médios" },
+  { value: "list" as const, icon: <List size={15} />, label: "Lista com detalhes" },
+];
 
 export function FilesView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
@@ -37,6 +50,21 @@ export function FilesView({ instance }: { instance: Instance }) {
   const [asc, setAsc] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
+  const [view, setView] = useState<ViewMode>(
+    () => (localStorage.getItem(VIEW_KEY) as ViewMode | null) ?? "lg",
+  );
+
+  function changeView(next: ViewMode) {
+    setView(next);
+    localStorage.setItem(VIEW_KEY, next);
+  }
+
+  function toggleSelect(name: string, checked: boolean) {
+    const next = new Set(selected);
+    if (checked) next.add(name);
+    else next.delete(name);
+    setSelected(next);
+  }
 
   const listing = useQuery({
     queryKey: ["files", instance.id, path],
@@ -184,7 +212,30 @@ export function FilesView({ instance }: { instance: Instance }) {
           </span>
         ))}
 
-        <span className="ml-auto flex items-center gap-1">
+        <span className="ml-auto flex items-center gap-1.5">
+          {/* Na grade não há cabeçalho de coluna para clicar: o seletor supre isso. */}
+          {openFile === null && view !== "list" && (
+            <Select
+              className="py-1 text-xs"
+              title="Ordenar por"
+              value={`${sort}:${asc ? "asc" : "desc"}`}
+              onChange={(e) => {
+                const [k, dir] = e.target.value.split(":");
+                setSort(k as SortKey);
+                setAsc(dir === "asc");
+              }}
+            >
+              <option value="name:asc">Nome (A–Z)</option>
+              <option value="name:desc">Nome (Z–A)</option>
+              <option value="size:desc">Maiores primeiro</option>
+              <option value="size:asc">Menores primeiro</option>
+              <option value="mtime:desc">Mais recentes</option>
+              <option value="mtime:asc">Mais antigos</option>
+            </Select>
+          )}
+          {openFile === null && (
+            <Segmented value={view} onChange={changeView} options={VIEW_OPTIONS} />
+          )}
           <UploadButton instanceId={instance.id} path={path} label="Enviar" />
           <button
             title="Novo arquivo"
@@ -255,6 +306,21 @@ export function FilesView({ instance }: { instance: Instance }) {
         >
           <div className="min-h-0 flex-1 overflow-auto">
             {listing.isLoading && <Spinner />}
+
+            {/* Com o editor aberto a coluna fica estreita demais para a grade. */}
+            {openFile === null && view !== "list" && rows.length > 0 && (
+              <FileGrid
+                entries={rows}
+                selected={selected}
+                size={view}
+                onOpen={(entry) =>
+                  entry.is_dir ? setPath(join(path, entry.name)) : open(join(path, entry.name))
+                }
+                onToggleSelect={toggleSelect}
+              />
+            )}
+
+            {(openFile !== null || view === "list") && (
             <table className="w-full text-left text-xs">
               <thead className="sticky top-0 z-10 bg-surface-2 text-muted">
                 <tr>
@@ -306,12 +372,7 @@ export function FilesView({ instance }: { instance: Instance }) {
                           type="checkbox"
                           className="accent-(--color-accent-dim)"
                           checked={isSel}
-                          onChange={(e) => {
-                            const next = new Set(selected);
-                            if (e.target.checked) next.add(entry.name);
-                            else next.delete(entry.name);
-                            setSelected(next);
-                          }}
+                          onChange={(e) => toggleSelect(entry.name, e.target.checked)}
                         />
                       </td>
                       <td className="px-2 py-1.5">
@@ -373,6 +434,7 @@ export function FilesView({ instance }: { instance: Instance }) {
                 })}
               </tbody>
             </table>
+            )}
             {!listing.isLoading && rows.length === 0 && (
               <p className="p-6 text-center text-xs text-muted">Pasta vazia.</p>
             )}

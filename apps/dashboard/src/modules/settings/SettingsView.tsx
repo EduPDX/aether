@@ -1,8 +1,8 @@
-import { Check, Palette } from "lucide-react";
+import { BarChart3, Check, Palette } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Donut, TimeSeries } from "../../components/BarChart";
 import type { SeriesKind } from "../../components/BarChart";
-import { Select } from "../../components/ui";
+import { Panel, Select } from "../../components/ui";
 import type { ThemeName } from "../../lib/themes";
 import { THEMES, THEME_NAMES, applyTheme, currentTheme } from "../../lib/themes";
 
@@ -37,15 +37,11 @@ export function SettingsView() {
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-        <section className="rounded-xl border border-border bg-surface p-4">
-          <div className="mb-1 flex items-center gap-2">
-            <Palette size={15} />
-            <h2 className="text-sm font-semibold">Tema</h2>
-          </div>
-          <p className="mb-3 text-[11px] text-muted">
-            Muda a interface inteira e a paleta dos gráficos. Fica salvo neste navegador.
-          </p>
-
+        <Panel
+          title="Tema"
+          icon={<Palette size={15} />}
+          hint="Muda a interface inteira e a paleta dos gráficos. Fica salvo neste navegador."
+        >
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {THEME_NAMES.map((name) => {
               const t = THEMES[name];
@@ -79,11 +75,13 @@ export function SettingsView() {
               );
             })}
           </div>
-        </section>
+        </Panel>
 
-        <section className="rounded-xl border border-border bg-surface p-4">
-          <div className="mb-1 flex flex-wrap items-center gap-3">
-            <h2 className="text-sm font-semibold">Gráficos</h2>
+        <Panel
+          title="Gráficos"
+          icon={<BarChart3 size={15} />}
+          hint="Tipo padrão das séries temporais na Visão geral."
+          aside={
             <Select
               className="py-1 text-xs"
               value={chartKind}
@@ -93,12 +91,9 @@ export function SettingsView() {
               <option value="linha">Linha</option>
               <option value="barras">Barras</option>
             </Select>
-            <span className="text-[11px] text-muted">
-              tipo padrão das séries temporais na Visão geral
-            </span>
-          </div>
-
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          }
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <div className="mb-2 text-[11px] text-muted">Prévia — rosca</div>
               <Donut data={AMOSTRA.map((d, i) => ({ ...d, color: preview.chart[i] }))} />
@@ -117,7 +112,7 @@ export function SettingsView() {
               />
             </div>
           </div>
-        </section>
+        </Panel>
       </div>
     </div>
   );

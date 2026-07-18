@@ -137,6 +137,113 @@ export function Modal({
   );
 }
 
+/**
+ * Bloco de conteúdo padrão do painel. Nasceu na Visão geral e virou primitiva
+ * para que todas as telas compartilhem a mesma moldura.
+ */
+export function Panel({
+  title,
+  icon,
+  hint,
+  aside,
+  children,
+  className,
+  bodyClassName,
+}: {
+  title?: string;
+  icon?: ReactNode;
+  hint?: string;
+  aside?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  bodyClassName?: string;
+}) {
+  return (
+    <section className={clsx("rounded-xl border border-border bg-surface", className)}>
+      {(title || aside) && (
+        <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+          <div className="min-w-0">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              {icon}
+              {title}
+            </h3>
+            {hint && <p className="mt-0.5 text-[11px] text-muted">{hint}</p>}
+          </div>
+          {aside}
+        </div>
+      )}
+      <div className={clsx(!title && !aside && "pt-4", "px-4 pb-4", bodyClassName)}>{children}</div>
+    </section>
+  );
+}
+
+/** Número-herói com rótulo em caixa alta — a leitura rápida do topo das telas. */
+export function StatTile({
+  icon,
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  icon?: ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "accent" | "warn" | "danger" | "info";
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-center gap-2 text-muted">
+        {icon}
+        <span className="text-[11px] font-semibold tracking-wider uppercase">{label}</span>
+      </div>
+      <div
+        className={clsx(
+          "mt-1.5 text-2xl font-bold tabular-nums",
+          tone === "accent" && "text-accent",
+          tone === "warn" && "text-warn",
+          tone === "danger" && "text-danger",
+          tone === "info" && "text-info",
+        )}
+      >
+        {value}
+      </div>
+      {sub && <div className="text-[11px] text-muted">{sub}</div>}
+    </div>
+  );
+}
+
+/** Alternador de modo de exibição (ícones grandes / lista, cartões / lista…). */
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: readonly { value: T; icon: ReactNode; label: string }[];
+}) {
+  return (
+    <span className="flex overflow-hidden rounded-md border border-border">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          title={o.label}
+          aria-label={o.label}
+          aria-pressed={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={clsx(
+            "cursor-pointer px-2 py-1.5 transition-colors",
+            value === o.value ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2",
+          )}
+        >
+          {o.icon}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 export function Spinner() {
   return (
     <div className="flex items-center justify-center py-16 text-muted">

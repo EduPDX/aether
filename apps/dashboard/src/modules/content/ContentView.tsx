@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, LayoutGrid, List, Search } from "lucide-react";
+import { Boxes, CheckCircle2, Copy, Download, HardDrive, LayoutGrid, List, Package, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { UploadButton } from "../../components/UploadButton";
-import { Badge, Button, Input, Select, Spinner } from "../../components/ui";
+import { Button, Input, Panel, Segmented, Select, Spinner, StatTile } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
 import { ModCard } from "./ModCard";
@@ -14,6 +14,11 @@ type SortKey = "name" | "size" | "mtime";
 type ViewMode = "grid" | "list";
 
 const VIEW_KEY = "aether.content.view";
+
+const VIEW_OPTIONS = [
+  { value: "grid" as const, icon: <LayoutGrid size={15} />, label: "Cartões" },
+  { value: "list" as const, icon: <List size={15} />, label: "Lista compacta" },
+];
 
 export function ContentView({
   instance,
@@ -123,9 +128,61 @@ export function ContentView({
   if (query.isError)
     return <div className="p-6 text-sm text-danger">Erro ao listar: {String(query.error)}</div>;
 
+  const titulo = contentType === "mod_client" ? "Mods do cliente" : "Mods do servidor";
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+    <div className="h-full overflow-y-auto p-4">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+        {/* Mesma leitura de topo da Visão geral: números-herói antes da lista. */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatTile
+            icon={<Package size={14} />}
+            label="Mods"
+            value={String(stats.total)}
+            sub={filtered.length === stats.total ? "nenhum filtro ativo" : `${filtered.length} após filtros`}
+          />
+          <StatTile
+            icon={<CheckCircle2 size={14} />}
+            label="Ativados"
+            value={String(stats.enabled)}
+            sub={stats.disabled > 0 ? `${stats.disabled} desativados` : "todos ativos"}
+            tone="accent"
+          />
+          <StatTile
+            icon={<HardDrive size={14} />}
+            label="Tamanho"
+            value={formatBytes(stats.size)}
+            sub="somando todos os arquivos"
+          />
+          <StatTile
+            icon={stats.dups > 0 ? <Copy size={14} /> : <Boxes size={14} />}
+            label={stats.dups > 0 ? "Duplicados" : "Loaders"}
+            value={stats.dups > 0 ? String(stats.dups) : String(loaders.length)}
+            sub={stats.dups > 0 ? "mesmo mod em dois arquivos" : loaders.join(", ") || "—"}
+            tone={stats.dups > 0 ? "warn" : undefined}
+          />
+        </div>
+
+        <Panel
+          title={titulo}
+          hint={`${filtered.length} de ${stats.total} exibidos`}
+          bodyClassName="px-0 pb-0"
+          aside={
+            <span className="flex items-center gap-1.5">
+              <Segmented value={view} onChange={changeView} options={VIEW_OPTIONS} />
+              <UploadButton
+                instanceId={instance.id}
+                path={uploadDir}
+                label="Adicionar mods"
+                accept=".jar"
+              />
+              <Button variant="ghost" onClick={exportList} title="Exportar lista .txt">
+                <Download size={14} /> Exportar
+              </Button>
+            </span>
+          }
+        >
+      <div className="flex flex-wrap items-center gap-2 border-y border-border px-4 py-3">
         <div className="relative min-w-56 flex-1">
           <Search size={14} className="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
           <Input
@@ -163,61 +220,21 @@ export function ContentView({
           />
           Só duplicados
         </label>
-        <span className="flex overflow-hidden rounded-md border border-border">
-          {(
-            [
-              ["grid", LayoutGrid, "Cartões"],
-              ["list", List, "Lista compacta"],
-            ] as const
-          ).map(([mode, Icon, label]) => (
-            <button
-              key={mode}
-              title={label}
-              onClick={() => changeView(mode)}
-              className={`cursor-pointer px-2 py-1.5 transition-colors ${
-                view === mode ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2"
-              }`}
-            >
-              <Icon size={15} />
-            </button>
-          ))}
-        </span>
-        <UploadButton
-          instanceId={instance.id}
-          path={uploadDir}
-          label="Adicionar mods"
-          accept=".jar"
-        />
-        <Button variant="ghost" onClick={exportList} title="Exportar lista .txt">
-          <Download size={14} /> Exportar
-        </Button>
-      </div>
-
-      <div className="flex items-center gap-3 px-4 py-2 text-xs text-muted">
-        <span>
-          <b className="text-text">{filtered.length}</b> de {stats.total} mods
-        </span>
-        <Badge tone="green">{stats.enabled} ativados</Badge>
-        {stats.disabled > 0 && <Badge tone="neutral">{stats.disabled} desativados</Badge>}
-        {stats.dups > 0 && <Badge tone="orange">{stats.dups} duplicados</Badge>}
-        <span className="ml-auto">{formatBytes(stats.size)} no total</span>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="flex-1 py-16 text-center text-sm text-muted">
+        <div className="py-16 text-center text-sm text-muted">
           Nenhum mod encontrado com os filtros atuais.
         </div>
       ) : view === "list" ? (
-        <div className="flex-1 overflow-y-auto pb-6">
-          <ModTable
-            items={filtered}
-            onToggle={(file) => toggle.mutate(file)}
-            onTrash={askTrash}
-            onOpen={setDetail}
-          />
-        </div>
+        <ModTable
+          items={filtered}
+          onToggle={(file) => toggle.mutate(file)}
+          onTrash={askTrash}
+          onOpen={setDetail}
+        />
       ) : (
-        <div className="grid flex-1 auto-rows-min grid-cols-1 gap-2.5 overflow-y-auto px-4 pb-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2.5 p-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((item) => (
             <ModCard
               key={item.file}
@@ -229,8 +246,10 @@ export function ContentView({
           ))}
         </div>
       )}
+        </Panel>
 
-      <ModDetails item={detail} onClose={() => setDetail(null)} />
+        <ModDetails item={detail} onClose={() => setDetail(null)} />
+      </div>
     </div>
   );
 }

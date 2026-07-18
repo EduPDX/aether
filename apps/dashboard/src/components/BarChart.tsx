@@ -32,7 +32,9 @@ export function HBarChart({
     <div className="flex flex-col gap-[2px]">
       {data.map((d, i) => (
         <div
-          key={d.label}
+          // Rótulo não é identidade: dois mods distintos podem ter o mesmo
+          // nome de exibição e a chave duplicada fazia o React omitir linhas.
+          key={`${d.label}-${i}`}
           className="group grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-2 rounded px-1 py-[3px] transition-colors"
           style={{ background: hover === i ? "var(--color-surface-2)" : "transparent" }}
           onMouseEnter={() => setHover(i)}
@@ -65,8 +67,8 @@ export function HBarChart({
 export function Legend({ items }: { items: { label: string; color: string }[] }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      {items.map((it) => (
-        <span key={it.label} className="flex items-center gap-1.5 text-[11px] text-muted">
+      {items.map((it, i) => (
+        <span key={`${it.label}-${i}`} className="flex items-center gap-1.5 text-[11px] text-muted">
           <span
             className="inline-block h-2.5 w-2.5 rounded-sm"
             style={{ background: it.color }}
@@ -227,7 +229,7 @@ export function Donut({
             const dash = `${len} ${c - len}`;
             const el = (
               <circle
-                key={d.label}
+                key={`${d.label}-${i}`}
                 r={r}
                 fill="none"
                 stroke={d.color ?? "var(--color-accent-dim)"}
@@ -268,7 +270,7 @@ export function Donut({
       <div className="flex min-w-0 flex-col gap-1">
         {data.map((d, i) => (
           <span
-            key={d.label}
+            key={`${d.label}-${i}`}
             className="flex items-center gap-2 text-[11px]"
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}

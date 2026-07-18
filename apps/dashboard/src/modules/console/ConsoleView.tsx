@@ -1,12 +1,21 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { SendHorizontal } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Activity, Cpu, MemoryStick, SendHorizontal, TerminalSquare } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Button, Input } from "../../components/ui";
+import { Button, Input, Panel, StatTile } from "../../components/ui";
 import type { Instance } from "../../lib/api";
-import { api } from "../../lib/api";
+import { api, formatBytes } from "../../lib/api";
 import { subscribeTopic } from "../../lib/ws";
+
+const STATE_LABEL: Record<string, string> = {
+  running: "Online",
+  stopped: "Parado",
+  starting: "Iniciando",
+  stopping: "Parando",
+  crashed: "Crashou",
+};
 
 const LEVEL_COLORS: Record<string, string> = {
   ERROR: "\x1b[31m",
@@ -29,6 +38,9 @@ export function ConsoleView({ instance }: { instance: Instance }) {
   const historyRef = useRef<string[]>([]);
   const historyIdx = useRef(-1);
 
+  const metrics = useQuery({ queryKey: ["metrics"], queryFn: api.metrics, refetchInterval: 5000 });
+  const proc = metrics.data?.instances.find((i) => i.instance_id === instance.id);
+
   useEffect(() => {
     const term = new Terminal({
       convertEol: true,
@@ -50,6 +62,10 @@ export function ConsoleView({ instance }: { instance: Instance }) {
 
     const onResize = () => fit.fit();
     window.addEventListener("resize", onResize);
+    // O terminal agora fica dentro de um painel flex: a janela pode não mudar
+    // de tamanho mas o contêiner sim (abrir/fechar sidebar, painel de status).
+    const observer = new ResizeObserver(onResize);
+    observer.observe(containerRef.current!);
 
     api.logs(instance.id).then(({ lines }) => {
       for (const line of lines) term.writeln(line);
@@ -61,6 +77,7 @@ export function ConsoleView({ instance }: { instance: Instance }) {
 
     return () => {
       unsubscribe();
+      observer.disconnect();
       window.removeEventListener("resize", onResize);
       term.dispose();
       termRef.current = null;
@@ -102,21 +119,59 @@ export function ConsoleView({ instance }: { instance: Instance }) {
     }
   }
 
+  const rodando = proc?.running ?? instance.state === "running";
+
   return (
-    <div className="flex h-full flex-col">
-      <div ref={containerRef} className="min-h-0 flex-1 p-2" />
-      <div className="flex gap-2 border-t border-border p-2">
-        <Input
-          className="flex-1 font-mono text-xs"
-          placeholder="Comando do servidor (Enter para enviar, ↑↓ histórico)"
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
-          onKeyDown={onKeyDown}
+    <div className="flex h-full flex-col gap-4 p-4">
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile
+          icon={<Activity size={14} />}
+          label="Estado"
+          value={STATE_LABEL[instance.state] ?? instance.state}
+          sub={proc?.pid ? `PID ${proc.pid}` : "sem processo ativo"}
+          tone={
+            instance.state === "running" ? "accent" : instance.state === "crashed" ? "danger" : undefined
+          }
         />
-        <Button variant="primary" onClick={send} disabled={!command.trim()}>
-          <SendHorizontal size={14} />
-        </Button>
+        <StatTile
+          icon={<Cpu size={14} />}
+          label="CPU"
+          value={rodando ? `${(proc?.cpu_percent ?? 0).toFixed(0)}%` : "—"}
+          sub="processo do servidor"
+        />
+        <StatTile
+          icon={<MemoryStick size={14} />}
+          label="Memória"
+          value={rodando ? formatBytes(proc?.mem_bytes ?? 0) : "—"}
+          sub="incluindo subprocessos"
+        />
       </div>
+
+      {/* min-h-0 em toda a cadeia: sem isso o xterm empurra o layout e some o input. */}
+      <Panel
+        title="Console"
+        icon={<TerminalSquare size={15} />}
+        hint="saída ao vivo do servidor"
+        className="flex min-h-0 flex-1 flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col gap-2 px-4 pb-4"
+      >
+        <div
+          ref={containerRef}
+          className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-[#0e1013] p-2"
+        />
+        <div className="flex gap-2">
+          <Input
+            className="flex-1 font-mono text-xs"
+            placeholder="Comando do servidor (Enter para enviar, ↑↓ histórico)"
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          <Button variant="primary" onClick={send} disabled={!command.trim()}>
+            <SendHorizontal size={14} />
+          </Button>
+        </div>
+      </Panel>
     </div>
   );
 }
