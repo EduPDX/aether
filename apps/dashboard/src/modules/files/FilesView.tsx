@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { UploadButton } from "../../components/UploadButton";
 import { Button, Spinner } from "../../components/ui";
 import type { Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
@@ -108,7 +109,8 @@ export function FilesView({ instance }: { instance: Instance }) {
               </button>
             </span>
           ))}
-          <span className="ml-auto flex gap-1">
+          <span className="ml-auto flex items-center gap-1">
+            <UploadButton instanceId={instance.id} path={path} label="" />
             <button
               title="Novo arquivo"
               className="cursor-pointer p-1 text-muted hover:text-text"

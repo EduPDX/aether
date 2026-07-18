@@ -56,21 +56,26 @@ export function CreateInstanceDialog({ open, onClose }: { open: boolean; onClose
               <FolderSearch size={14} /> Procurar
             </Button>
           </div>
-          <p className="mt-1 text-[11px] text-muted/80">
-            É a pasta <b>na máquina onde o Aether roda</b> (o servidor), não do seu PC. É a raiz
-            do servidor de jogo — a que contém <code>mods/</code>, <code>server.properties</code>{" "}
-            etc.
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted/80">
+            É a pasta <b>na máquina onde o Aether roda</b> (o servidor), não do seu PC. Aponte
+            para a raiz do servidor — aquela que contém{" "}
+            <code className="whitespace-nowrap">mods/</code> e{" "}
+            <code className="whitespace-nowrap">server.properties</code>.
           </p>
         </div>
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted select-none">
+        {/* O texto vai num <span> próprio: sem isso o flex quebra cada
+            trecho inline em um item separado e a frase fica picotada. */}
+        <label className="flex cursor-pointer items-start gap-2 select-none">
           <input
             type="checkbox"
             checked={isModsFolder}
             onChange={(e) => setIsModsFolder(e.target.checked)}
-            className="accent-(--color-accent-dim)"
+            className="mt-0.5 shrink-0 accent-(--color-accent-dim)"
           />
-          A pasta escolhida <b>já é</b> a pasta de mods (marque só se apontou direto para{" "}
-          <code>mods/</code>)
+          <span className="text-[13px] leading-relaxed text-muted">
+            A pasta escolhida <b>já é</b> a pasta de mods (marque apenas se apontou direto para{" "}
+            <code className="whitespace-nowrap">mods/</code>).
+          </span>
         </label>
         {error && <p className="text-xs text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">

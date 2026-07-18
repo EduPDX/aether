@@ -104,6 +104,28 @@ async function tryRefresh(): Promise<boolean> {
   return true;
 }
 
+/** Upload multipart: o navegador define o Content-Type com o boundary. */
+async function upload<T>(path: string, form: FormData, retried = false): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  const res = await fetch(path, { method: "POST", headers, body: form });
+
+  if (res.status === 401 && !retried) {
+    if (await tryRefresh()) return upload<T>(path, form, true);
+    clearTokens();
+  }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* not json */
+    }
+    throw new Error(detail);
+  }
+  return res.json() as Promise<T>;
+}
+
 async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
@@ -206,6 +228,16 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ path, content }),
     }),
+  uploadFiles: (id: string, path: string, files: FileList | File[], overwrite = false) => {
+    const form = new FormData();
+    form.append("path", path);
+    form.append("overwrite", String(overwrite));
+    for (const f of Array.from(files)) form.append("uploads", f, f.name);
+    return upload<{ saved: { name: string; size: number }[] }>(
+      `/api/v1/instances/${id}/files/upload`,
+      form,
+    );
+  },
   fileOp: (id: string, op: "mkdir" | "rename" | "delete", path: string, newName?: string) =>
     request<{ ok: boolean }>(`/api/v1/instances/${id}/files/op`, {
       method: "POST",

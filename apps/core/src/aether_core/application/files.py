@@ -7,6 +7,7 @@ editing is capped to protect the UI (and the server) from huge files.
 
 import asyncio
 import shutil
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from aether_core.domain.errors import (
 from aether_core.domain.instances import Instance
 
 MAX_TEXT_BYTES = 2 * 1024 * 1024  # 2 MB
+MAX_UPLOAD_BYTES = 512 * 1024 * 1024  # 512 MB por arquivo
 
 
 @dataclass
@@ -99,6 +101,53 @@ class FilesService:
 
         await asyncio.to_thread(_write)
         await self._bus.publish("files.written", {"instance_id": instance.id, "path": rel_path})
+
+    async def save_upload(
+        self,
+        instance: Instance,
+        rel_dir: str,
+        filename: str,
+        chunks: AsyncIterator[bytes],
+        *,
+        overwrite: bool = False,
+    ) -> dict:
+        """Streams an uploaded file into ``rel_dir`` (never leaves the sandbox).
+
+        ``chunks`` is any async iterable of bytes, so the application layer
+        stays independent of the web framework.
+        """
+        name = Path(filename).name
+        if not name or name.startswith("."):
+            raise ValidationFailedError(f"nome de arquivo inválido: {filename!r}")
+
+        target_dir = self._resolve(instance, rel_dir)
+        if not target_dir.is_dir():
+            raise NotFoundError(f"pasta de destino não existe: {rel_dir or '/'}")
+        dest = target_dir / name
+        if dest.exists() and not overwrite:
+            raise ConflictError(f"já existe um arquivo com esse nome: {name}")
+
+        tmp = dest.with_name(dest.name + ".aether-upload")
+        written = 0
+        try:
+            with tmp.open("wb") as f:
+                async for chunk in chunks:
+                    written += len(chunk)
+                    if written > MAX_UPLOAD_BYTES:
+                        raise ValidationFailedError(
+                            f"arquivo excede o limite de {MAX_UPLOAD_BYTES // (1024 * 1024)} MB"
+                        )
+                    await asyncio.to_thread(f.write, chunk)
+            await asyncio.to_thread(tmp.replace, dest)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+
+        await self._bus.publish(
+            "files.uploaded",
+            {"instance_id": instance.id, "path": f"{rel_dir}/{name}".lstrip("/"), "size": written},
+        )
+        return {"name": name, "size": written}
 
     async def mkdir(self, instance: Instance, rel_path: str) -> None:
         target = self._resolve(instance, rel_path)

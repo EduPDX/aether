@@ -1,8 +1,8 @@
 """File explorer routes (sandboxed to the instance root)."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, File, Form, UploadFile
 from pydantic import BaseModel
 
 from aether_core.interfaces.http.deps import (
@@ -61,6 +61,37 @@ async def write_file(
 ) -> None:
     instance = await instances.get(instance_id)
     await files.write_text(instance, body.path, body.content)
+
+
+@router.post("/upload")
+async def upload_files(
+    instance_id: str,
+    instances: InstanceServiceDep,
+    files: FilesServiceDep,
+    _: FilesWrite,
+    uploads: Annotated[list[UploadFile], File()],
+    path: Annotated[str, Form()] = "",
+    overwrite: Annotated[bool, Form()] = False,
+) -> dict:
+    """Uploads one or more files into ``path`` (relative to the instance)."""
+    instance = await instances.get(instance_id)
+
+    async def chunks(upload: UploadFile):
+        while data := await upload.read(1024 * 1024):
+            yield data
+
+    saved = []
+    for upload in uploads:
+        saved.append(
+            await files.save_upload(
+                instance,
+                path,
+                upload.filename or "arquivo",
+                chunks(upload),
+                overwrite=overwrite,
+            )
+        )
+    return {"saved": saved}
 
 
 @router.post("/op")

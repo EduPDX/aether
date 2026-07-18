@@ -73,7 +73,15 @@ export function Badge({
   );
 }
 
-export function Switch({ checked, onChange, title }: { checked: boolean; onChange: () => void; title?: string }) {
+export function Switch({
+  checked,
+  onChange,
+  title,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  title?: string;
+}) {
   return (
     <button
       role="switch"
@@ -85,11 +93,10 @@ export function Switch({ checked, onChange, title }: { checked: boolean; onChang
         checked ? "bg-accent-dim" : "bg-surface-3",
       )}
     >
+      {/* Posição explícita em px: o knob fica sempre 2px dentro da trilha. */}
       <span
-        className={clsx(
-          "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
-          checked ? "translate-x-4.5" : "translate-x-0.5",
-        )}
+        className="absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow-sm transition-[left] duration-150"
+        style={{ left: checked ? "calc(100% - 18px)" : "2px" }}
       />
     </button>
   );

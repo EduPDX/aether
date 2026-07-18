@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import { UploadButton } from "../../components/UploadButton";
 import { Badge, Button, Input, Select, Spinner } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
@@ -133,6 +134,12 @@ export function ContentView({ instance }: { instance: Instance }) {
           />
           Só duplicados
         </label>
+        <UploadButton
+          instanceId={instance.id}
+          path={instance.content_dirs.mod === "." ? "" : (instance.content_dirs.mod ?? "mods")}
+          label="Adicionar mods"
+          accept=".jar"
+        />
         <Button variant="ghost" onClick={exportList} title="Exportar lista .txt">
           <Download size={14} /> Exportar
         </Button>

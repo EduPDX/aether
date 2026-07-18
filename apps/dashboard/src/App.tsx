@@ -1,14 +1,48 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, Boxes, LogOut, Plus, Server, Trash2 } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Boxes,
+  LayoutDashboard,
+  LogOut,
+  Palette,
+  Plus,
+  Server,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
-import { Spinner } from "./components/ui";
+import { Select, Spinner } from "./components/ui";
 import { api } from "./lib/api";
+import { THEMES, THEME_NAMES, applyTheme, currentTheme } from "./lib/themes";
+import type { ThemeName } from "./lib/themes";
 import { useAuth } from "./modules/auth/AuthGate";
 import { CompareView } from "./modules/content/CompareView";
 import { CreateInstanceDialog } from "./modules/instances/CreateInstanceDialog";
 import { InstanceView } from "./modules/instances/InstanceView";
+import { OverviewView } from "./modules/overview/OverviewView";
 
-type View = { kind: "instance"; id: string } | { kind: "compare" };
+type View = { kind: "overview" } | { kind: "instance"; id: string } | { kind: "compare" };
+
+function ThemePicker() {
+  const [theme, setTheme] = useState<ThemeName>(currentTheme);
+  useEffect(() => applyTheme(theme), [theme]);
+  return (
+    <label className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted">
+      <Palette size={14} className="shrink-0" />
+      <Select
+        className="min-w-0 flex-1 py-1 text-xs"
+        value={theme}
+        onChange={(e) => setTheme(e.target.value as ThemeName)}
+        title="Tema da interface"
+      >
+        {THEME_NAMES.map((n) => (
+          <option key={n} value={n}>
+            {THEMES[n].label}
+          </option>
+        ))}
+      </Select>
+    </label>
+  );
+}
 
 export default function App() {
   const qc = useQueryClient();
@@ -25,8 +59,8 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (!view && instances.length > 0) setView({ kind: "instance", id: instances[0].id });
-  }, [view, instances]);
+    if (!view) setView({ kind: "overview" });
+  }, [view]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -51,6 +85,19 @@ export default function App() {
           <span className="ml-auto rounded bg-surface-3 px-1.5 py-0.5 text-[10px] text-muted">
             v0.1
           </span>
+        </div>
+
+        <div className="px-2 pb-1">
+          <button
+            className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+              view?.kind === "overview"
+                ? "bg-surface-3 text-text"
+                : "text-muted hover:bg-surface-2 hover:text-text"
+            }`}
+            onClick={() => setView({ kind: "overview" })}
+          >
+            <LayoutDashboard size={15} /> Visão geral
+          </button>
         </div>
 
         <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted uppercase">
@@ -118,6 +165,7 @@ export default function App() {
           >
             <Plus size={15} /> Nova instância
           </button>
+          <ThemePicker />
           <div className="mt-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-dim text-xs font-bold text-black">
               {user?.username.charAt(0).toUpperCase()}
@@ -141,7 +189,11 @@ export default function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-border px-4 py-3">
           <h1 className="text-sm font-semibold">
-            {view?.kind === "compare" ? "Comparar instâncias" : (active?.name ?? "—")}
+            {view?.kind === "overview"
+              ? "Visão geral"
+              : view?.kind === "compare"
+                ? "Comparar instâncias"
+                : (active?.name ?? "—")}
           </h1>
           {active && (
             <span className="truncate text-xs text-muted" title={active.root_dir}>
@@ -158,18 +210,24 @@ export default function App() {
               {String(instancesQuery.error)})
             </div>
           )}
-          {!instancesQuery.isLoading && instances.length === 0 && !instancesQuery.isError && (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-muted">
-              <Boxes size={40} />
-              <p className="text-sm">Nenhuma instância ainda.</p>
-              <button
-                className="cursor-pointer text-sm text-accent"
-                onClick={() => setCreateOpen(true)}
-              >
-                Criar a primeira instância →
-              </button>
-            </div>
+          {view?.kind === "overview" && !instancesQuery.isLoading && !instancesQuery.isError && (
+            <OverviewView instances={instances} />
           )}
+          {view?.kind !== "overview" &&
+            !instancesQuery.isLoading &&
+            instances.length === 0 &&
+            !instancesQuery.isError && (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-muted">
+                <Boxes size={40} />
+                <p className="text-sm">Nenhuma instância ainda.</p>
+                <button
+                  className="cursor-pointer text-sm text-accent"
+                  onClick={() => setCreateOpen(true)}
+                >
+                  Criar a primeira instância →
+                </button>
+              </div>
+            )}
           {view?.kind === "instance" && active && (
             <InstanceView key={active.id} instance={active} />
           )}
