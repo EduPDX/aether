@@ -132,7 +132,7 @@ export function ContentView({
 
   return (
     <div className="h-full overflow-y-auto p-4">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[1900px] flex-col gap-4">
         {/* Mesma leitura de topo da Visão geral: números-herói antes da lista. */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile
@@ -234,7 +234,7 @@ export function ContentView({
           onOpen={setDetail}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-2.5 p-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2.5 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((item) => (
             <ModCard
               key={item.file}

@@ -21,7 +21,7 @@ import { useAuth } from "./modules/auth/AuthGate";
 import { CompareView } from "./modules/content/CompareView";
 import { CreateInstanceDialog } from "./modules/instances/CreateInstanceDialog";
 import { InstanceView } from "./modules/instances/InstanceView";
-import { AuditView, ProfileView, UsersView } from "./modules/admin/AdminViews";
+import { AuditView, UsersView } from "./modules/admin/AdminViews";
 import { OverviewView } from "./modules/overview/OverviewView";
 import { SettingsView } from "./modules/settings/SettingsView";
 
@@ -289,7 +289,9 @@ export default function App() {
           {view?.kind === "users" && <UsersView />}
           {view?.kind === "audit" && <AuditView />}
           {view?.kind === "settings" && <SettingsView />}
-          {view?.kind === "profile" && <ProfileView />}
+          {/* O perfil virou uma seção das configurações; o atalho da barra
+              lateral apenas abre essa seção direto. */}
+          {view?.kind === "profile" && <SettingsView initialSection="perfil" />}
           {view?.kind === "compare" && instances.length < 2 && (
             <div className="p-6 text-sm text-muted">
               É preciso ter pelo menos duas instâncias para comparar.

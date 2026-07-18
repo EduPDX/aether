@@ -202,11 +202,11 @@ export function AuditView() {
   );
 }
 
-export function ProfileView() {
+/** Perfil do usuário — exibido como uma seção das configurações. */
+export function ProfileContent() {
   const { user } = useAuth();
   return (
-    <div className="h-full overflow-y-auto p-4">
-      <div className="mx-auto w-full max-w-md space-y-3">
+      <div className="w-full max-w-md space-y-3">
         <div className="rounded-xl border border-border bg-surface p-5 text-center">
           <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-dim text-2xl font-bold text-black">
             {user?.username.charAt(0).toUpperCase()}
@@ -229,6 +229,5 @@ export function ProfileView() {
           </ul>
         </div>
       </div>
-    </div>
   );
 }

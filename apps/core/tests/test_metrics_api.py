@@ -1,6 +1,43 @@
 """Metrics API and client-profile content type."""
 
+import os
+
+from aether_core.application.metrics import MetricsService
 from conftest import create_instance
+
+
+class _FakeSupervisor:
+    """Aponta para o próprio processo de teste, que está sempre vivo."""
+
+    def __init__(self, pid: int) -> None:
+        self._pid = pid
+
+    def pid_of(self, instance_id: str) -> int | None:
+        return self._pid
+
+
+def test_process_cpu_is_measured_across_samples():
+    """Regressão: recriar o psutil.Process a cada coleta zerava a CPU.
+
+    ``cpu_percent(interval=None)`` é um delta desde a leitura anterior daquele
+    objeto. Sem cache, toda chamada era "a primeira" e devolvia 0.0 para
+    sempre — a memória aparecia na interface e a CPU não.
+    """
+    service = MetricsService(_FakeSupervisor(os.getpid()))
+
+    first = service.process("i1")
+    assert first.running is True
+    assert first.mem_bytes > 0
+
+    # queima CPU para haver o que medir na janela entre as duas coletas
+    total = 0
+    for n in range(3_000_000):
+        total += n
+
+    second = service.process("i1")
+    assert second.cpu_percent > 0.0, "a segunda coleta deve enxergar uso de CPU"
+    # o objeto Process foi reaproveitado, não recriado
+    assert service._procs[os.getpid()] is service._procs[os.getpid()]
 
 
 def test_metrics_reports_host_resources(client, tmp_path):

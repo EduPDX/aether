@@ -102,7 +102,8 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
 
   return (
     <div className="h-full overflow-y-auto p-4">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      {/* Ocupa a largura disponível; o teto só evita linhas absurdas em ultrawide. */}
+      <div className="mx-auto flex w-full max-w-[1900px] flex-col gap-4">
         {metrics.data && (
           <>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -212,7 +213,7 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
           />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           <Panel title="Mods por loader">
             <Donut data={loaders} />
           </Panel>
@@ -220,11 +221,15 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
           <Panel title="Mods por instância">
             <HBarChart data={perInstance} />
           </Panel>
-        </div>
 
-        <Panel title="Maiores mods" aside={<span className="text-[11px] text-muted">top 8</span>}>
-          <HBarChart data={biggest} format={formatBytes} />
-        </Panel>
+          <Panel
+            title="Maiores mods"
+            aside={<span className="text-[11px] text-muted">top 8</span>}
+            className="lg:col-span-2 2xl:col-span-1"
+          >
+            <HBarChart data={biggest} format={formatBytes} />
+          </Panel>
+        </div>
 
         <Panel title="Servidores">
           <div className="flex flex-col gap-1.5">

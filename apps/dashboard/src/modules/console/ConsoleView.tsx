@@ -42,16 +42,34 @@ export function ConsoleView({ instance }: { instance: Instance }) {
   const proc = metrics.data?.instances.find((i) => i.instance_id === instance.id);
 
   useEffect(() => {
+    // O terminal segue o tema do app em vez de cores fixas: trocar de tema
+    // deixava o console destoando do resto da interface.
+    const css = getComputedStyle(document.documentElement);
+    const token = (name: string, fallback: string) =>
+      css.getPropertyValue(`--color-${name}`).trim() || fallback;
+
     const term = new Terminal({
       convertEol: true,
       disableStdin: true,
       fontSize: 12.5,
       fontFamily: "Cascadia Mono, Consolas, monospace",
       scrollback: 3000,
+      lineHeight: 1.25,
+      letterSpacing: 0.2,
+      cursorBlink: false,
       theme: {
-        background: "#0e1013",
-        foreground: "#d6dae2",
-        selectionBackground: "#33415588",
+        background: token("bg", "#0e1013"),
+        foreground: token("text", "#d6dae2"),
+        selectionBackground: token("surface-3", "#334155") + "99",
+        red: token("danger", "#ff5c7a"),
+        brightRed: token("danger", "#ff5c7a"),
+        yellow: token("warn", "#ffc63d"),
+        brightYellow: token("warn", "#ffc63d"),
+        cyan: token("info", "#4cc9f0"),
+        brightCyan: token("info", "#4cc9f0"),
+        green: token("accent", "#22e39b"),
+        brightGreen: token("accent", "#22e39b"),
+        brightBlack: token("muted", "#94accd"),
       },
     });
     const fit = new FitAddon();
@@ -157,7 +175,7 @@ export function ConsoleView({ instance }: { instance: Instance }) {
       >
         <div
           ref={containerRef}
-          className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-[#0e1013] p-2"
+          className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-bg p-2"
         />
         <div className="flex gap-2">
           <Input

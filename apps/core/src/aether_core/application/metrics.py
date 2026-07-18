@@ -47,6 +47,21 @@ class MetricsService:
         self._history_size = history_size
         # Primeira leitura serve de baseline para o cpu_percent não vir 0.
         psutil.cpu_percent(interval=None)
+        self._procs: dict[int, psutil.Process] = {}
+
+    def _proc(self, pid: int) -> psutil.Process:
+        """Reaproveita o objeto Process entre coletas.
+
+        ``cpu_percent(interval=None)`` é um delta desde a leitura anterior
+        *daquele objeto*: recriar o Process a cada chamada devolvia 0.0 para
+        sempre. O cache é o que faz o percentual de CPU existir.
+        """
+        proc = self._procs.get(pid)
+        if proc is None or not proc.is_running():
+            proc = psutil.Process(pid)
+            self._procs[pid] = proc
+            proc.cpu_percent(interval=None)  # baseline
+        return proc
 
     def host(self) -> HostMetrics:
         mem = psutil.virtual_memory()
@@ -73,19 +88,25 @@ class MetricsService:
         if pid is None:
             return ProcessMetrics(instance_id, None, 0.0, 0, False)
         try:
-            proc = psutil.Process(pid)
+            proc = self._proc(pid)
             with proc.oneshot():
                 # Inclui os filhos: o run.sh do Forge inicia o java como filho.
                 mem = proc.memory_info().rss
                 cpu = proc.cpu_percent(interval=None)
                 for child in proc.children(recursive=True):
                     try:
-                        mem += child.memory_info().rss
-                        cpu += child.cpu_percent(interval=None)
+                        cached = self._proc(child.pid)
+                        mem += cached.memory_info().rss
+                        cpu += cached.cpu_percent(interval=None)
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
+            # O cache é compartilhado por todas as instâncias: poda pelo que
+            # de fato morreu, nunca pelo que não pertence a esta árvore.
+            for morto in [p for p, o in self._procs.items() if not o.is_running()]:
+                del self._procs[morto]
             return ProcessMetrics(instance_id, pid, round(cpu, 1), mem, True)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
+            self._procs.pop(pid, None)
             return ProcessMetrics(instance_id, pid, 0.0, 0, False)
 
     def sample(self) -> dict:

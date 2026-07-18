@@ -9,6 +9,8 @@ import {
   Folder,
   Package,
 } from "lucide-react";
+import { useSyncExternalStore } from "react";
+import { currentIconPack, subscribeIconPack } from "../../lib/icons";
 
 const BY_EXT: Record<string, { Icon: typeof FileText; color: string }> = {
   jar: { Icon: Package, color: "text-warn" },
@@ -64,10 +66,43 @@ export function fileKind(name: string, isDir: boolean): string {
   return nomes[ext] ?? (ext ? ext.toUpperCase() : "Arquivo");
 }
 
-export function FileIcon({ name, isDir, size = 15 }: { name: string; isDir: boolean; size?: number }) {
-  if (isDir) return <Folder size={size} className="shrink-0 text-info" />;
+function useIconPack() {
+  return useSyncExternalStore(subscribeIconPack, currentIconPack);
+}
+
+export function FileIcon({
+  name,
+  isDir,
+  size = 15,
+  pack,
+}: {
+  name: string;
+  isDir: boolean;
+  size?: number;
+  /** Força um pacote (usado nas prévias das configurações). */
+  pack?: ReturnType<typeof currentIconPack>;
+}) {
+  const active = useIconPack();
+  const chosen = pack ?? active;
+
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  const found = BY_EXT[ext] ?? { Icon: FileText, color: "text-muted" };
-  const { Icon, color } = found;
+  const base = isDir
+    ? { Icon: Folder, color: "text-info" }
+    : (BY_EXT[ext] ?? { Icon: FileText, color: "text-muted" });
+  const { Icon } = base;
+  const color = chosen === "neutro" ? "text-muted" : base.color;
+
+  if (chosen === "solido") {
+    // Pastilha tingida com a cor do tipo: o ícone fica em cima, em contraste.
+    return (
+      <span
+        className={`flex shrink-0 items-center justify-center rounded-lg ${color} bg-current/15`}
+        style={{ width: size * 1.35, height: size * 1.35 }}
+      >
+        <Icon size={size * 0.72} className={color} />
+      </span>
+    );
+  }
+
   return <Icon size={size} className={`shrink-0 ${color}`} />;
 }
