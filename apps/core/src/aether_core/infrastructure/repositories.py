@@ -8,10 +8,13 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aether_core.application.ports import CachedContent
+from aether_core.domain.backups import Backup, BackupKind, BackupPolicy, BackupSchedule
 from aether_core.domain.instances import Instance
 from aether_core.domain.users import Role, User
 from aether_core.infrastructure.db import (
     AuditLogRow,
+    BackupPolicyRow,
+    BackupRow,
     ContentCacheRow,
     InstanceRow,
     SyncProfileRow,
@@ -255,3 +258,82 @@ class SqlSyncProfileRepository:
         )
         await self._session.commit()
         return result.rowcount > 0
+
+
+def _row_to_backup(row: BackupRow) -> Backup:
+    return Backup(
+        id=row.id,
+        instance_id=row.instance_id,
+        file_name=row.file_name,
+        size_bytes=row.size_bytes,
+        kind=BackupKind(row.kind),
+        note=row.note or "",
+        created_at=datetime.fromisoformat(row.created_at),
+    )
+
+
+class SqlBackupRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, backup: Backup) -> None:
+        self._session.add(
+            BackupRow(
+                id=backup.id,
+                instance_id=backup.instance_id,
+                file_name=backup.file_name,
+                size_bytes=backup.size_bytes,
+                kind=str(backup.kind),
+                note=backup.note,
+                created_at=backup.created_at.isoformat(),
+            )
+        )
+        await self._session.commit()
+
+    async def list_for(self, instance_id: str) -> list[Backup]:
+        rows = await self._session.scalars(
+            select(BackupRow)
+            .where(BackupRow.instance_id == instance_id)
+            .order_by(BackupRow.created_at.desc())
+        )
+        return [_row_to_backup(r) for r in rows]
+
+    async def get(self, backup_id: str) -> Backup | None:
+        row = await self._session.get(BackupRow, backup_id)
+        return _row_to_backup(row) if row else None
+
+    async def delete(self, backup_id: str) -> bool:
+        result = await self._session.execute(
+            delete(BackupRow).where(BackupRow.id == backup_id)
+        )
+        await self._session.commit()
+        return result.rowcount > 0
+
+    async def get_policy(self, instance_id: str) -> BackupPolicy:
+        row = await self._session.get(BackupPolicyRow, instance_id)
+        if row is None:
+            return BackupPolicy()
+        return BackupPolicy(schedule=BackupSchedule(row.schedule), keep=row.keep)
+
+    async def set_policy(self, instance_id: str, policy: BackupPolicy) -> None:
+        row = await self._session.get(BackupPolicyRow, instance_id)
+        if row is None:
+            row = BackupPolicyRow(instance_id=instance_id)
+            self._session.add(row)
+        row.schedule = str(policy.schedule)
+        row.keep = policy.keep
+        await self._session.commit()
+
+    async def last_run(self, instance_id: str) -> datetime | None:
+        row = await self._session.get(BackupPolicyRow, instance_id)
+        if row is None or not row.last_run:
+            return None
+        return datetime.fromisoformat(row.last_run)
+
+    async def mark_run(self, instance_id: str, when: datetime) -> None:
+        row = await self._session.get(BackupPolicyRow, instance_id)
+        if row is None:
+            row = BackupPolicyRow(instance_id=instance_id)
+            self._session.add(row)
+        row.last_run = when.isoformat()
+        await self._session.commit()

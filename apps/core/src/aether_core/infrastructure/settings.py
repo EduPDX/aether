@@ -33,9 +33,13 @@ class AppSettings(BaseSettings):
         return self.data_dir / "icons"
 
     @property
+    def backups_dir(self) -> Path:
+        return self.data_dir / "backups"
+
+    @property
     def trash_dir(self) -> Path:
         return self.data_dir / "trash"
 
     def ensure_dirs(self) -> None:
-        for d in (self.data_dir, self.icons_dir, self.trash_dir):
+        for d in (self.data_dir, self.icons_dir, self.trash_dir, self.backups_dir):
             d.mkdir(parents=True, exist_ok=True)

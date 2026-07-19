@@ -4,7 +4,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import String, Text
+from sqlalchemy import Integer, String, Text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -58,6 +58,27 @@ class SyncProfileRow(Base):
     signature: Mapped[str | None] = mapped_column(String(200), nullable=True)
     published_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
     created_at: Mapped[str] = mapped_column(String(40))
+
+
+class BackupRow(Base):
+    __tablename__ = "backups"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    instance_id: Mapped[str] = mapped_column(String(32))
+    file_name: Mapped[str] = mapped_column(String(255))
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    kind: Mapped[str] = mapped_column(String(20), default="manual")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[str] = mapped_column(String(40))
+
+
+class BackupPolicyRow(Base):
+    __tablename__ = "backup_policies"
+
+    instance_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    schedule: Mapped[str] = mapped_column(String(20), default="off")
+    keep: Mapped[int] = mapped_column(Integer, default=7)
+    last_run: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class AuditLogRow(Base):

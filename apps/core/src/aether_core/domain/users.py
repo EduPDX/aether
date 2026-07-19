@@ -34,12 +34,17 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "config.write",
         "sync.read",
         "sync.write",
+        "backups.read",
+        "backups.write",
     },
     Role.MODERATOR: {
         "instances.read",
         "content.read",
         "power.use",
         "console.use",
+        # Vê e cria backup, mas não restaura nem apaga: restaurar sobrescreve
+        # o mundo, e isso é decisão de quem administra.
+        "backups.read",
     },
     Role.VIEWER: {"instances.read", "content.read"},
 }

@@ -7,6 +7,7 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aether_core.application.auth import AuthService
+from aether_core.application.backups import BackupService
 from aether_core.application.config import ConfigService
 from aether_core.application.content import ContentService
 from aether_core.application.files import FilesService
@@ -17,6 +18,7 @@ from aether_core.domain.errors import AuthenticationError, ForbiddenError
 from aether_core.domain.users import User
 from aether_core.infrastructure import security
 from aether_core.infrastructure.repositories import (
+    SqlBackupRepository,
     SqlContentCache,
     SqlInstanceRepository,
     SqlSyncProfileRepository,
@@ -93,6 +95,8 @@ AuditRead = Annotated[User, Depends(_require("audit.read"))]
 UsersManage = Annotated[User, Depends(_require("users.manage"))]
 FilesRead = Annotated[User, Depends(_require("files.read"))]
 FilesWrite = Annotated[User, Depends(_require("files.write"))]
+BackupsRead = Annotated[User, Depends(_require("backups.read"))]
+BackupsWrite = Annotated[User, Depends(_require("backups.write"))]
 ConfigRead = Annotated[User, Depends(_require("config.read"))]
 ConfigWrite = Annotated[User, Depends(_require("config.write"))]
 SyncRead = Annotated[User, Depends(_require("sync.read"))]
@@ -129,6 +133,20 @@ def get_power_service(request: Request) -> PowerService:
 def get_files_service(request: Request) -> FilesService:
     state = request.app.state
     return FilesService(trash_root=state.settings.trash_dir, bus=state.bus)
+
+
+def get_backup_service(request: Request, session: SessionDep) -> BackupService:
+    state = request.app.state
+    return BackupService(
+        repo=SqlBackupRepository(session),
+        providers=state.providers,
+        supervisor=state.supervisor,
+        bus=state.bus,
+        backups_root=state.settings.backups_dir,
+    )
+
+
+BackupServiceDep = Annotated[BackupService, Depends(get_backup_service)]
 
 
 def get_config_service(request: Request) -> ConfigService:

@@ -8,6 +8,7 @@ from fastapi import APIRouter, FastAPI
 from aether_core import __version__
 from aether_core.application.events import EventBus
 from aether_core.application.metrics import MetricsService
+from aether_core.application.scheduler import BackupScheduler
 from aether_core.infrastructure.db import make_engine, make_session_factory, run_migrations
 from aether_core.infrastructure.filesystem import FileIconStore, LocalContentFilesystem
 from aether_core.infrastructure.processes import LocalProcessSupervisor
@@ -22,6 +23,7 @@ from aether_core.infrastructure.settings import AppSettings
 from aether_core.interfaces.http.errors import register_error_handlers
 from aether_core.interfaces.http.routes import (
     auth,
+    backups,
     browse,
     config,
     content,
@@ -55,7 +57,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        app.state.backup_scheduler.start()
         yield
+        await app.state.backup_scheduler.stop()
         await app.state.supervisor.shutdown()
 
     app = FastAPI(
@@ -75,6 +79,27 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.state.metrics = MetricsService(app.state.supervisor)
     app.state.jwt_secret = load_or_create_secret(settings.data_dir)
     app.state.sync_signer = _SyncSigner(load_or_create_sync_key(settings.data_dir))
+
+    def _backup_service(session):
+        from aether_core.application.backups import BackupService
+        from aether_core.infrastructure.repositories import SqlBackupRepository
+
+        return BackupService(
+            repo=SqlBackupRepository(session),
+            providers=app.state.providers,
+            supervisor=app.state.supervisor,
+            bus=app.state.bus,
+            backups_root=settings.backups_dir,
+        )
+
+    def _instance_repo(session):
+        from aether_core.infrastructure.repositories import SqlInstanceRepository
+
+        return SqlInstanceRepository(session)
+
+    app.state.backup_scheduler = BackupScheduler(
+        app.state.session_factory, _backup_service, _instance_repo
+    )
 
     if settings.static_dir and settings.static_dir.is_dir():
         from fastapi.staticfiles import StaticFiles
@@ -96,6 +121,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(power.router)
     api.include_router(files.router)
     api.include_router(config.router)
+    api.include_router(backups.router)
     api.include_router(sync.router)
     api.include_router(public.router)
     api.include_router(browse.router)

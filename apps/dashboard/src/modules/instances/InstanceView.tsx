@@ -6,6 +6,7 @@ import type { Instance, InstanceState } from "../../lib/api";
 import { api, can } from "../../lib/api";
 import { subscribeTopic } from "../../lib/ws";
 import { useAuth } from "../auth/AuthGate";
+import { BackupsView } from "../backups/BackupsView";
 import { ConfigView } from "../config/ConfigView";
 import { ConsoleView } from "../console/ConsoleView";
 import { ContentView } from "../content/ContentView";
@@ -29,7 +30,7 @@ const STATE_TONE: Record<InstanceState, "neutral" | "green" | "orange" | "red"> 
   crashed: "red",
 };
 
-type Tab = "content" | "client" | "diff" | "console" | "files" | "config" | "sync";
+type Tab = "content" | "client" | "diff" | "console" | "files" | "config" | "sync" | "backups";
 
 export function InstanceView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
@@ -106,6 +107,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
               ...(can(user, "files.read") ? [["files", "Arquivos"] as [Tab, string]] : []),
               ...(can(user, "config.read") ? [["config", "Config"] as [Tab, string]] : []),
               ...(can(user, "sync.read") ? [["sync", "Sync"] as [Tab, string]] : []),
+              ...(can(user, "backups.read") ? [["backups", "Backups"] as [Tab, string]] : []),
             ] as [Tab, string][]
           ).map(([key, label]) => (
             <button
@@ -131,6 +133,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
         {tab === "files" && <FilesView instance={instance} />}
         {tab === "config" && <ConfigView instance={instance} />}
         {tab === "sync" && <SyncView instance={instance} />}
+        {tab === "backups" && <BackupsView instance={instance} />}
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ Version 0 of the contract covers content analysis only (roadmap v0.1).
 Lifecycle, console, config schema and sync contracts arrive in later versions.
 """
 
+from aether_sdk.backup import BackupSpec, QuiescePlan, SupportsBackup
 from aether_sdk.config import (
     ConfigCodec,
     ConfigField,
@@ -30,6 +31,7 @@ from aether_sdk.provider import GameProvider
 
 __all__ = [
     "SDK_VERSION",
+    "BackupSpec",
     "ConfigCodec",
     "ConfigField",
     "ConfigFieldType",
@@ -44,6 +46,8 @@ __all__ = [
     "LaunchContext",
     "LaunchSpec",
     "ProviderManifest",
+    "QuiescePlan",
+    "SupportsBackup",
     "SupportsConfig",
     "SupportsGameMetadata",
     "SupportsLaunch",

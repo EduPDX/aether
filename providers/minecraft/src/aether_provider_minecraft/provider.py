@@ -1,6 +1,9 @@
 """Minecraft provider implementation (content analysis + server launch)."""
 
+from pathlib import Path
+
 from aether_sdk import (
+    BackupSpec,
     ConfigCodec,
     ConfigSchema,
     ConsoleCodec,
@@ -9,9 +12,11 @@ from aether_sdk import (
     LaunchContext,
     LaunchSpec,
     ProviderManifest,
+    QuiescePlan,
 )
 
 from aether_provider_minecraft.content.jar_analyzer import JarModAnalyzer
+from aether_provider_minecraft.server.backup import backup_spec, quiesce_plan
 from aether_provider_minecraft.server.console import MinecraftConsoleCodec
 from aether_provider_minecraft.server.game_meta import detect_game_metadata
 from aether_provider_minecraft.server.launch import build_launch_spec
@@ -79,3 +84,9 @@ class MinecraftProvider:
         if format != "properties":
             raise LookupError(f"unknown config format: {format!r}")
         return PropertiesCodec()
+
+    def backup_spec(self, root: Path) -> BackupSpec:
+        return backup_spec(root)
+
+    def quiesce_plan(self) -> QuiescePlan:
+        return quiesce_plan()

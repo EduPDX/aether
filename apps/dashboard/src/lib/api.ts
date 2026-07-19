@@ -228,6 +228,26 @@ export const api = {
     }),
   logs: (id: string, tail = 500) =>
     request<{ lines: string[] }>(`/api/v1/instances/${id}/logs?tail=${tail}`),
+  backups: (id: string) => request<BackupsPayload>(`/api/v1/instances/${id}/backups`),
+  createBackup: (id: string, note = "") =>
+    request<BackupEntry>(`/api/v1/instances/${id}/backups`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+  deleteBackup: (id: string, backupId: string) =>
+    request<void>(`/api/v1/instances/${id}/backups/${backupId}`, { method: "DELETE" }),
+  restoreBackup: (id: string, backupId: string) =>
+    request<{ restored_files: number; safety_backup_id: string }>(
+      `/api/v1/instances/${id}/backups/${backupId}/restore`,
+      { method: "POST" },
+    ),
+  setBackupPolicy: (id: string, schedule: BackupSchedule, keep: number) =>
+    request<BackupPolicy>(`/api/v1/instances/${id}/backups/policy`, {
+      method: "PUT",
+      body: JSON.stringify({ schedule, keep }),
+    }),
+  backupDownloadUrl: (id: string, backupId: string) =>
+    `/api/v1/instances/${id}/backups/${backupId}/download`,
   listFiles: (id: string, path = "") =>
     request<FileEntry[]>(`/api/v1/instances/${id}/files?path=${encodeURIComponent(path)}`),
   readFile: (id: string, path: string) =>
@@ -344,6 +364,29 @@ export interface FileEntry {
   mtime: number;
 }
 
+export type BackupSchedule = "off" | "hourly" | "daily" | "weekly";
+
+export interface BackupEntry {
+  id: string;
+  file_name: string;
+  size_bytes: number;
+  kind: "manual" | "scheduled";
+  note: string;
+  created_at: string;
+}
+
+export interface BackupPolicy {
+  schedule: BackupSchedule;
+  keep: number;
+}
+
+export interface BackupsPayload {
+  backups: BackupEntry[];
+  policy: BackupPolicy;
+  /** O que o provider define como backup — mostrado para não haver surpresa. */
+  spec: { include: string[]; exclude: string[]; summary: string };
+}
+
 export interface ConfigFieldDef {
   key: string;
   label: string;
@@ -367,8 +410,11 @@ const ROLE_PERMS: Record<AuthUser["role"], string[]> = {
     "power.use", "console.use", "audit.read",
     "files.read", "files.write", "config.read", "config.write",
     "sync.read", "sync.write",
+    "backups.read", "backups.write",
   ],
-  moderator: ["instances.read", "content.read", "power.use", "console.use"],
+  // Vê e baixa backup, mas não restaura nem apaga: restaurar sobrescreve o
+  // mundo, e isso é decisão de quem administra.
+  moderator: ["instances.read", "content.read", "power.use", "console.use", "backups.read"],
   viewer: ["instances.read", "content.read"],
 };
 
