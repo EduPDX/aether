@@ -66,6 +66,10 @@ export interface AuthUser {
   id: string;
   username: string;
   role: "owner" | "admin" | "moderator" | "viewer";
+  email: string;
+  display_name: string;
+  /** Nome de exibição, caindo para o de usuário quando vazio. */
+  label: string;
 }
 
 let accessToken = localStorage.getItem("aether.access") ?? "";
@@ -167,10 +171,13 @@ export const api = {
     request<BrowseResult>(
       `/api/v1/fs/browse${path ? `?path=${encodeURIComponent(path)}` : ""}`,
     ),
-  setup: (username: string, password: string) =>
+  setup: (username: string, password: string, email = "", displayName = "") =>
     request<{ user: AuthUser; access_token: string; refresh_token: string }>(
       "/api/v1/auth/setup",
-      { method: "POST", body: JSON.stringify({ username, password }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ username, password, email, display_name: displayName }),
+      },
     ),
   login: (username: string, password: string) =>
     request<{ user: AuthUser; access_token: string; refresh_token: string }>(
@@ -178,6 +185,21 @@ export const api = {
       { method: "POST", body: JSON.stringify({ username, password }) },
     ),
   me: () => request<AuthUser>("/api/v1/auth/me"),
+  updateProfile: (email: string, displayName: string) =>
+    request<AuthUser>("/api/v1/auth/me", {
+      method: "PUT",
+      body: JSON.stringify({ email, display_name: displayName }),
+    }),
+  changePassword: (current: string, next: string) =>
+    request<{ access_token: string; refresh_token: string }>("/api/v1/auth/password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: current, new_password: next }),
+    }),
+  resetUserPassword: (userId: string, newPassword: string) =>
+    request<void>(`/api/v1/users/${userId}/password`, {
+      method: "POST",
+      body: JSON.stringify({ new_password: newPassword }),
+    }),
   providers: () => request<ProviderInfo[]>("/api/v1/providers"),
   instances: () => request<Instance[]>("/api/v1/instances"),
   createInstance: (body: {
@@ -190,10 +212,16 @@ export const api = {
     request<void>(`/api/v1/instances/${id}`, { method: "DELETE" }),
   metrics: () => request<MetricsPayload>("/api/v1/metrics"),
   users: () => request<UserOut[]>("/api/v1/users"),
-  createUser: (username: string, password: string, role: string) =>
+  createUser: (
+    username: string,
+    password: string,
+    role: string,
+    email = "",
+    displayName = "",
+  ) =>
     request<UserOut>("/api/v1/users", {
       method: "POST",
-      body: JSON.stringify({ username, password, role }),
+      body: JSON.stringify({ username, password, role, email, display_name: displayName }),
     }),
   deleteUser: (id: string) => request<void>(`/api/v1/users/${id}`, { method: "DELETE" }),
   audit: (limit = 100) => request<AuditEntry[]>(`/api/v1/audit?limit=${limit}`),
@@ -398,6 +426,9 @@ export interface UserOut {
   id: string;
   username: string;
   role: string;
+  email: string;
+  display_name: string;
+  label: string;
   created_at?: string;
 }
 

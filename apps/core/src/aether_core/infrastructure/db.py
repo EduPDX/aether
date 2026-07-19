@@ -43,6 +43,9 @@ class UserRow(Base):
     username: Mapped[str] = mapped_column(String(60), unique=True)
     password_hash: Mapped[str] = mapped_column(Text)
     role: Mapped[str] = mapped_column(String(20))
+    email: Mapped[str] = mapped_column(String(200), default="")
+    display_name: Mapped[str] = mapped_column(String(100), default="")
+    token_epoch: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[str] = mapped_column(String(40))
 
 

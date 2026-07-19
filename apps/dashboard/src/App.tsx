@@ -237,10 +237,10 @@ export default function App() {
 
         <div className="flex items-center gap-2 border-t border-border p-3">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-dim text-xs font-bold text-black">
-            {user?.username.charAt(0).toUpperCase()}
+            {(user?.label ?? user?.username ?? "?").charAt(0).toUpperCase()}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-xs font-medium">{user?.username}</span>
+            <span className="block truncate text-xs font-medium">{user?.label ?? user?.username}</span>
             <span className="block text-[10px] text-muted">{user?.role}</span>
           </span>
           <button title="Sair" className="cursor-pointer text-muted hover:text-danger" onClick={logout}>

@@ -122,6 +122,9 @@ def _row_to_user(row: UserRow) -> User:
         username=row.username,
         password_hash=row.password_hash,
         role=Role(row.role),
+        email=row.email or "",
+        display_name=row.display_name or "",
+        token_epoch=row.token_epoch or 1,
         created_at=datetime.fromisoformat(row.created_at),
     )
 
@@ -137,9 +140,22 @@ class SqlUserRepository:
                 username=user.username,
                 password_hash=user.password_hash,
                 role=str(user.role),
+                email=user.email,
+                display_name=user.display_name,
+                token_epoch=user.token_epoch,
                 created_at=user.created_at.isoformat(),
             )
         )
+        await self._session.commit()
+
+    async def save(self, user: User) -> None:
+        row = await self._session.get(UserRow, user.id)
+        if row is None:
+            return
+        row.password_hash = user.password_hash
+        row.email = user.email
+        row.display_name = user.display_name
+        row.token_epoch = user.token_epoch
         await self._session.commit()
 
     async def get(self, user_id: str) -> User | None:

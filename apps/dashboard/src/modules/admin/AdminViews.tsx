@@ -5,6 +5,7 @@ import { useDialog } from "../../components/Dialog";
 import { Badge, Button, Input, Modal, Select, Spinner } from "../../components/ui";
 import { api, can } from "../../lib/api";
 import { useAuth } from "../auth/AuthGate";
+import { PasswordCard, ProfileFormCard } from "./ProfileCards";
 
 const ROLE_TONE: Record<string, "green" | "blue" | "orange" | "neutral"> = {
   owner: "green",
@@ -67,13 +68,42 @@ export function UsersView() {
               </span>
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">
-                  {u.username}
+                  {u.label || u.username}
+                  {u.display_name && (
+                    <span className="ml-1.5 text-[11px] text-muted">@{u.username}</span>
+                  )}
                   {u.id === me?.id && <span className="ml-2 text-[11px] text-muted">(você)</span>}
                 </div>
-                <div className="text-[11px] text-muted">{ROLE_DESC[u.role] ?? u.role}</div>
+                <div className="truncate text-[11px] text-muted">
+                  {ROLE_DESC[u.role] ?? u.role}
+                  {u.email && ` · ${u.email}`}
+                </div>
               </div>
               <Badge tone={ROLE_TONE[u.role] ?? "neutral"}>{u.role}</Badge>
-              <span className="ml-auto">
+              <span className="ml-auto flex gap-1.5">
+                {u.id !== me?.id && (
+                  <Button
+                    title="Redefinir a senha deste usuário"
+                    onClick={async () => {
+                      const nova = await dialog.promptText({
+                        title: `Redefinir senha de ${u.label || u.username}`,
+                        message:
+                          "Ele perde as sessões abertas e passa a entrar com a senha nova. Combine com ele por outro canal.",
+                        input: { label: "Nova senha (mín. 8)", placeholder: "senha temporária" },
+                        confirmText: "Redefinir",
+                      });
+                      if (!nova) return;
+                      try {
+                        await api.resetUserPassword(u.id, nova);
+                        setError("");
+                      } catch (e) {
+                        setError(String(e instanceof Error ? e.message : e));
+                      }
+                    }}
+                  >
+                    <KeyRound size={13} />
+                  </Button>
+                )}
                 {u.role !== "owner" && u.id !== me?.id && (
                   <Button
                     variant="danger"
@@ -105,14 +135,18 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("moderator");
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
 
   const create = useMutation({
-    mutationFn: () => api.createUser(username.trim(), password, role),
+    mutationFn: () => api.createUser(username.trim(), password, role, email, displayName),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
       setUsername("");
       setPassword("");
+      setEmail("");
+      setDisplayName("");
       setError("");
       onClose();
     },
@@ -134,6 +168,28 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted">Nome de exibição (opcional)</label>
+          <Input
+            className="w-full"
+            placeholder="Como aparece no painel"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted">E-mail (opcional)</label>
+          <Input
+            className="w-full"
+            type="email"
+            placeholder="contato@exemplo.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <p className="mt-1 text-[11px] text-muted">
+            Apenas contato — o Aether não envia e-mail nem recupera senha por ele.
+          </p>
         </div>
         <div>
           <label className="mb-1 block text-xs text-muted">Papel</label>
@@ -257,6 +313,12 @@ export function ProfileContent() {
           </div>
           <p className="mt-1 text-sm text-muted">{ROLE_DESC[user?.role ?? ""]}</p>
         </div>
+        {user?.email && (
+          <div className="text-sm text-muted">
+            <div className="text-[11px] font-semibold tracking-wider uppercase">E-mail</div>
+            <div className="mt-1">{user.email}</div>
+          </div>
+        )}
         <div className="ml-auto flex gap-8 text-sm">
           <div>
             <div className="text-[11px] font-semibold tracking-wider text-muted uppercase">
@@ -325,10 +387,10 @@ export function ProfileContent() {
                 </div>
               ))}
             </dl>
-            <p className="mt-3 text-xs text-muted">
-              Trocar a senha ainda não é possível pelo painel — peça ao dono da instalação.
-            </p>
           </div>
+
+          <ProfileFormCard />
+          <PasswordCard />
 
           {podeAuditar && (
             <div className="rounded-xl border border-border bg-surface p-5">

@@ -70,11 +70,13 @@ def public_key_hex(key: Ed25519PrivateKey) -> str:
 TokenType = Literal["access", "refresh"]
 
 
-def issue_token(secret: str, user_id: str, token_type: TokenType) -> str:
+def issue_token(secret: str, user_id: str, token_type: TokenType, epoch: int = 1) -> str:
     ttl = ACCESS_TTL if token_type == "access" else REFRESH_TTL
     payload = {
         "sub": user_id,
         "type": token_type,
+        # Época da senha: um token emitido antes da última troca é recusado.
+        "epoch": epoch,
         "iat": datetime.now(UTC),
         "exp": datetime.now(UTC) + ttl,
     }
@@ -135,3 +137,12 @@ def decode_token(secret: str, token: str, expected_type: TokenType) -> str:
     if not sub:
         raise AuthenticationError("invalid token")
     return str(sub)
+
+
+def token_epoch(secret: str, token: str) -> int:
+    """Época gravada no token; tokens antigos não a têm e valem como 1."""
+    try:
+        payload = jwt.decode(token, secret, algorithms=[ALGORITHM])
+    except jwt.InvalidTokenError as exc:
+        raise AuthenticationError("invalid token") from exc
+    return int(payload.get("epoch", 1))

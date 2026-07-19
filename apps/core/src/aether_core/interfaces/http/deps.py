@@ -50,11 +50,14 @@ class _Tokens:
     def __init__(self, secret: str) -> None:
         self._secret = secret
 
-    def issue(self, user_id: str, token_type: str) -> str:
-        return security.issue_token(self._secret, user_id, token_type)
+    def issue(self, user_id: str, token_type: str, epoch: int = 1) -> str:
+        return security.issue_token(self._secret, user_id, token_type, epoch)
 
     def decode(self, token: str, expected_type: str) -> str:
         return security.decode_token(self._secret, token, expected_type)
+
+    def epoch_of(self, token: str) -> int:
+        return security.token_epoch(self._secret, token)
 
 
 def get_auth_service(request: Request, session: SessionDep) -> AuthService:
