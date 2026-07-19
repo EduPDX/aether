@@ -46,9 +46,14 @@ class _Catalogo:
         self._por_hash = por_hash or {}
         self.buscas: list[tuple] = []
 
-    async def search(self, query, *, game_version=None, loader=None, limit=20, offset=0):
-        self.buscas.append((query, game_version, loader))
+    async def search(
+        self, query, *, game_version=None, loader=None, categories=(), limit=20, offset=0
+    ):
+        self.buscas.append((query, game_version, loader, tuple(categories)))
         return [SourceItem(source_id=self.id, project_id="proj1", slug="mod", name="Mod")]
+
+    def available_categories(self):
+        return (("technology", "Tecnologia"), ("magic", "Magia"))
 
     async def versions(self, project_id, *, game_version=None, loader=None):
         return list(self._versoes)
@@ -166,7 +171,32 @@ def test_search_filters_by_the_instance_game_version_and_loader(tmp_path):
     servico, catalogo = _servico(tmp_path)
     asyncio.run(servico.search(_instancia(), "falso", "sodium"))
 
-    assert catalogo.buscas == [("sodium", "1.20.1", "Forge")]
+    assert catalogo.buscas == [("sodium", "1.20.1", "Forge", ())]
+
+
+def test_search_passes_categories_and_loader_override(tmp_path):
+    """Filtrar por categoria e por loader é o que torna o catálogo navegável."""
+    servico, catalogo = _servico(tmp_path)
+    asyncio.run(
+        servico.search(
+            _instancia(),
+            "falso",
+            "",
+            categories=("technology", "magic"),
+            loader_override="fabric",
+        )
+    )
+
+    assert catalogo.buscas == [("", "1.20.1", "fabric", ("technology", "magic"))]
+
+
+def test_filters_come_from_the_catalog(tmp_path):
+    servico, _ = _servico(tmp_path)
+    filtros = servico.filters(_instancia(), "falso")
+
+    assert {"id": "technology", "label": "Tecnologia"} in filtros["categories"]
+    # catálogo sem loaders declarados devolve lista vazia, não erro
+    assert filtros["loaders"] == []
 
 
 def test_updates_identify_installed_files_by_hash(tmp_path):
@@ -266,6 +296,9 @@ class _CatalogoGrafo:
 
     async def search(self, query, **kw):
         return []
+
+    def available_categories(self):
+        return ()
 
     async def versions(self, project_id, *, game_version=None, loader=None):
         self.consultas.append(project_id)

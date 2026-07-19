@@ -154,8 +154,12 @@ export function ConsoleView({ instance }: { instance: Instance }) {
         <StatTile
           icon={<Cpu size={14} />}
           label="CPU"
-          value={rodando ? `${(proc?.cpu_percent ?? 0).toFixed(0)}%` : "—"}
-          sub="processo do servidor"
+          value={rodando ? `${(proc?.cpu_percent_total ?? 0).toFixed(0)}%` : "—"}
+          sub={
+            rodando && proc
+              ? `${(proc.cpu_percent / 100).toFixed(1)} de ${proc.cpu_count} núcleos`
+              : "processo do servidor"
+          }
         />
         <StatTile
           icon={<MemoryStick size={14} />}

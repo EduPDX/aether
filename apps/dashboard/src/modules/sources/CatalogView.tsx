@@ -37,6 +37,8 @@ export function CatalogView({ instance }: { instance: Instance }) {
   const [checarUpdates, setChecarUpdates] = useState(false);
   const [planejando, setPlanejando] = useState("");
   const [pagina, setPagina] = useState(0);
+  const [categorias, setCategorias] = useState<string[]>([]);
+  const [loaderFiltro, setLoaderFiltro] = useState("");
 
   const versaoJogo = (instance.provider_data?.game_version as string) || null;
   const loader = (instance.provider_data?.loader as string) || null;
@@ -45,18 +47,30 @@ export function CatalogView({ instance }: { instance: Instance }) {
   // Sem termo de busca a consulta continua valendo: o catálogo devolve os mais
   // baixados, que é o que o site do Modrinth mostra ao abrir.
   const resultados = useQuery({
-    queryKey: ["catalogo", instance.id, enviada, todasVersoes, pagina],
+    queryKey: ["catalogo", instance.id, enviada, todasVersoes, pagina, categorias, loaderFiltro],
     queryFn: () =>
-      api.searchCatalog(
-        instance.id,
-        enviada,
-        "modrinth",
-        todasVersoes,
-        pagina * POR_PAGINA,
-        POR_PAGINA,
-      ),
+      api.searchCatalog(instance.id, enviada, {
+        allVersions: todasVersoes,
+        offset: pagina * POR_PAGINA,
+        limit: POR_PAGINA,
+        categories: categorias,
+        loader: loaderFiltro || undefined,
+      }),
     placeholderData: (anterior) => anterior,
   });
+
+  const filtros = useQuery({
+    queryKey: ["catalogo-filtros", instance.id],
+    queryFn: () => api.catalogFilters(instance.id),
+    staleTime: Infinity,
+  });
+
+  function alternarCategoria(id: string) {
+    setPagina(0);
+    setCategorias((atual) =>
+      atual.includes(id) ? atual.filter((c) => c !== id) : [...atual, id],
+    );
+  }
 
   const updates = useQuery({
     queryKey: ["catalogo-updates", instance.id, destino],
@@ -222,7 +236,13 @@ export function CatalogView({ instance }: { instance: Instance }) {
         {ok && <p className="text-sm text-accent">{ok}</p>}
 
         <Panel
-          title={enviada ? `Resultados para “${enviada}”` : "Mods populares"}
+          title={
+            enviada
+              ? `Resultados para “${enviada}”`
+              : categorias.length > 0 || loaderFiltro
+                ? "Mods filtrados"
+                : "Mods populares"
+          }
           icon={<Search size={15} />}
           hint={
             versaoJogo
@@ -270,13 +290,15 @@ export function CatalogView({ instance }: { instance: Instance }) {
             <Button variant="primary" type="submit" disabled={busca.trim().length < 2}>
               <Search size={14} /> Buscar
             </Button>
-            {enviada && (
+            {(enviada || categorias.length > 0 || loaderFiltro) && (
               <Button
                 variant="ghost"
                 type="button"
                 onClick={() => {
                   setBusca("");
                   setEnviada("");
+                  setCategorias([]);
+                  setLoaderFiltro("");
                   setPagina(0);
                 }}
               >
@@ -284,6 +306,46 @@ export function CatalogView({ instance }: { instance: Instance }) {
               </Button>
             )}
           </form>
+
+          {/* Filtros por categoria e loader — o catálogo declara quais existem,
+              então outro jogo traz a lista dele sem mudar esta tela. */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {(filtros.data?.loaders ?? []).length > 0 && (
+              <>
+                <span className="mr-1 text-[11px] text-muted">Loader:</span>
+                {(filtros.data?.loaders ?? []).map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => {
+                      setPagina(0);
+                      setLoaderFiltro(loaderFiltro === l.id ? "" : l.id);
+                    }}
+                    className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                      loaderFiltro === l.id
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "border-border text-muted hover:border-muted hover:text-text"
+                    }`}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+                <span className="mx-1 h-4 w-px bg-border" />
+              </>
+            )}
+            {(filtros.data?.categories ?? []).map((c) => (
+              <button
+                key={c.id}
+                onClick={() => alternarCategoria(c.id)}
+                className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                  categorias.includes(c.id)
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "border-border text-muted hover:border-muted hover:text-text"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
 
           {resultados.isLoading && <Spinner />}
           {resultados.isError && (

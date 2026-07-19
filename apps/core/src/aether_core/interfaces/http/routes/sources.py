@@ -83,6 +83,8 @@ async def search(
     limit: int = 20,
     offset: int = 0,
     all_versions: bool = False,
+    categories: str = "",
+    loader: str = "",
 ) -> list[dict]:
     instance = await instances.get(instance_id)
     itens = await sources.search(
@@ -92,8 +94,22 @@ async def search(
         limit=min(limit, 50),
         offset=offset,
         filter_by_game=not all_versions,
+        categories=tuple(c for c in categories.split(",") if c),
+        loader_override=loader or None,
     )
     return [_item(i) for i in itens]
+
+
+@router.get("/filters")
+async def filters(
+    instance_id: str,
+    instances: InstanceServiceDep,
+    sources: SourceServiceDep,
+    _: ContentRead,
+    source_id: str = "modrinth",
+) -> dict:
+    instance = await instances.get(instance_id)
+    return sources.filters(instance, source_id)
 
 
 @router.get("/versions")

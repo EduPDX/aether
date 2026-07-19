@@ -128,12 +128,33 @@ class SourceService:
         limit: int = 20,
         offset: int = 0,
         filter_by_game: bool = True,
+        categories: tuple[str, ...] = (),
+        loader_override: str | None = None,
     ) -> list[SourceItem]:
         fonte = self._source(instance, source_id)
         versao, loader = self._game_context(instance) if filter_by_game else (None, None)
         return await fonte.search(
-            query, game_version=versao, loader=loader, limit=limit, offset=offset
+            query,
+            game_version=versao,
+            loader=loader_override or loader,
+            categories=categories,
+            limit=limit,
+            offset=offset,
         )
+
+    def filters(self, instance: Instance, source_id: str) -> dict:
+        """Filtros que este catálogo oferece, para a interface montar sozinha."""
+        fonte = self._source(instance, source_id)
+        cats = getattr(fonte, "available_categories", None)
+        loaders = getattr(fonte, "available_loaders", None)
+        return {
+            "categories": [
+                {"id": i, "label": r} for i, r in (cats() if callable(cats) else ())
+            ],
+            "loaders": [
+                {"id": i, "label": r} for i, r in (loaders() if callable(loaders) else ())
+            ],
+        }
 
     async def versions(
         self, instance: Instance, source_id: str, project_id: str, *, filter_by_game: bool = True

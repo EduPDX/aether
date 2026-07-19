@@ -162,7 +162,9 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
                       label: i.name,
                       value: i.mem_bytes,
                       color: palette[idx % palette.length],
-                      hint: `${i.name}: ${formatBytes(i.mem_bytes)} · CPU ${i.cpu_percent}%`,
+                      hint:
+                        `${i.name}: ${formatBytes(i.mem_bytes)} · CPU ${i.cpu_percent_total}% ` +
+                        `da máquina (${(i.cpu_percent / 100).toFixed(1)} de ${i.cpu_count} núcleos)`,
                     }))}
                   format={formatBytes}
                 />

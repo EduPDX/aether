@@ -29,7 +29,16 @@ class HostMetrics:
 class ProcessMetrics:
     instance_id: str
     pid: int | None
+    """Percentual no padrão do psutil: 100% = um núcleo saturado.
+
+    Um servidor com 4 threads ocupadas reporta ~400%. O número é correto, mas
+    sozinho na interface parece defeito ao lado de medidores que vão até 100%.
+    """
     cpu_percent: float
+    """O mesmo uso relativo à máquina inteira — comparável com o medidor de
+    CPU do host, e o que faz sentido como leitura principal."""
+    cpu_percent_total: float
+    cpu_count: int
     mem_bytes: int
     running: bool
 
@@ -83,10 +92,14 @@ class MetricsService:
             load_avg=load,
         )
 
+    @staticmethod
+    def _nucleos() -> int:
+        return psutil.cpu_count(logical=True) or 1
+
     def process(self, instance_id: str) -> ProcessMetrics:
         pid = self._supervisor.pid_of(instance_id)
         if pid is None:
-            return ProcessMetrics(instance_id, None, 0.0, 0, False)
+            return ProcessMetrics(instance_id, None, 0.0, 0.0, self._nucleos(), 0, False)
         try:
             proc = self._proc(pid)
             with proc.oneshot():
@@ -104,10 +117,19 @@ class MetricsService:
             # de fato morreu, nunca pelo que não pertence a esta árvore.
             for morto in [p for p, o in self._procs.items() if not o.is_running()]:
                 del self._procs[morto]
-            return ProcessMetrics(instance_id, pid, round(cpu, 1), mem, True)
+            nucleos = self._nucleos()
+            return ProcessMetrics(
+                instance_id,
+                pid,
+                round(cpu, 1),
+                round(cpu / nucleos, 1),
+                nucleos,
+                mem,
+                True,
+            )
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             self._procs.pop(pid, None)
-            return ProcessMetrics(instance_id, pid, 0.0, 0, False)
+            return ProcessMetrics(instance_id, pid, 0.0, 0.0, self._nucleos(), 0, False)
 
     def sample(self) -> dict:
         """Tira uma amostra e guarda no histórico (para gráficos de linha)."""

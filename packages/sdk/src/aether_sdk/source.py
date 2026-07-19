@@ -70,9 +70,14 @@ class ContentSource(Protocol):
         *,
         game_version: str | None = None,
         loader: str | None = None,
+        categories: tuple[str, ...] = (),
         limit: int = 20,
         offset: int = 0,
     ) -> list[SourceItem]: ...
+
+    def available_categories(self) -> tuple[tuple[str, str], ...]:
+        """Categorias filtráveis como (id, rótulo). Vazio = não suporta."""
+        ...
 
     async def versions(
         self,

@@ -97,3 +97,38 @@ def test_client_mods_are_a_separate_content_type(client, tmp_path):
     server_mods = client.get(f"/api/v1/instances/{iid}/content", params={"type": "mod"}).json()
     assert [m["file"] for m in client_mods] == ["Jade.jar"]
     assert [m["file"] for m in server_mods] == ["servidor.jar"]
+
+
+def test_process_cpu_is_reported_both_per_core_and_per_machine():
+    """324% num servidor de 10 núcleos é ~32% da máquina, não um defeito.
+
+    O psutil conta 100% por núcleo saturado. Exibir só esse número ao lado de
+    medidores que vão até 100% faz parecer que a medição quebrou, então o
+    serviço entrega também o valor relativo à máquina inteira.
+    """
+    import psutil
+
+    service = MetricsService(_FakeSupervisor(os.getpid()))
+    service.process("i1")
+    total = 0
+    for n in range(2_000_000):
+        total += n
+    m = service.process("i1")
+
+    nucleos = psutil.cpu_count(logical=True) or 1
+    assert m.cpu_count == nucleos
+    assert m.cpu_percent > 0
+    # o normalizado é o mesmo uso dividido pelos núcleos
+    assert m.cpu_percent_total == round(m.cpu_percent / nucleos, 1)
+    # e nunca passa de 100%, que é o que o medidor da interface espera
+    assert m.cpu_percent_total <= 100.0
+
+
+def test_stopped_instance_reports_zero_but_still_knows_the_core_count():
+    class _SemProcesso:
+        def pid_of(self, _):
+            return None
+
+    m = MetricsService(_SemProcesso()).process("i1")
+    assert (m.cpu_percent, m.cpu_percent_total, m.running) == (0.0, 0.0, False)
+    assert m.cpu_count >= 1

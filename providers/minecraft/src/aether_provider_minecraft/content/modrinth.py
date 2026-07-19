@@ -35,13 +35,51 @@ def _data(iso: str | None) -> datetime | None:
         return None
 
 
-def _facets(game_version: str | None, loader: str | None) -> str | None:
-    """Facetas do Modrinth: lista de listas, AND entre grupos, OR dentro."""
+# Categorias de mod do Modrinth, com rótulo em português.
+CATEGORIAS: tuple[tuple[str, str], ...] = (
+    ("technology", "Tecnologia"),
+    ("magic", "Magia"),
+    ("adventure", "Aventura"),
+    ("worldgen", "Geração de mundo"),
+    ("mobs", "Criaturas"),
+    ("equipment", "Equipamento"),
+    ("food", "Comida"),
+    ("decoration", "Decoração"),
+    ("storage", "Armazenamento"),
+    ("transportation", "Transporte"),
+    ("game-mechanics", "Mecânicas de jogo"),
+    ("optimization", "Otimização"),
+    ("utility", "Utilidades"),
+    ("library", "Biblioteca"),
+    ("social", "Social"),
+    ("management", "Administração"),
+    ("economy", "Economia"),
+    ("minigame", "Minijogo"),
+)
+
+LOADERS: tuple[tuple[str, str], ...] = (
+    ("forge", "Forge"),
+    ("neoforge", "NeoForge"),
+    ("fabric", "Fabric"),
+    ("quilt", "Quilt"),
+)
+
+
+def _facets(
+    game_version: str | None, loader: str | None, categories: tuple[str, ...] = ()
+) -> str | None:
+    """Facetas do Modrinth: lista de listas, AND entre grupos, OR dentro.
+
+    Loader e categoria caem no mesmo campo `categories` do Modrinth, mas em
+    grupos separados — assim "Forge E tecnologia", não "Forge OU tecnologia".
+    """
     grupos: list[list[str]] = [["project_type:mod"]]
     if game_version:
         grupos.append([f"versions:{game_version}"])
     if loader:
         grupos.append([f"categories:{loader.lower()}"])
+    for categoria in categories:
+        grupos.append([f"categories:{categoria}"])
     import json
 
     return json.dumps(grupos)
@@ -100,6 +138,7 @@ class ModrinthSource:
         *,
         game_version: str | None = None,
         loader: str | None = None,
+        categories: tuple[str, ...] = (),
         limit: int = 20,
         offset: int = 0,
     ) -> list[SourceItem]:
@@ -108,7 +147,7 @@ class ModrinthSource:
         # downloads mostra o que é popular em vez de uma lista arbitrária.
         if not query.strip():
             params["index"] = "downloads"
-        facetas = _facets(game_version, loader)
+        facetas = _facets(game_version, loader, categories)
         if facetas:
             params["facets"] = facetas
         corpo = await self._http(f"{self._base}/search", params)
@@ -127,6 +166,12 @@ class ModrinthSource:
             )
             for h in (corpo.get("hits") or [])
         ]
+
+    def available_categories(self) -> tuple[tuple[str, str], ...]:
+        return CATEGORIAS
+
+    def available_loaders(self) -> tuple[tuple[str, str], ...]:
+        return LOADERS
 
     async def versions(
         self,

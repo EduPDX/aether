@@ -244,17 +244,27 @@ export const api = {
   deleteIcon: (id: string) =>
     request<void>(`/api/v1/instances/${id}/config/icon`, { method: "DELETE" }),
   sources: (id: string) => request<SourceInfo[]>(`/api/v1/instances/${id}/sources`),
+  catalogFilters: (id: string, sourceId = "modrinth") =>
+    request<CatalogFilters>(`/api/v1/instances/${id}/sources/filters?source_id=${sourceId}`),
   searchCatalog: (
     id: string,
     q: string,
-    sourceId = "modrinth",
-    allVersions = false,
-    offset = 0,
-    limit = 24,
+    opts: {
+      sourceId?: string;
+      allVersions?: boolean;
+      offset?: number;
+      limit?: number;
+      categories?: string[];
+      loader?: string;
+    } = {},
   ) =>
     request<CatalogItem[]>(
       `/api/v1/instances/${id}/sources/search?q=${encodeURIComponent(q)}` +
-        `&source_id=${sourceId}&all_versions=${allVersions}&offset=${offset}&limit=${limit}`,
+        `&source_id=${opts.sourceId ?? "modrinth"}` +
+        `&all_versions=${opts.allVersions ?? false}` +
+        `&offset=${opts.offset ?? 0}&limit=${opts.limit ?? 24}` +
+        `&categories=${encodeURIComponent((opts.categories ?? []).join(","))}` +
+        `&loader=${encodeURIComponent(opts.loader ?? "")}`,
     ),
   catalogVersions: (id: string, projectId: string, sourceId = "modrinth", allVersions = false) =>
     request<CatalogVersion[]>(
@@ -390,7 +400,12 @@ export interface HostMetrics {
 }
 export interface ProcMetrics {
   instance_id: string; name: string; pid: number | null;
-  cpu_percent: number; mem_bytes: number; running: boolean;
+  /** Padrão psutil: 100% = um núcleo saturado. */
+  cpu_percent: number;
+  /** O mesmo uso relativo à máquina inteira. */
+  cpu_percent_total: number;
+  cpu_count: number;
+  mem_bytes: number; running: boolean;
 }
 export interface MetricsPayload {
   host: HostMetrics;
@@ -434,6 +449,11 @@ export interface SourceInfo {
   id: string;
   label: string;
   requires_api_key: boolean;
+}
+
+export interface CatalogFilters {
+  categories: { id: string; label: string }[];
+  loaders: { id: string; label: string }[];
 }
 
 export interface CatalogItem {
