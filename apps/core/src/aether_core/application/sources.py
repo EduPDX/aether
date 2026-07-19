@@ -28,6 +28,47 @@ class Downloader(Protocol):
 
 
 @dataclass(frozen=True)
+class PlannedItem:
+    project_id: str
+    version_id: str
+    version_number: str
+    file_name: str
+    size: int
+    """Quem exigiu este item: None = foi o que o usuário pediu."""
+    required_by: str | None = None
+
+
+@dataclass(frozen=True)
+class InstallPlan:
+    """O que uma instalação vai fazer, calculado antes de tocar no disco.
+
+    Existe para a instalação não ser uma cascata cega: se a terceira
+    dependência não tiver versão compatível, é melhor descobrir antes de já
+    ter escrito as duas primeiras na pasta de mods.
+    """
+
+    items: list[PlannedItem]
+    already_installed: list[str]
+    """Dependências obrigatórias sem versão compatível — impedem o plano."""
+    missing: list[str]
+    """Mods instalados que a nova versão declara incompatíveis."""
+    conflicts: list[str]
+
+    @property
+    def ok(self) -> bool:
+        return not self.missing
+
+    @property
+    def total_size(self) -> int:
+        return sum(i.size for i in self.items)
+
+
+# Um grafo de dependências mal formado não pode virar recursão infinita nem
+# baixar meia internet; profundidade é suficiente para os casos reais.
+_PROFUNDIDADE_MAX = 6
+
+
+@dataclass(frozen=True)
 class UpdateCandidate:
     """Um mod instalado que tem versão mais nova no catálogo."""
 
@@ -165,6 +206,139 @@ class SourceService:
         )
         return {"file": nome, "size": total, "version": version.version_number}
 
+    # ----------------------------------------------------------- dependências
+    async def _installed_project_ids(
+        self, instance: Instance, ctype_id: str, fonte: ContentSource
+    ) -> set[str]:
+        """Projetos já presentes na pasta, identificados por hash."""
+        pasta = Path(self._content_dir_of(instance, ctype_id))
+        if not pasta.is_dir():
+            return set()
+        arquivos = [p for p in pasta.iterdir() if p.is_file() and p.suffix == ".jar"]
+        if not arquivos:
+            return set()
+        hashes = await asyncio.gather(*(asyncio.to_thread(_sha1, p) for p in arquivos))
+        encontrados = await self._lookup(fonte, list(hashes))
+        return {v.project_id for v in encontrados.values() if v.project_id}
+
+    async def plan_install(
+        self,
+        instance: Instance,
+        ctype_id: str,
+        source_id: str,
+        version_id: str,
+    ) -> InstallPlan:
+        """Monta a árvore de dependências obrigatórias sem instalar nada.
+
+        Resolver em cascata direto no disco deixaria um conjunto meio
+        instalado quando uma dependência no meio do caminho não tem versão
+        compatível. Aqui o problema aparece antes de o primeiro byte ser
+        escrito.
+        """
+        fonte = self._source(instance, source_id)
+        raiz = await self._version_by_id(fonte, version_id)
+        if raiz is None:
+            raise NotFoundError(f"versão não encontrada: {version_id}")
+
+        instalados = await self._installed_project_ids(instance, ctype_id, fonte)
+        versao_jogo, loader = self._game_context(instance)
+
+        itens: list[PlannedItem] = []
+        ja_tem: list[str] = []
+        faltando: list[str] = []
+        conflitos: list[str] = []
+        # Guarda o que já entrou no plano: um grafo com ciclo (A→B→A) ou um
+        # diamante (dois mods pedindo a mesma lib) não pode duplicar nem travar.
+        vistos: set[str] = {raiz.project_id}
+
+        async def visitar(versao: SourceVersion, quem: str | None, profundidade: int) -> None:
+            itens.append(
+                PlannedItem(
+                    project_id=versao.project_id,
+                    version_id=versao.version_id,
+                    version_number=versao.version_number,
+                    file_name=versao.file_name,
+                    size=versao.size,
+                    required_by=quem,
+                )
+            )
+            if profundidade >= _PROFUNDIDADE_MAX:
+                return
+
+            for dep in versao.dependencies:
+                if dep.kind == "incompatible":
+                    if dep.project_id in instalados:
+                        conflitos.append(dep.project_id)
+                    continue
+                # Opcionais e embutidas não entram: embutidas já vêm dentro do
+                # jar, e opcionais são escolha do usuário, não requisito.
+                if dep.kind != "required":
+                    continue
+                if dep.project_id in instalados:
+                    ja_tem.append(dep.project_id)
+                    continue
+                if dep.project_id in vistos:
+                    continue
+                vistos.add(dep.project_id)
+
+                try:
+                    disponiveis = await fonte.versions(
+                        dep.project_id, game_version=versao_jogo, loader=loader
+                    )
+                except Exception:
+                    disponiveis = []
+                if not disponiveis:
+                    faltando.append(dep.project_id)
+                    continue
+                quem_pediu = versao.file_name or versao.project_id
+                await visitar(disponiveis[0], quem_pediu, profundidade + 1)
+
+        await visitar(raiz, None, 0)
+        # Dependências primeiro: se algo falhar no meio, o que já entrou é o
+        # que o resto precisa, não um mod solto sem suas libs.
+        itens.reverse()
+        return InstallPlan(
+            items=itens,
+            already_installed=sorted(set(ja_tem)),
+            missing=sorted(set(faltando)),
+            conflicts=sorted(set(conflitos)),
+        )
+
+    async def install_plan(
+        self,
+        instance: Instance,
+        ctype_id: str,
+        source_id: str,
+        plan: InstallPlan,
+        *,
+        overwrite: bool = False,
+    ) -> dict:
+        """Executa um plano já validado."""
+        if not plan.ok:
+            raise ValidationFailedError(
+                "o plano tem dependências obrigatórias sem versão compatível: "
+                + ", ".join(plan.missing)
+            )
+        fonte = self._source(instance, source_id)
+        instalados: list[dict] = []
+        for item in plan.items:
+            versao = await self._version_by_id(fonte, item.version_id)
+            if versao is None:
+                continue
+            try:
+                instalados.append(
+                    await self.install(instance, ctype_id, versao, overwrite=overwrite)
+                )
+            except ConflictError:
+                # Já estava lá: não é falha do plano.
+                continue
+        return {"installed": instalados, "count": len(instalados)}
+
+    @staticmethod
+    async def _version_by_id(fonte: ContentSource, version_id: str) -> SourceVersion | None:
+        obter = getattr(fonte, "version_by_id", None)
+        return await obter(version_id) if callable(obter) else None
+
     async def install_by_id(
         self,
         instance: Instance,
@@ -175,11 +349,7 @@ class SourceService:
         overwrite: bool = False,
     ) -> dict:
         fonte = self._source(instance, source_id)
-        obter = getattr(fonte, "version_by_id", None)
-        if callable(obter):
-            versao = await obter(version_id)
-        else:
-            versao = None
+        versao = await self._version_by_id(fonte, version_id)
         if versao is None:
             raise NotFoundError(f"versão não encontrada: {version_id}")
         return await self.install(instance, ctype_id, versao, overwrite=overwrite)

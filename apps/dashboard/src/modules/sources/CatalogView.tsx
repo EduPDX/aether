@@ -33,6 +33,7 @@ export function CatalogView({ instance }: { instance: Instance }) {
   const [erro, setErro] = useState("");
   const [ok, setOk] = useState("");
   const [checarUpdates, setChecarUpdates] = useState(false);
+  const [planejando, setPlanejando] = useState("");
 
   const versaoJogo = (instance.provider_data?.game_version as string) || null;
   const loader = (instance.provider_data?.loader as string) || null;
@@ -51,25 +52,37 @@ export function CatalogView({ instance }: { instance: Instance }) {
   });
 
   const instalar = useMutation({
-    mutationFn: (v: { version_id: string; overwrite?: boolean }) =>
+    mutationFn: (v: { version_id: string; overwrite?: boolean; withDeps?: boolean }) =>
       api.installFromCatalog(instance.id, {
         source_id: "modrinth",
         version_id: v.version_id,
         type: destino,
         overwrite: v.overwrite,
+        with_dependencies: v.withDeps,
       }),
     onSuccess: (r) => {
       setErro("");
-      setOk(`${r.file} instalado (${formatBytes(r.size)}).`);
+      setOk(
+        "installed" in r
+          ? `${r.count} arquivo(s) instalado(s): ${r.installed.map((i) => i.file).join(", ")}`
+          : `${r.file} instalado (${formatBytes(r.size)}).`,
+      );
       qc.invalidateQueries({ queryKey: ["content", instance.id] });
       qc.invalidateQueries({ queryKey: ["catalogo-updates", instance.id] });
     },
     onError: (e) => setErro(String(e instanceof Error ? e.message : e)),
   });
 
-  /** Escolhe a versão a instalar: a mais recente compatível, confirmando. */
+  /**
+   * Monta o plano antes de baixar qualquer coisa e mostra o que vai acontecer.
+   *
+   * O plano existe para o usuário ver "vai instalar 4 arquivos" em vez de
+   * descobrir depois, e para uma dependência sem versão compatível bloquear
+   * tudo antes de o primeiro arquivo entrar na pasta.
+   */
   async function instalarMaisRecente(item: CatalogItem) {
     setErro("");
+    setPlanejando(item.project_id);
     try {
       const versoes = await api.catalogVersions(
         instance.id,
@@ -84,27 +97,76 @@ export function CatalogView({ instance }: { instance: Instance }) {
         return;
       }
       const v: CatalogVersion = versoes[0];
-      const obrigatorias = v.dependencies.filter((d) => d.kind === "required").length;
+      const plano = await api.planInstall(instance.id, {
+        source_id: "modrinth",
+        version_id: v.version_id,
+        type: destino,
+      });
+
+      const deps = plano.items.filter((i) => i.required_by !== null);
+      const onde = destino === "mod_client" ? "mods do cliente" : "mods do servidor";
+
+      if (!plano.ok) {
+        await dialog.notify({
+          title: "Não dá para instalar",
+          tone: "danger",
+          message: (
+            <>
+              <b>{item.name}</b> exige dependências que não têm versão para {loader} {versaoJogo}:
+              <br />
+              <code className="text-xs">{plano.missing.join(", ")}</code>
+              <br />
+              Instalar assim deixaria o servidor sem subir.
+            </>
+          ),
+          confirmText: "Entendi",
+        });
+        return;
+      }
+
       const confirmado = await dialog.confirm({
         title: `Instalar ${item.name}`,
         message: (
           <>
-            <b>{v.file_name}</b> ({formatBytes(v.size)}) em{" "}
-            {destino === "mod_client" ? "mods do cliente" : "mods do servidor"}.
-            {obrigatorias > 0 && (
+            {plano.items.length === 1 ? (
               <>
-                <br />
-                Este mod declara {obrigatorias} dependência(s) obrigatória(s) — se ainda não
-                estiverem instaladas, o servidor não sobe.
+                <b>{v.file_name}</b> ({formatBytes(v.size)}) em {onde}.
               </>
+            ) : (
+              <>
+                <b>{plano.items.length} arquivos</b> ({formatBytes(plano.total_size)}) em {onde} —
+                o mod e {deps.length} dependência(s) obrigatória(s):
+                <span className="mt-2 block text-left text-xs text-muted">
+                  {plano.items.map((i) => (
+                    <span key={i.version_id} className="block truncate">
+                      {i.required_by ? "└ " : ""}
+                      {i.file_name}
+                    </span>
+                  ))}
+                </span>
+              </>
+            )}
+            {plano.already_installed.length > 0 && (
+              <span className="mt-2 block text-xs text-muted">
+                {plano.already_installed.length} dependência(s) já estão instaladas.
+              </span>
+            )}
+            {plano.conflicts.length > 0 && (
+              <span className="mt-2 block text-xs text-warn">
+                Atenção: este mod se declara incompatível com {plano.conflicts.length} mod(s) que
+                você já tem instalado.
+              </span>
             )}
           </>
         ),
-        confirmText: "Instalar",
+        confirmText: plano.items.length === 1 ? "Instalar" : `Instalar ${plano.items.length}`,
       });
-      if (confirmado) instalar.mutate({ version_id: v.version_id });
+      if (confirmado)
+        instalar.mutate({ version_id: v.version_id, withDeps: plano.items.length > 1 });
     } catch (e) {
       setErro(String(e instanceof Error ? e.message : e));
+    } finally {
+      setPlanejando("");
     }
   }
 
@@ -233,10 +295,11 @@ export function CatalogView({ instance }: { instance: Instance }) {
                     {podeInstalar && (
                       <Button
                         variant="primary"
-                        disabled={instalar.isPending}
+                        disabled={instalar.isPending || planejando === item.project_id}
                         onClick={() => instalarMaisRecente(item)}
                       >
-                        <Download size={13} /> Instalar
+                        <Download size={13} />
+                        {planejando === item.project_id ? "Verificando…" : "Instalar"}
                       </Button>
                     )}
                     {item.page_url && (

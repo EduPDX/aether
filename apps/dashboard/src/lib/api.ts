@@ -239,11 +239,22 @@ export const api = {
       `/api/v1/instances/${id}/sources/versions?project_id=${encodeURIComponent(projectId)}` +
         `&source_id=${sourceId}&all_versions=${allVersions}`,
     ),
+  planInstall: (id: string, body: { source_id: string; version_id: string; type?: string }) =>
+    request<InstallPlan>(`/api/v1/instances/${id}/sources/plan`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   installFromCatalog: (
     id: string,
-    body: { source_id: string; version_id: string; type?: string; overwrite?: boolean },
+    body: {
+      source_id: string;
+      version_id: string;
+      type?: string;
+      overwrite?: boolean;
+      with_dependencies?: boolean;
+    },
   ) =>
-    request<{ file: string; size: number; version: string }>(
+    request<InstallResult>(
       `/api/v1/instances/${id}/sources/install`,
       { method: "POST", body: JSON.stringify(body) },
     ),
@@ -428,6 +439,29 @@ export interface CatalogVersion {
   released_at: string | null;
   dependencies: { project_id: string; kind: string }[];
 }
+
+export interface PlannedItem {
+  project_id: string;
+  version_id: string;
+  version_number: string;
+  file_name: string;
+  size: number;
+  required_by: string | null;
+}
+
+export interface InstallPlan {
+  items: PlannedItem[];
+  already_installed: string[];
+  missing: string[];
+  conflicts: string[];
+  ok: boolean;
+  total_size: number;
+}
+
+/** Instalação simples devolve o arquivo; com dependências, a lista. */
+export type InstallResult =
+  | { file: string; size: number; version: string }
+  | { installed: { file: string; size: number; version: string }[]; count: number };
 
 export interface UpdateCandidate {
   file: string;

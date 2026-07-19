@@ -18,6 +18,14 @@ class InstallRequest(BaseModel):
     version_id: str
     type: str = "mod"
     overwrite: bool = False
+    """Instala junto as dependências obrigatórias que faltarem."""
+    with_dependencies: bool = False
+
+
+class PlanRequest(BaseModel):
+    source_id: str
+    version_id: str
+    type: str = "mod"
 
 
 def _item(i) -> dict:
@@ -105,6 +113,27 @@ async def versions(
     return [_version(v) for v in lista]
 
 
+@router.post("/plan")
+async def plan(
+    instance_id: str,
+    body: PlanRequest,
+    instances: InstanceServiceDep,
+    sources: SourceServiceDep,
+    _: ContentRead,
+) -> dict:
+    """O que uma instalação faria, sem tocar no disco."""
+    instance = await instances.get(instance_id)
+    p = await sources.plan_install(instance, body.type, body.source_id, body.version_id)
+    return {
+        "items": [i.__dict__ for i in p.items],
+        "already_installed": p.already_installed,
+        "missing": p.missing,
+        "conflicts": p.conflicts,
+        "ok": p.ok,
+        "total_size": p.total_size,
+    }
+
+
 @router.post("/install", status_code=201)
 async def install(
     instance_id: str,
@@ -115,6 +144,19 @@ async def install(
     user: ContentWrite,
 ) -> dict:
     instance = await instances.get(instance_id)
+    if body.with_dependencies:
+        p = await sources.plan_install(instance, body.type, body.source_id, body.version_id)
+        resultado = await sources.install_plan(
+            instance, body.type, body.source_id, p, overwrite=body.overwrite
+        )
+        await _audit(
+            request,
+            f"content.install instance={instance.name} itens={resultado['count']} "
+            f"source={body.source_id} (com dependências)",
+            user,
+        )
+        return resultado
+
     resultado = await sources.install_by_id(
         instance, body.type, body.source_id, body.version_id, overwrite=body.overwrite
     )

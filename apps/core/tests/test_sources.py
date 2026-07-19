@@ -235,3 +235,178 @@ def test_bulk_lookup_is_used_when_the_catalog_offers_it(tmp_path):
 
     assert catalogo.chamadas_lote == 1
     assert catalogo.chamadas_unitarias == 0, "não deve cair no unitário havendo lote"
+
+
+# --------------------------------------------------------- dependências --
+
+
+class _CatalogoGrafo:
+    """Catálogo com um grafo de dependências configurável."""
+
+    id = "falso"
+    label = "Falso"
+    requires_api_key = False
+
+    def __init__(self, grafo: dict, por_hash=None) -> None:
+        # grafo: project_id -> (version_id, [(dep_project, kind)])
+        self._grafo = grafo
+        self._por_hash = por_hash or {}
+        self.consultas: list[str] = []
+
+    def _versao_de(self, pid: str) -> SourceVersion:
+        vid, deps = self._grafo[pid]
+        from aether_sdk import SourceDependency
+
+        return _versao(
+            project_id=pid,
+            version_id=vid,
+            file_name=f"{pid}.jar",
+            dependencies=tuple(SourceDependency(project_id=d, kind=k) for d, k in deps),
+        )
+
+    async def search(self, query, **kw):
+        return []
+
+    async def versions(self, project_id, *, game_version=None, loader=None):
+        self.consultas.append(project_id)
+        if project_id not in self._grafo:
+            return []
+        return [self._versao_de(project_id)]
+
+    async def version_by_id(self, version_id):
+        for pid, (vid, _) in self._grafo.items():
+            if vid == version_id:
+                return self._versao_de(pid)
+        return None
+
+    async def lookup_by_hash(self, sha1):
+        return self._por_hash.get(sha1)
+
+
+def test_plan_includes_required_dependencies_transitively(tmp_path):
+    grafo = {
+        "raiz": ("vr", [("libA", "required")]),
+        "libA": ("va", [("libB", "required")]),
+        "libB": ("vb", []),
+    }
+    servico, _ = _servico(tmp_path, catalogo=_CatalogoGrafo(grafo))
+
+    plano = asyncio.run(servico.plan_install(_instancia(), "mod", "falso", "vr"))
+
+    assert plano.ok
+    # dependências primeiro, raiz por último
+    assert [i.project_id for i in plano.items] == ["libB", "libA", "raiz"]
+    assert plano.items[-1].required_by is None
+    assert plano.items[0].required_by is not None
+
+
+def test_plan_skips_optional_and_embedded_dependencies(tmp_path):
+    grafo = {
+        "raiz": ("vr", [("opc", "optional"), ("emb", "embedded"), ("obr", "required")]),
+        "opc": ("vo", []),
+        "emb": ("ve", []),
+        "obr": ("vb", []),
+    }
+    servico, _ = _servico(tmp_path, catalogo=_CatalogoGrafo(grafo))
+
+    plano = asyncio.run(servico.plan_install(_instancia(), "mod", "falso", "vr"))
+
+    assert sorted(i.project_id for i in plano.items) == ["obr", "raiz"]
+
+
+def test_plan_survives_a_dependency_cycle(tmp_path):
+    """A→B→A não pode virar recursão infinita."""
+    grafo = {
+        "A": ("va", [("B", "required")]),
+        "B": ("vb", [("A", "required")]),
+    }
+    servico, _ = _servico(tmp_path, catalogo=_CatalogoGrafo(grafo))
+
+    plano = asyncio.run(servico.plan_install(_instancia(), "mod", "falso", "va"))
+
+    assert sorted(i.project_id for i in plano.items) == ["A", "B"]
+
+
+def test_diamond_dependency_is_installed_once(tmp_path):
+    """raiz→A→lib e raiz→B→lib: a lib entra uma vez só."""
+    grafo = {
+        "raiz": ("vr", [("A", "required"), ("B", "required")]),
+        "A": ("va", [("lib", "required")]),
+        "B": ("vb", [("lib", "required")]),
+        "lib": ("vl", []),
+    }
+    servico, _ = _servico(tmp_path, catalogo=_CatalogoGrafo(grafo))
+
+    plano = asyncio.run(servico.plan_install(_instancia(), "mod", "falso", "vr"))
+
+    ids = [i.project_id for i in plano.items]
+    assert ids.count("lib") == 1
+    assert sorted(ids) == ["A", "B", "lib", "raiz"]
+
+
+def test_dependency_without_compatible_version_blocks_the_plan(tmp_path):
+    """Melhor recusar do que instalar metade e o servidor não subir."""
+    grafo = {"raiz": ("vr", [("some", "required")])}  # "some" não existe no catálogo
+    servico, _ = _servico(tmp_path, catalogo=_CatalogoGrafo(grafo))
+
+    plano = asyncio.run(servico.plan_install(_instancia(), "mod", "falso", "vr"))
+
+    assert plano.missing == ["some"]
+    assert plano.ok is False
+
+
+def test_blocked_plan_is_refused_at_execution(tmp_path):
+    grafo = {"raiz": ("vr", [("some", "required")])}
+    servico, _ = _servico(tmp_path, catalogo=_CatalogoGrafo(grafo))
+    plano = asyncio.run(servico.plan_install(_instancia(), "mod", "falso", "vr"))
+
+    with pytest.raises(ValidationFailedError, match="sem versão compatível"):
+        asyncio.run(servico.install_plan(_instancia(), "mod", "falso", plano))
+
+    assert not (tmp_path / "mods").exists() or list((tmp_path / "mods").iterdir()) == []
+
+
+def test_already_installed_dependency_is_not_reinstalled(tmp_path):
+    mods = tmp_path / "mods"
+    mods.mkdir()
+    (mods / "ja-tenho.jar").write_bytes(CONTEUDO)
+
+    grafo = {"raiz": ("vr", [("libA", "required")]), "libA": ("va", [])}
+    instalada = _versao(project_id="libA", version_id="va")
+    catalogo = _CatalogoGrafo(grafo, por_hash={SHA1: instalada})
+    servico, _ = _servico(tmp_path, catalogo=catalogo)
+
+    plano = asyncio.run(servico.plan_install(_instancia(), "mod", "falso", "vr"))
+
+    assert [i.project_id for i in plano.items] == ["raiz"]
+    assert plano.already_installed == ["libA"]
+
+
+def test_incompatible_installed_mod_is_reported(tmp_path):
+    mods = tmp_path / "mods"
+    mods.mkdir()
+    (mods / "briga.jar").write_bytes(CONTEUDO)
+
+    grafo = {"raiz": ("vr", [("inimigo", "incompatible")])}
+    instalada = _versao(project_id="inimigo", version_id="vi")
+    catalogo = _CatalogoGrafo(grafo, por_hash={SHA1: instalada})
+    servico, _ = _servico(tmp_path, catalogo=catalogo)
+
+    plano = asyncio.run(servico.plan_install(_instancia(), "mod", "falso", "vr"))
+
+    assert plano.conflicts == ["inimigo"]
+    assert plano.ok, "incompatibilidade avisa, mas não bloqueia — a decisão é do usuário"
+
+
+def test_executing_a_plan_installs_every_item(tmp_path):
+    grafo = {
+        "raiz": ("vr", [("libA", "required")]),
+        "libA": ("va", []),
+    }
+    servico, _ = _servico(tmp_path, catalogo=_CatalogoGrafo(grafo))
+    plano = asyncio.run(servico.plan_install(_instancia(), "mod", "falso", "vr"))
+
+    res = asyncio.run(servico.install_plan(_instancia(), "mod", "falso", plano))
+
+    assert res["count"] == 2
+    assert sorted(p.name for p in (tmp_path / "mods").iterdir()) == ["libA.jar", "raiz.jar"]
