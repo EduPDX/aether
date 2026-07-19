@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Plus, Trash2, UploadCloud } from "lucide-react";
 import { useState } from "react";
+import { useDialog } from "../../components/Dialog";
 import { Badge, Button, Input, Modal, Select, Spinner } from "../../components/ui";
 import type { Instance, SyncProfileOut, SyncRule, SyncRules } from "../../lib/api";
 import { api, copyText, formatBytes } from "../../lib/api";
@@ -41,6 +42,7 @@ function ruleSummary(rules: SyncRules): string {
 
 export function SyncView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
+  const dialog = useDialog();
   const [createOpen, setCreateOpen] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
@@ -139,8 +141,14 @@ export function SyncView({ instance }: { instance: Instance }) {
                 )}
                 <Button
                   variant="danger"
-                  onClick={() => {
-                    if (confirm(`Excluir o perfil "${p.name}"?`)) remove.mutate(p.id);
+                  onClick={async () => {
+                    const ok = await dialog.confirm({
+                      title: "Excluir perfil de sincronização",
+                      message: `“${p.name}” deixa de ser distribuído aos jogadores.`,
+                      confirmText: "Excluir",
+                      tone: "danger",
+                    });
+                    if (ok) remove.mutate(p.id);
                   }}
                 >
                   <Trash2 size={13} />

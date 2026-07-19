@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, History, KeyRound, Plus, Shield, Trash2, X } from "lucide-react";
 import { useState } from "react";
+import { useDialog } from "../../components/Dialog";
 import { Badge, Button, Input, Modal, Select, Spinner } from "../../components/ui";
 import { api, can } from "../../lib/api";
 import { useAuth } from "../auth/AuthGate";
@@ -22,6 +23,7 @@ const ROLE_DESC: Record<string, string> = {
 export function UsersView() {
   const qc = useQueryClient();
   const { user: me } = useAuth();
+  const dialog = useDialog();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
 
@@ -75,8 +77,14 @@ export function UsersView() {
                 {u.role !== "owner" && u.id !== me?.id && (
                   <Button
                     variant="danger"
-                    onClick={() => {
-                      if (confirm(`Remover o usuário "${u.username}"?`)) remove.mutate(u.id);
+                    onClick={async () => {
+                      const ok = await dialog.confirm({
+                        title: "Remover usuário",
+                        message: `“${u.username}” perde o acesso ao painel imediatamente.`,
+                        confirmText: "Remover",
+                        tone: "danger",
+                      });
+                      if (ok) remove.mutate(u.id);
                     }}
                   >
                     <Trash2 size={13} />

@@ -21,6 +21,7 @@ import { useAuth } from "./modules/auth/AuthGate";
 import { CompareView } from "./modules/content/CompareView";
 import { CreateInstanceDialog } from "./modules/instances/CreateInstanceDialog";
 import { InstanceView } from "./modules/instances/InstanceView";
+import { useDialog } from "./components/Dialog";
 import { AuditView, UsersView } from "./modules/admin/AdminViews";
 import { OverviewView } from "./modules/overview/OverviewView";
 import { SettingsView } from "./modules/settings/SettingsView";
@@ -83,6 +84,7 @@ function NavSection({ children }: { children: ReactNode }) {
 export default function App() {
   const qc = useQueryClient();
   const { user, logout } = useAuth();
+  const dialog = useDialog();
   const instancesQuery = useQuery({ queryKey: ["instances"], queryFn: api.instances });
   const [view, setView] = useState<View | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -165,9 +167,15 @@ export default function App() {
               <button
                 title="Remover instância (não apaga arquivos)"
                 className="hidden shrink-0 cursor-pointer text-muted hover:text-danger group-hover:block"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  if (confirm(`Remover a instância "${inst.name}"? Os arquivos não são apagados.`)) {
+                  const ok = await dialog.confirm({
+                    title: "Remover instância",
+                    message: `“${inst.name}” sai do painel. Os arquivos no disco não são apagados.`,
+                    confirmText: "Remover",
+                    tone: "danger",
+                  });
+                  if (ok) {
                     removeInstance.mutate(inst.id);
                     if (view?.kind === "instance" && view.id === inst.id) setView(null);
                   }

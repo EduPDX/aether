@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Play, RotateCw, Skull, Square } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useDialog } from "../../components/Dialog";
 import { Badge, Button } from "../../components/ui";
 import type { Instance, InstanceState } from "../../lib/api";
 import { api, can } from "../../lib/api";
@@ -35,6 +36,7 @@ type Tab = "content" | "client" | "diff" | "console" | "files" | "config" | "syn
 export function InstanceView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const dialog = useDialog();
   const [tab, setTab] = useState<Tab>("content");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -82,9 +84,15 @@ export function InstanceView({ instance }: { instance: Instance }) {
             <Button
               variant="danger"
               disabled={power.isPending}
-              onClick={() => {
-                if (confirm("Matar o processo imediatamente? O mundo pode não ser salvo."))
-                  power.mutate("kill");
+              onClick={async () => {
+                const ok = await dialog.confirm({
+                  title: "Matar o processo",
+                  message:
+                    "O servidor é encerrado na força, sem salvar. O que não tiver sido gravado no mundo se perde.",
+                  confirmText: "Matar mesmo assim",
+                  tone: "danger",
+                });
+                if (ok) power.mutate("kill");
               }}
             >
               <Skull size={14} /> Matar

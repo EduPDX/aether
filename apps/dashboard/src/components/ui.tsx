@@ -1,7 +1,7 @@
 /** Small design-system primitives (dark theme, token-based). */
 
 import clsx from "clsx";
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ComponentProps, ReactNode, SelectHTMLAttributes } from "react";
 
 export function Button({
   variant = "default",
@@ -23,7 +23,9 @@ export function Button({
   );
 }
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+// ComponentProps em vez de InputHTMLAttributes: no React 19 o `ref` é uma prop
+// comum de componentes de função, mas só ComponentProps a inclui no tipo.
+export function Input({ className, ...props }: ComponentProps<"input">) {
   return (
     <input
       className={clsx(

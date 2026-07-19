@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import { useDialog } from "../../components/Dialog";
 import { Badge, Button, Input, Panel, Select, Spinner, StatTile } from "../../components/ui";
 import type { BackupEntry, BackupSchedule, Instance } from "../../lib/api";
 import { api, can, formatBytes, getAccessToken } from "../../lib/api";
@@ -35,6 +36,7 @@ function quando(iso: string): string {
 
 export function BackupsView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
+  const dialog = useDialog();
   const { user } = useAuth();
   const podeEscrever = can(user, "backups.write");
   const [nota, setNota] = useState("");
@@ -268,14 +270,14 @@ export function BackupsView({ instance }: { instance: Instance }) {
                               ? "Pare o servidor para restaurar"
                               : "Restaurar este backup sobre a instância"
                           }
-                          onClick={() => {
-                            if (
-                              confirm(
-                                `Restaurar o backup de ${new Date(b.created_at).toLocaleString("pt-BR")}?\n\n` +
-                                  "Os arquivos atuais serão sobrescritos. Um backup de segurança do estado de agora será criado antes.",
-                              )
-                            )
-                              restaurar.mutate(b.id);
+                          onClick={async () => {
+                            const ok = await dialog.confirm({
+                              title: "Restaurar este backup",
+                              message: `Os arquivos atuais serão sobrescritos pelo estado de ${new Date(b.created_at).toLocaleString("pt-BR")}. Um backup de segurança do estado de agora é criado antes, então dá para voltar.`,
+                              confirmText: "Restaurar",
+                              tone: "danger",
+                            });
+                            if (ok) restaurar.mutate(b.id);
                           }}
                         >
                           <RotateCcw size={13} /> Restaurar
@@ -283,9 +285,14 @@ export function BackupsView({ instance }: { instance: Instance }) {
                         <Button
                           variant="danger"
                           disabled={apagar.isPending}
-                          onClick={() => {
-                            if (confirm(`Apagar o backup ${b.file_name}? Isso não tem volta.`))
-                              apagar.mutate(b.id);
+                          onClick={async () => {
+                            const ok = await dialog.confirm({
+                              title: "Apagar backup",
+                              message: `${b.file_name} é removido do disco. Isso não tem volta.`,
+                              confirmText: "Apagar",
+                              tone: "danger",
+                            });
+                            if (ok) apagar.mutate(b.id);
                           }}
                         >
                           <Trash2 size={13} />

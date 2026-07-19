@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CheckCircle2, CircleAlert, Laptop, Server, TriangleAlert } from "lucide-react";
 import { useState } from "react";
+import { useDialog } from "../../components/Dialog";
 import { Badge, Button, Panel, Spinner, StatTile } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
@@ -40,6 +41,7 @@ function Linha({ item, acao }: { item: ContentItem; acao?: React.ReactNode }) {
  */
 export function ServerClientDiff({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
+  const dialog = useDialog();
   const [erro, setErro] = useState("");
 
   const query = useQuery({
@@ -173,14 +175,13 @@ export function ServerClientDiff({ instance }: { instance: Instance }) {
                   <Button
                     className="ml-auto"
                     disabled={copiar.isPending}
-                    onClick={() => {
-                      if (
-                        confirm(
-                          `Substituir a versão do cliente pela do servidor (${v.a.file})?\n\n` +
-                            `O arquivo antigo do cliente (${v.b.file}) continua lá — remova-o na aba de mods do cliente.`,
-                        )
-                      )
-                        copiar.mutate({ file: v.a.file, para: "cliente" });
+                    onClick={async () => {
+                      const ok = await dialog.confirm({
+                        title: "Usar a versão do servidor",
+                        message: `${v.a.file} vai para o perfil de cliente. O arquivo antigo (${v.b.file}) continua lá — remova-o na aba de mods do cliente.`,
+                        confirmText: "Copiar",
+                      });
+                      if (ok) copiar.mutate({ file: v.a.file, para: "cliente" });
                     }}
                   >
                     <ArrowRight size={13} /> Usar a do servidor

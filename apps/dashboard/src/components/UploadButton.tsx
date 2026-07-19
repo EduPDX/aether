@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { api } from "../lib/api";
+import { useDialog } from "./Dialog";
 import { Button } from "./ui";
 
 /** Envia arquivos do PC do usuário para uma pasta da instância no servidor. */
@@ -19,6 +20,7 @@ export function UploadButton({
   onDone?: () => void;
 }) {
   const qc = useQueryClient();
+  const dialog = useDialog();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -36,7 +38,13 @@ export function UploadButton({
       const msg = String(e instanceof Error ? e.message : e);
       // Conflito: pergunta antes de sobrescrever.
       if (msg.includes("já existe") && !overwrite) {
-        if (confirm(`${msg}\n\nSubstituir o(s) arquivo(s) existente(s)?`)) {
+        const ok = await dialog.confirm({
+          title: "Arquivo já existe",
+          message: msg,
+          confirmText: "Substituir",
+          tone: "danger",
+        });
+        if (ok) {
           setBusy(false);
           return send(files, true);
         }

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Boxes, CheckCircle2, Copy, Download, HardDrive, LayoutGrid, List, Package, Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useDialog } from "../../components/Dialog";
 import { UploadButton } from "../../components/UploadButton";
 import { Button, Input, Panel, Segmented, Select, Spinner, StatTile } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
@@ -28,6 +29,7 @@ export function ContentView({
   contentType?: string;
 }) {
   const qc = useQueryClient();
+  const dialog = useDialog();
   const [search, setSearch] = useState("");
   const [loader, setLoader] = useState("all");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -99,8 +101,14 @@ export function ContentView({
     return { total: items.length, enabled, disabled: items.length - enabled, dups, size };
   }, [items]);
 
-  function askTrash(item: ContentItem) {
-    if (confirm(`Mover "${item.file}" para a lixeira?`)) trash.mutate(item.file);
+  async function askTrash(item: ContentItem) {
+    const ok = await dialog.confirm({
+      title: "Mover para a lixeira",
+      message: `“${item.metadata.display_name}” sai da pasta de mods. O arquivo vai para a lixeira do Aether, não é apagado.`,
+      confirmText: "Mover",
+      tone: "danger",
+    });
+    if (ok) trash.mutate(item.file);
   }
 
   function exportList() {

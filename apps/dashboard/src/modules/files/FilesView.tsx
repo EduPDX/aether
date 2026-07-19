@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDialog } from "../../components/Dialog";
 import { UploadButton } from "../../components/UploadButton";
 import { Button, Segmented, Select, Spinner } from "../../components/ui";
 import type { FileEntry, Instance } from "../../lib/api";
@@ -41,6 +42,7 @@ const VIEW_OPTIONS = [
 
 export function FilesView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
+  const dialog = useDialog();
   const [path, setPath] = useState("");
   const [openFile, setOpenFile] = useState<string | null>(null);
   const [content, setContent] = useState("");
@@ -173,7 +175,13 @@ export function FilesView({ instance }: { instance: Instance }) {
 
   async function deleteSelected() {
     const nomes = [...selected];
-    if (!confirm(`Mover ${nomes.length} item(ns) para a lixeira?`)) return;
+    const ok = await dialog.confirm({
+      title: "Mover para a lixeira",
+      message: `${nomes.length} item(ns) selecionado(s) vão para a lixeira do Aether.`,
+      confirmText: "Mover",
+      tone: "danger",
+    });
+    if (!ok) return;
     for (const n of nomes) await op.mutateAsync({ kind: "delete", target: join(path, n) });
     setSelected(new Set());
   }
@@ -240,8 +248,12 @@ export function FilesView({ instance }: { instance: Instance }) {
           <button
             title="Novo arquivo"
             className="cursor-pointer rounded p-1.5 text-muted hover:bg-surface-2 hover:text-text"
-            onClick={() => {
-              const name = prompt("Nome do novo arquivo:");
+            onClick={async () => {
+              const name = await dialog.promptText({
+                title: "Novo arquivo",
+                input: { label: "Nome do arquivo", placeholder: "config.toml" },
+                confirmText: "Criar",
+              });
               if (name) {
                 setOpenFile(join(path, name));
                 setContent("");
@@ -254,8 +266,12 @@ export function FilesView({ instance }: { instance: Instance }) {
           <button
             title="Nova pasta"
             className="cursor-pointer rounded p-1.5 text-muted hover:bg-surface-2 hover:text-text"
-            onClick={() => {
-              const name = prompt("Nome da nova pasta:");
+            onClick={async () => {
+              const name = await dialog.promptText({
+                title: "Nova pasta",
+                input: { label: "Nome da pasta", placeholder: "datapacks" },
+                confirmText: "Criar",
+              });
               if (name) op.mutate({ kind: "mkdir", target: join(path, name) });
             }}
           >
@@ -409,8 +425,12 @@ export function FilesView({ instance }: { instance: Instance }) {
                           <button
                             title="Renomear"
                             className="cursor-pointer text-muted hover:text-text"
-                            onClick={() => {
-                              const name = prompt("Novo nome:", entry.name);
+                            onClick={async () => {
+                              const name = await dialog.promptText({
+                                title: "Renomear",
+                                input: { label: "Novo nome", initialValue: entry.name },
+                                confirmText: "Renomear",
+                              });
                               if (name && name !== entry.name)
                                 op.mutate({ kind: "rename", target: rel, newName: name });
                             }}
@@ -420,9 +440,14 @@ export function FilesView({ instance }: { instance: Instance }) {
                           <button
                             title="Mover para a lixeira"
                             className="cursor-pointer text-muted hover:text-danger"
-                            onClick={() => {
-                              if (confirm(`Mover "${entry.name}" para a lixeira?`))
-                                op.mutate({ kind: "delete", target: rel });
+                            onClick={async () => {
+                              const ok = await dialog.confirm({
+                                title: "Mover para a lixeira",
+                                message: `“${entry.name}” vai para a lixeira do Aether.`,
+                                confirmText: "Mover",
+                                tone: "danger",
+                              });
+                              if (ok) op.mutate({ kind: "delete", target: rel });
                             }}
                           >
                             <Trash2 size={13} />
@@ -462,8 +487,16 @@ export function FilesView({ instance }: { instance: Instance }) {
                 </Button>
                 <Button
                   variant="ghost"
-                  onClick={() => {
-                    if (!dirty || confirm("Descartar alterações não salvas?")) {
+                  onClick={async () => {
+                    const ok =
+                      !dirty ||
+                      (await dialog.confirm({
+                        title: "Descartar alterações",
+                        message: `As mudanças em ${openFile} não foram salvas e serão perdidas.`,
+                        confirmText: "Descartar",
+                        tone: "danger",
+                      }));
+                    if (ok) {
                       setOpenFile(null);
                       setDirty(false);
                     }
