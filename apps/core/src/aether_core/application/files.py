@@ -7,7 +7,7 @@ editing is capped to protect the UI (and the server) from huge files.
 
 import asyncio
 import shutil
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +19,39 @@ from aether_core.domain.errors import (
     ValidationFailedError,
 )
 from aether_core.domain.instances import Instance
+
+
+class _StreamSink:
+    """Destino de escrita do zipfile que acumula bytes para serem emitidos.
+
+    O zipfile aceita um objeto sem `seek` desde que `tell` exista — nesse modo
+    ele grava descritores de dados em vez de voltar para corrigir cabeçalhos,
+    que é justamente o que permite gerar o arquivo em fluxo.
+    """
+
+    def __init__(self) -> None:
+        self._buf = bytearray()
+        self._pos = 0
+
+    def write(self, data: bytes) -> int:
+        self._buf.extend(data)
+        self._pos += len(data)
+        return len(data)
+
+    def tell(self) -> int:
+        return self._pos
+
+    def flush(self) -> None:
+        pass
+
+    @property
+    def pending(self) -> int:
+        return len(self._buf)
+
+    def drain(self) -> bytes:
+        pedaco = bytes(self._buf)
+        self._buf.clear()
+        return pedaco
 
 MAX_TEXT_BYTES = 2 * 1024 * 1024  # 2 MB
 MAX_UPLOAD_BYTES = 512 * 1024 * 1024  # 512 MB por arquivo
@@ -156,23 +189,44 @@ class FilesService:
             raise NotFoundError(f"não encontrado: {rel_path}")
         return target, target.is_dir()
 
-    async def zip_dir(self, instance: Instance, rel_path: str, dest_zip: Path) -> Path:
-        """Compacta uma pasta da instância para download."""
+    def stream_zip(self, instance: Instance, rel_path: str) -> Iterator[bytes]:
+        """Compacta uma pasta emitindo os bytes conforme são gerados.
+
+        A versão anterior escrevia o zip inteiro em /tmp antes de responder o
+        primeiro byte. Num mundo de vários GB isso significava minutos de
+        silêncio (o usuário achava que não tinha funcionado), o dobro de espaço
+        em disco e o navegador sem barra de progresso.
+
+        Usa ZIP_STORED: o grosso de um mundo são arquivos de região, que já são
+        comprimidos internamente. Recomprimir gastaria muito CPU para ganhar
+        quase nada e atrasaria o início do download.
+        """
         import zipfile
 
         folder = self._resolve(instance, rel_path)
         if not folder.is_dir():
             raise NotFoundError(f"pasta não encontrada: {rel_path}")
 
-        def _zip() -> Path:
-            dest_zip.parent.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-                for path in folder.rglob("*"):
-                    if path.is_file():
-                        zf.write(path, path.relative_to(folder).as_posix())
-            return dest_zip
-
-        return await asyncio.to_thread(_zip)
+        sink = _StreamSink()
+        # allowZip64: mundos passam de 4 GB e do limite de 65.535 arquivos.
+        with zipfile.ZipFile(sink, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
+            for path in sorted(folder.rglob("*")):
+                if not path.is_file():
+                    continue
+                arc = path.relative_to(folder).as_posix()
+                try:
+                    with zf.open(arc, "w") as destino, open(path, "rb") as origem:
+                        while pedaco := origem.read(1 << 20):
+                            destino.write(pedaco)
+                            if sink.pending >= (1 << 18):
+                                yield sink.drain()
+                except (OSError, PermissionError):
+                    # Arquivo sumiu ou está travado no meio da varredura: pular
+                    # é melhor que abortar um download de gigabytes.
+                    continue
+                if sink.pending:
+                    yield sink.drain()
+        yield sink.drain()  # diretório central, escrito no close
 
     async def mkdir(self, instance: Instance, rel_path: str) -> None:
         target = self._resolve(instance, rel_path)

@@ -99,3 +99,89 @@ def test_files_forbidden_for_moderator(client, tmp_path):
     ).json()
     mod.headers["Authorization"] = f"Bearer {login['access_token']}"
     assert mod.get(f"/api/v1/instances/{iid}/files").status_code == 403
+
+
+def _instancia_com_mundo(client, tmp_path, nome="mundo-grande"):
+    root = tmp_path / nome
+    (root / "world" / "region").mkdir(parents=True)
+    for i in range(12):
+        (root / "world" / "region" / f"r.{i}.0.mca").write_bytes(bytes(range(256)) * 400)
+    (root / "world" / "level.dat").write_bytes(b"nivel")
+    (root / "world" / "sub" / "fundo").mkdir(parents=True)
+    (root / "world" / "sub" / "fundo" / "profundo.dat").write_bytes(b"profundo")
+    res = client.post(
+        "/api/v1/instances",
+        json={"name": "Srv", "provider_id": "minecraft", "root_dir": str(root)},
+    )
+    assert res.status_code == 201, res.text
+    return res.json()["id"], root
+
+
+def test_folder_download_streams_a_valid_zip(client, tmp_path):
+    """Regressão: pastas grandes não baixavam.
+
+    O zip inteiro era montado em disco antes do primeiro byte e depois
+    materializado na memória do navegador. Agora sai em fluxo.
+    """
+    import io
+    import zipfile
+
+    iid, _ = _instancia_com_mundo(client, tmp_path)
+    res = client.get(f"/api/v1/instances/{iid}/files/download", params={"path": "world"})
+
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/zip"
+    assert 'filename="world.zip"' in res.headers["content-disposition"]
+    # sem content-length: o tamanho não é conhecido antes de gerar
+    assert "content-length" not in {k.lower() for k in res.headers}
+
+    with zipfile.ZipFile(io.BytesIO(res.content)) as zf:
+        assert zf.testzip() is None, "zip íntegro"
+        nomes = set(zf.namelist())
+        assert "world/level.dat" not in nomes, "os caminhos são relativos à pasta baixada"
+        assert "level.dat" in nomes
+        assert "sub/fundo/profundo.dat" in nomes
+        assert len([n for n in nomes if n.endswith(".mca")]) == 12
+        assert zf.read("sub/fundo/profundo.dat") == b"profundo"
+
+
+def test_download_token_allows_browser_navigation(client, tmp_path):
+    iid, _ = _instancia_com_mundo(client, tmp_path, "com-token")
+
+    res = client.post(
+        f"/api/v1/instances/{iid}/files/download-token", params={"path": "world"}
+    )
+    assert res.status_code == 200
+    token = res.json()["token"]
+
+    # sem cabeçalho de autorização, como faz uma navegação do navegador
+    semtoken = client.get(
+        f"/api/v1/instances/{iid}/files/download",
+        params={"path": "world"},
+        headers={"Authorization": ""},
+    )
+    assert semtoken.status_code == 401
+
+    comtoken = client.get(
+        f"/api/v1/instances/{iid}/files/download",
+        params={"path": "world", "token": token},
+        headers={"Authorization": ""},
+    )
+    assert comtoken.status_code == 200
+
+
+def test_download_token_is_bound_to_its_path(client, tmp_path):
+    """O token não pode virar uma chave genérica de leitura de arquivos."""
+    iid, root = _instancia_com_mundo(client, tmp_path, "preso")
+    (root / "segredo.txt").write_text("nao deveria vazar")
+
+    token = client.post(
+        f"/api/v1/instances/{iid}/files/download-token", params={"path": "world"}
+    ).json()["token"]
+
+    res = client.get(
+        f"/api/v1/instances/{iid}/files/download",
+        params={"path": "segredo.txt", "token": token},
+        headers={"Authorization": ""},
+    )
+    assert res.status_code == 401

@@ -248,6 +248,16 @@ export const api = {
     }),
   backupDownloadUrl: (id: string, backupId: string) =>
     `/api/v1/instances/${id}/backups/${backupId}/download`,
+  backupDownloadToken: (id: string, backupId: string) =>
+    request<{ token: string }>(
+      `/api/v1/instances/${id}/backups/${backupId}/download-token`,
+      { method: "POST" },
+    ),
+  downloadToken: (id: string, path: string) =>
+    request<{ token: string }>(
+      `/api/v1/instances/${id}/files/download-token?path=${encodeURIComponent(path)}`,
+      { method: "POST" },
+    ),
   listFiles: (id: string, path = "") =>
     request<FileEntry[]>(`/api/v1/instances/${id}/files?path=${encodeURIComponent(path)}`),
   readFile: (id: string, path: string) =>

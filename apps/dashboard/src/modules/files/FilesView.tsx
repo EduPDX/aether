@@ -20,7 +20,7 @@ import { useDialog } from "../../components/Dialog";
 import { UploadButton } from "../../components/UploadButton";
 import { Button, Segmented, Select, Spinner } from "../../components/ui";
 import type { FileEntry, Instance } from "../../lib/api";
-import { api, formatBytes, getAccessToken } from "../../lib/api";
+import { api, formatBytes } from "../../lib/api";
 import { languageFor } from "../../lib/monaco";
 import { FileGrid } from "./FileGrid";
 import { FileIcon, fileKind } from "./FileIcon";
@@ -99,23 +99,27 @@ export function FilesView({ instance }: { instance: Instance }) {
     }
   }
 
+  /**
+   * Entrega o download ao próprio navegador.
+   *
+   * Antes isto buscava por fetch e montava um Blob: o arquivo inteiro ia para
+   * a memória da aba antes de ser salvo, o que não sobrevive a uma pasta de
+   * vários GB — era por isso que baixar o mundo não funcionava. Agora pede um
+   * link assinado curto e navega até ele, então o navegador grava direto em
+   * disco, com barra de progresso e sem limite prático de tamanho.
+   */
   async function download(rel: string) {
     setError("");
     setBusy(rel);
     try {
-      const res = await fetch(api.downloadUrl(instance.id, rel), {
-        headers: { Authorization: `Bearer ${getAccessToken()}` },
-      });
-      if (!res.ok) throw new Error(`falha ao baixar (${res.status})`);
-      const blob = await res.blob();
-      const nome =
-        res.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/)?.[1] ??
-        (rel.split("/").pop() || `${instance.name}.zip`);
+      const { token } = await api.downloadToken(instance.id, rel);
+      const url = `${api.downloadUrl(instance.id, rel)}&token=${encodeURIComponent(token)}`;
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = nome;
+      a.href = url;
+      a.rel = "noopener";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(a.href);
+      a.remove();
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
     } finally {

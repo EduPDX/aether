@@ -76,6 +76,25 @@ async def get_current_user(request: Request, auth: AuthServiceDep) -> User:
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 
+async def authenticate_request(request: Request) -> User:
+    """Autentica fora do sistema de dependências.
+
+    Serve às rotas que aceitam mais de um esquema — o download, que atende
+    tanto o Bearer do dashboard quanto o link assinado de navegação, e por
+    isso não pode declarar a permissão como dependência.
+    """
+    async with request.app.state.session_factory() as session:
+        auth = AuthService(
+            users=SqlUserRepository(session),
+            hasher=_Hasher(),
+            tokens=_Tokens(request.app.state.jwt_secret),
+        )
+        header = request.headers.get("Authorization", "")
+        if not header.startswith("Bearer "):
+            raise AuthenticationError("missing bearer token")
+        return await auth.authenticate(header[len("Bearer ") :])
+
+
 def _require(permission: str):
     async def dep(user: CurrentUserDep) -> User:
         if not user.has_permission(permission):

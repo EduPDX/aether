@@ -5,6 +5,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from aether_core.domain.backups import BackupKind, BackupPolicy, BackupSchedule
+from aether_core.domain.errors import ForbiddenError
+from aether_core.infrastructure.security import decode_download_token, issue_download_token
 from aether_core.interfaces.http.deps import (
     BackupServiceDep,
     BackupsRead,
@@ -81,17 +83,50 @@ async def create_backup(
     return _out(backup)
 
 
+@router.post("/instances/{instance_id}/backups/{backup_id}/download-token")
+async def backup_download_token(
+    instance_id: str,
+    backup_id: str,
+    request: Request,
+    instances: InstanceServiceDep,
+    backups: BackupServiceDep,
+    user: BackupsRead,
+) -> dict:
+    """Link curto para o navegador baixar o zip direto.
+
+    Um backup de mundo passa de vários GB: buscar por fetch e virar Blob
+    estoura a memória da aba, o mesmo problema que o download de pastas tinha.
+    """
+    instance = await instances.get(instance_id)
+    await backups.resolve_file(instance, backup_id)  # valida existência e dono
+    token = issue_download_token(request.app.state.jwt_secret, user.id, instance_id, backup_id)
+    return {"token": token}
+
+
 @router.get("/instances/{instance_id}/backups/{backup_id}/download")
 async def download_backup(
     instance_id: str,
     backup_id: str,
+    request: Request,
     instances: InstanceServiceDep,
     backups: BackupServiceDep,
-    _: BackupsRead,
+    token: str | None = None,
 ) -> FileResponse:
+    if token:
+        decode_download_token(request.app.state.jwt_secret, token, instance_id, backup_id)
+    else:
+        await _require_backups_read(request)
     instance = await instances.get(instance_id)
     caminho = await backups.resolve_file(instance, backup_id)
     return FileResponse(caminho, filename=caminho.name, media_type="application/zip")
+
+
+async def _require_backups_read(request: Request) -> None:
+    from aether_core.interfaces.http.deps import authenticate_request
+
+    user = await authenticate_request(request)
+    if not user.has_permission("backups.read"):
+        raise ForbiddenError("missing permission: backups.read")
 
 
 @router.post("/instances/{instance_id}/backups/{backup_id}/restore")

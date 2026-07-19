@@ -14,7 +14,7 @@ import { useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import { Badge, Button, Input, Panel, Select, Spinner, StatTile } from "../../components/ui";
 import type { BackupEntry, BackupSchedule, Instance } from "../../lib/api";
-import { api, can, formatBytes, getAccessToken } from "../../lib/api";
+import { api, can, formatBytes } from "../../lib/api";
 import { useAuth } from "../auth/AuthGate";
 
 const AGENDA: { valor: BackupSchedule; label: string }[] = [
@@ -86,17 +86,20 @@ export function BackupsView({ instance }: { instance: Instance }) {
     onError: falhou,
   });
 
+  /** Navega para um link assinado: um backup de mundo tem vários GB e não
+   *  cabe na memória da aba como Blob. */
   async function baixar(b: BackupEntry) {
-    const res = await fetch(api.backupDownloadUrl(instance.id, b.id), {
-      headers: { Authorization: `Bearer ${getAccessToken()}` },
-    });
-    if (!res.ok) return falhou(new Error(`falha ao baixar (${res.status})`));
-    const blob = await res.blob();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = b.file_name;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    try {
+      const { token } = await api.backupDownloadToken(instance.id, b.id);
+      const a = document.createElement("a");
+      a.href = `${api.backupDownloadUrl(instance.id, b.id)}?token=${encodeURIComponent(token)}`;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      falhou(e);
+    }
   }
 
   if (query.isLoading) return <Spinner />;

@@ -1,12 +1,13 @@
 """File explorer routes (sandboxed to the instance root)."""
 
-from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
+from aether_core.domain.errors import ForbiddenError
+from aether_core.infrastructure.security import decode_download_token, issue_download_token
 from aether_core.interfaces.http.deps import (
     FilesRead,
     FilesServiceDep,
@@ -65,19 +66,40 @@ async def write_file(
     await files.write_text(instance, body.path, body.content)
 
 
+@router.post("/download-token")
+async def download_token(
+    instance_id: str,
+    path: str,
+    request: Request,
+    instances: InstanceServiceDep,
+    user: FilesRead,
+) -> dict:
+    """Emite um link curto para o navegador baixar sem cabeçalho.
+
+    Download nativo é uma navegação, e navegação não carrega o Bearer. Com o
+    link assinado o navegador grava direto em disco, com barra de progresso e
+    sem materializar o arquivo na memória da aba.
+    """
+    await instances.get(instance_id)
+    token = issue_download_token(request.app.state.jwt_secret, user.id, instance_id, path)
+    return {"token": token}
+
+
 @router.get("/download")
 async def download(
     instance_id: str,
     path: str,
     request: Request,
-    background: BackgroundTasks,
     instances: InstanceServiceDep,
     files: FilesServiceDep,
-    _: FilesRead,
-) -> FileResponse:
-    """Baixa um arquivo; se for pasta, compacta em zip na hora."""
-    import tempfile
-    import uuid as _uuid
+    token: str | None = None,
+):
+    """Baixa um arquivo; se for pasta, transmite um zip gerado em fluxo."""
+    # Aceita Bearer (chamadas do dashboard) ou o token curto de navegação.
+    if token:
+        decode_download_token(request.app.state.jwt_secret, token, instance_id, path)
+    else:
+        await _require_files_read(request)
 
     instance = await instances.get(instance_id)
     target, is_dir = await files.resolve_download(instance, path)
@@ -85,16 +107,26 @@ async def download(
     if not is_dir:
         return FileResponse(target, filename=target.name, media_type="application/octet-stream")
 
-    tmp = Path(tempfile.gettempdir()) / f"aether-{_uuid.uuid4().hex}.zip"
-    await files.zip_dir(instance, path, tmp)
-    # apaga o zip temporário depois que a resposta for enviada
-    background.add_task(lambda: tmp.unlink(missing_ok=True))
-    return FileResponse(
-        tmp,
-        filename=f"{target.name or instance.name}.zip",
+    nome = f"{target.name or instance.name}.zip"
+    return StreamingResponse(
+        files.stream_zip(instance, path),
         media_type="application/zip",
-        background=background,
+        headers={
+            "Content-Disposition": f'attachment; filename="{nome}"',
+            # Sem tamanho conhecido de antemão: o zip é gerado enquanto envia.
+            "Cache-Control": "no-store",
+        },
     )
+
+
+async def _require_files_read(request: Request) -> None:
+    """Autenticação manual: a rota aceita dois esquemas, então a permissão
+    não pode vir por dependência declarada."""
+    from aether_core.interfaces.http.deps import authenticate_request
+
+    user = await authenticate_request(request)
+    if not user.has_permission("files.read"):
+        raise ForbiddenError("missing permission: files.read")
 
 
 @router.post("/upload")
