@@ -55,12 +55,31 @@ def test_update_preserves_comments_and_unknown_keys(client, tmp_path):
 
 
 def test_update_rejects_unknown_keys(client, tmp_path):
+    """Só chaves declaradas no schema podem ser gravadas.
+
+    Sem isso, um cliente escreveria qualquer coisa no server.properties.
+    """
     iid, _ = make_instance(client, tmp_path)
     res = client.put(
         f"/api/v1/instances/{iid}/config",
-        json={"schema_id": "server-properties", "values": {"rcon.password": "x"}},
+        json={"schema_id": "server-properties", "values": {"nao-existe-no-schema": "x"}},
     )
     assert res.status_code == 400
+
+
+def test_password_fields_are_declared_as_such(client, tmp_path):
+    """A senha do RCON não pode ser renderizada em texto claro."""
+    iid, _ = make_instance(client, tmp_path)
+    schemas = client.get(f"/api/v1/instances/{iid}/config").json()
+    campos = {f["key"]: f for s in schemas for f in s["schema"]["fields"]}
+
+    assert campos["rcon.password"]["type"] == "password"
+    # e continua sendo gravável, agora que faz parte do schema
+    res = client.put(
+        f"/api/v1/instances/{iid}/config",
+        json={"schema_id": "server-properties", "values": {"rcon.password": "segredo"}},
+    )
+    assert res.status_code == 204
 
 
 def test_missing_file_returns_empty_values(client, tmp_path):

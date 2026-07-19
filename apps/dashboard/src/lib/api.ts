@@ -105,13 +105,18 @@ async function tryRefresh(): Promise<boolean> {
 }
 
 /** Upload multipart: o navegador define o Content-Type com o boundary. */
-async function upload<T>(path: string, form: FormData, retried = false): Promise<T> {
+async function upload<T>(
+  path: string,
+  form: FormData,
+  opts: { method?: string } = {},
+  retried = false,
+): Promise<T> {
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  const res = await fetch(path, { method: "POST", headers, body: form });
+  const res = await fetch(path, { method: opts.method ?? "POST", headers, body: form });
 
   if (res.status === 401 && !retried) {
-    if (await tryRefresh()) return upload<T>(path, form, true);
+    if (await tryRefresh()) return upload<T>(path, form, opts, true);
     clearTokens();
   }
   if (!res.ok) {
@@ -228,11 +233,28 @@ export const api = {
     }),
   logs: (id: string, tail = 500) =>
     request<{ lines: string[] }>(`/api/v1/instances/${id}/logs?tail=${tail}`),
+  iconUrl: (id: string) => `/api/v1/instances/${id}/config/icon`,
+  uploadIcon: (id: string, png: Blob) => {
+    const form = new FormData();
+    form.append("upload", png, "server-icon.png");
+    return upload<{ file: string; size: number }>(`/api/v1/instances/${id}/config/icon`, form, {
+      method: "PUT",
+    });
+  },
+  deleteIcon: (id: string) =>
+    request<void>(`/api/v1/instances/${id}/config/icon`, { method: "DELETE" }),
   sources: (id: string) => request<SourceInfo[]>(`/api/v1/instances/${id}/sources`),
-  searchCatalog: (id: string, q: string, sourceId = "modrinth", allVersions = false) =>
+  searchCatalog: (
+    id: string,
+    q: string,
+    sourceId = "modrinth",
+    allVersions = false,
+    offset = 0,
+    limit = 24,
+  ) =>
     request<CatalogItem[]>(
       `/api/v1/instances/${id}/sources/search?q=${encodeURIComponent(q)}` +
-        `&source_id=${sourceId}&all_versions=${allVersions}`,
+        `&source_id=${sourceId}&all_versions=${allVersions}&offset=${offset}&limit=${limit}`,
     ),
   catalogVersions: (id: string, projectId: string, sourceId = "modrinth", allVersions = false) =>
     request<CatalogVersion[]>(
@@ -499,9 +521,12 @@ export interface BackupsPayload {
 }
 
 export interface ConfigFieldDef {
+  advanced?: boolean;
+  minimum?: number | null;
+  maximum?: number | null;
   key: string;
   label: string;
-  type: "string" | "integer" | "boolean" | "enum";
+  type: "string" | "integer" | "boolean" | "enum" | "password";
   description: string;
   default: string;
   options: string[];

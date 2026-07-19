@@ -17,6 +17,8 @@ class ConfigFieldType(StrEnum):
     INTEGER = "integer"
     BOOLEAN = "boolean"
     ENUM = "enum"
+    """Renderizado mascarado; sem isso uma senha de RCON apareceria na tela."""
+    PASSWORD = "password"
 
 
 class ConfigField(BaseModel):
@@ -27,6 +29,11 @@ class ConfigField(BaseModel):
     default: str = ""
     options: list[str] = Field(default_factory=list)
     section: str = ""
+    """Fora do essencial: a interface esconde atrás de "mostrar avançadas"."""
+    advanced: bool = False
+    """Limites de um campo numérico, quando o jogo os define."""
+    minimum: int | None = None
+    maximum: int | None = None
 
 
 class ConfigSchema(BaseModel):

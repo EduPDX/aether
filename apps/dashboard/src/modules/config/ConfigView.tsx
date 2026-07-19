@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Save } from "lucide-react";
+import { Eye, EyeOff, Save, Settings2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Badge, Button, Input, Select, Spinner, Switch } from "../../components/ui";
+import { Badge, Button, Input, Panel, Select, Spinner, Switch } from "../../components/ui";
+import { ServerIconCard } from "./ServerIconCard";
 import type { ConfigFieldDef, Instance } from "../../lib/api";
 import { api } from "../../lib/api";
 
@@ -33,13 +34,40 @@ function FieldControl({
       </Select>
     );
   }
+  if (field.type === "password") return <PasswordControl value={value} onChange={onChange} />;
   return (
     <Input
       className="w-56"
       type={field.type === "integer" ? "number" : "text"}
+      min={field.minimum ?? undefined}
+      max={field.maximum ?? undefined}
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />
+  );
+}
+
+/** Senha começa oculta; sem isso a do RCON ficaria à mostra na tela. */
+function PasswordControl({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [visivel, setVisivel] = useState(false);
+  return (
+    <span className="flex items-center gap-1.5">
+      <Input
+        className="w-56"
+        type={visivel ? "text" : "password"}
+        value={value}
+        placeholder="sem senha definida"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button
+        type="button"
+        title={visivel ? "Ocultar" : "Mostrar"}
+        className="cursor-pointer text-muted hover:text-text"
+        onClick={() => setVisivel((v) => !v)}
+      >
+        {visivel ? <EyeOff size={15} /> : <Eye size={15} />}
+      </button>
+    </span>
   );
 }
 
@@ -55,6 +83,7 @@ export function ConfigView({ instance }: { instance: Instance }) {
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [mostrarAvancadas, setMostrarAvancadas] = useState(false);
 
   useEffect(() => {
     if (!config) return;
@@ -107,43 +136,71 @@ export function ConfigView({ instance }: { instance: Instance }) {
         )}
         {saved && <Badge tone="green">salvo ✓</Badge>}
         {error && <span className="text-xs text-danger">{error}</span>}
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-2">
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted">
+            <input
+              type="checkbox"
+              className="accent-(--color-accent-dim)"
+              checked={mostrarAvancadas}
+              onChange={(e) => setMostrarAvancadas(e.target.checked)}
+            />
+            <SlidersHorizontal size={13} />
+            <span>Opções avançadas</span>
+          </label>
           <Button variant="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
             <Save size={13} /> Salvar
           </Button>
         </span>
       </div>
 
-      <div className="mx-auto w-full max-w-3xl space-y-6 p-4">
-        {sections.map(([section, fields]) => (
-          <section key={section}>
-            <h3 className="mb-2 text-[11px] font-semibold tracking-wider text-muted uppercase">
-              {section}
-            </h3>
-            <div className="divide-y divide-border rounded-lg border border-border bg-surface">
-              {fields.map((f) => (
-                <div key={f.key} className="flex items-center gap-4 px-4 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm">{f.label}</div>
-                    <div className="text-[11px] text-muted">
-                      <code>{f.key}</code>
-                      {f.description && ` — ${f.description}`}
+      <div className="mx-auto w-full max-w-4xl space-y-4 p-4">
+        <ServerIconCard instance={instance} />
+
+        {sections.map(([section, fields]) => {
+          const essenciais = fields.filter((f) => !f.advanced);
+          const avancadas = fields.filter((f) => f.advanced);
+          const visiveis = mostrarAvancadas ? fields : essenciais;
+          if (visiveis.length === 0) return null;
+          return (
+            <Panel
+              key={section}
+              title={section}
+              icon={<Settings2 size={15} />}
+              hint={
+                avancadas.length > 0 && !mostrarAvancadas
+                  ? `${avancadas.length} opção(ões) avançada(s) oculta(s)`
+                  : undefined
+              }
+              bodyClassName="px-0 pb-0"
+            >
+              <div className="divide-y divide-border border-t border-border">
+                {visiveis.map((f) => (
+                  <div key={f.key} className="flex items-center gap-4 px-4 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        {f.label}
+                        {f.advanced && <Badge tone="neutral">avançado</Badge>}
+                      </div>
+                      <div className="text-[11px] text-muted">
+                        <code>{f.key}</code>
+                        {f.description && ` — ${f.description}`}
+                      </div>
                     </div>
+                    <FieldControl
+                      field={f}
+                      value={values[f.key] ?? ""}
+                      onChange={(v) => {
+                        setValues((prev) => ({ ...prev, [f.key]: v }));
+                        setDirty(true);
+                        setError("");
+                      }}
+                    />
                   </div>
-                  <FieldControl
-                    field={f}
-                    value={values[f.key] ?? ""}
-                    onChange={(v) => {
-                      setValues((prev) => ({ ...prev, [f.key]: v }));
-                      setDirty(true);
-                      setError("");
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
+                ))}
+              </div>
+            </Panel>
+          );
+        })}
       </div>
     </div>
   );

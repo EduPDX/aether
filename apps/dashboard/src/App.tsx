@@ -61,7 +61,7 @@ function NavItem({
   return (
     <div
       onClick={onClick}
-      className={`group flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+      className={`group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
         active ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2 hover:text-text"
       }`}
     >
@@ -75,7 +75,7 @@ function NavItem({
 /** Título de seção da barra lateral. */
 function NavSection({ children }: { children: ReactNode }) {
   return (
-    <div className="px-3 pt-3 pb-1 text-[10px] font-semibold tracking-widest text-muted/70 uppercase">
+    <div className="px-3 pt-4 pb-1.5 text-[11px] font-semibold tracking-widest text-muted/70 uppercase">
       {children}
     </div>
   );
@@ -122,7 +122,7 @@ export default function App() {
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-surface">
+      <aside className="flex w-68 shrink-0 flex-col border-r border-border bg-surface">
         <div className="flex items-center gap-2 px-4 py-4">
           <Boxes size={20} className="text-accent" />
           <span className="text-base font-bold tracking-wide">Aether</span>
@@ -134,7 +134,7 @@ export default function App() {
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           <NavSection>Painel</NavSection>
           <NavItem
-            icon={<LayoutDashboard size={15} />}
+            icon={<LayoutDashboard size={17} />}
             label="Visão geral"
             active={view?.kind === "overview"}
             onClick={() => setView({ kind: "overview" })}
@@ -146,7 +146,7 @@ export default function App() {
               key={inst.id}
               icon={
                 <span className="relative shrink-0">
-                  <Server size={15} />
+                  <Server size={17} />
                   <span
                     className={`absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full border border-surface ${
                       inst.state === "running"
@@ -186,13 +186,13 @@ export default function App() {
             </NavItem>
           ))}
           <NavItem
-            icon={<ArrowLeftRight size={15} />}
+            icon={<ArrowLeftRight size={17} />}
             label="Comparar"
             active={view?.kind === "compare"}
             onClick={() => setView({ kind: "compare" })}
           />
           <NavItem
-            icon={<Plus size={15} />}
+            icon={<Plus size={17} />}
             label="Nova instância"
             active={false}
             onClick={() => setCreateOpen(true)}
@@ -203,7 +203,7 @@ export default function App() {
               <NavSection>Administração</NavSection>
               {canManageUsers && (
                 <NavItem
-                  icon={<Users size={15} />}
+                  icon={<Users size={17} />}
                   label="Usuários"
                   active={view?.kind === "users"}
                   onClick={() => setView({ kind: "users" })}
@@ -211,7 +211,7 @@ export default function App() {
               )}
               {canSeeAudit && (
                 <NavItem
-                  icon={<ClipboardList size={15} />}
+                  icon={<ClipboardList size={17} />}
                   label="Auditoria"
                   active={view?.kind === "audit"}
                   onClick={() => setView({ kind: "audit" })}
@@ -222,13 +222,13 @@ export default function App() {
 
           <NavSection>Você</NavSection>
           <NavItem
-            icon={<Settings size={15} />}
+            icon={<Settings size={17} />}
             label="Configurações"
             active={view?.kind === "settings"}
             onClick={() => setView({ kind: "settings" })}
           />
           <NavItem
-            icon={<UserRound size={15} />}
+            icon={<UserRound size={17} />}
             label="Meu perfil"
             active={view?.kind === "profile"}
             onClick={() => setView({ kind: "profile" })}
@@ -244,7 +244,7 @@ export default function App() {
             <span className="block text-[10px] text-muted">{user?.role}</span>
           </span>
           <button title="Sair" className="cursor-pointer text-muted hover:text-danger" onClick={logout}>
-            <LogOut size={15} />
+            <LogOut size={17} />
           </button>
         </div>
       </aside>

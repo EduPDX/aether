@@ -11,6 +11,7 @@ from aether_core.application.backups import BackupService
 from aether_core.application.config import ConfigService
 from aether_core.application.content import ContentService
 from aether_core.application.files import FilesService
+from aether_core.application.icons import ServerIconService
 from aether_core.application.instances import InstanceService
 from aether_core.application.power import PowerService
 from aether_core.application.sources import SourceService
@@ -194,6 +195,13 @@ def get_config_service(request: Request) -> ConfigService:
         files=get_files_service(request),
         bus=state.bus,
     )
+
+
+def get_server_icon_service(request: Request) -> ServerIconService:
+    return ServerIconService(bus=request.app.state.bus)
+
+
+ServerIconServiceDep = Annotated[ServerIconService, Depends(get_server_icon_service)]
 
 
 def get_sync_service(request: Request, session: SessionDep) -> SyncService:

@@ -6,6 +6,7 @@ _BOOL = ConfigFieldType.BOOLEAN
 _INT = ConfigFieldType.INTEGER
 _ENUM = ConfigFieldType.ENUM
 _STR = ConfigFieldType.STRING
+_PASS = ConfigFieldType.PASSWORD
 
 
 class PropertiesCodec:
@@ -41,88 +42,118 @@ class PropertiesCodec:
         return "\n".join(out) + "\n"
 
 
+def _f(key: str, label: str, **kw) -> ConfigField:
+    return ConfigField(key=key, label=label, **kw)
+
+
 SERVER_PROPERTIES_SCHEMA = ConfigSchema(
     id="server-properties",
     label="server.properties",
     file="server.properties",
     format="properties",
     fields=[
-        ConfigField(key="motd", label="MOTD (mensagem do servidor)", type=_STR, section="Geral"),
-        ConfigField(
-            key="max-players",
-            label="Máximo de jogadores",
-            type=_INT,
-            default="20",
-            section="Geral",
-        ),
-        ConfigField(
-            key="gamemode",
-            label="Modo de jogo",
-            type=_ENUM,
-            default="survival",
-            options=["survival", "creative", "adventure", "spectator"],
-            section="Jogo",
-        ),
-        ConfigField(
-            key="difficulty",
-            label="Dificuldade",
-            type=_ENUM,
-            default="normal",
-            options=["peaceful", "easy", "normal", "hard"],
-            section="Jogo",
-        ),
-        ConfigField(key="hardcore", label="Hardcore", type=_BOOL, default="false", section="Jogo"),
-        ConfigField(key="pvp", label="PvP", type=_BOOL, default="true", section="Jogo"),
-        ConfigField(
-            key="allow-flight",
-            label="Permitir voo (anti-kick de mods)",
-            type=_BOOL,
-            default="false",
-            section="Jogo",
-        ),
-        ConfigField(
-            key="enable-command-block",
-            label="Blocos de comando",
-            type=_BOOL,
-            default="false",
-            section="Jogo",
-        ),
-        ConfigField(
-            key="level-name", label="Nome do mundo", type=_STR, default="world", section="Mundo"
-        ),
-        ConfigField(key="level-seed", label="Seed", type=_STR, section="Mundo"),
-        ConfigField(
-            key="view-distance",
-            label="Distância de visão (chunks)",
-            type=_INT,
-            default="10",
-            section="Desempenho",
-        ),
-        ConfigField(
-            key="simulation-distance",
-            label="Distância de simulação (chunks)",
-            type=_INT,
-            default="10",
-            section="Desempenho",
-        ),
-        ConfigField(
-            key="spawn-protection",
-            label="Proteção do spawn (blocos)",
-            type=_INT,
-            default="16",
-            section="Mundo",
-        ),
-        ConfigField(key="server-port", label="Porta", type=_INT, default="25565", section="Rede"),
-        ConfigField(
-            key="online-mode",
-            label="Online mode (contas originais)",
-            type=_BOOL,
-            default="true",
-            description="Desativar permite contas não-originais e remove a autenticação da Mojang",
-            section="Rede",
-        ),
-        ConfigField(
-            key="white-list", label="Whitelist", type=_BOOL, default="false", section="Rede"
-        ),
+        # ------------------------------------------------------------- Geral
+        _f("motd", "MOTD (mensagem do servidor)", type=_STR, section="Geral",
+           description="Aparece na lista de servidores do jogo. Aceita cores com §"),
+        _f("max-players", "Máximo de jogadores", type=_INT, default="20", section="Geral",
+           minimum=1, maximum=2000),
+        _f("server-port", "Porta", type=_INT, default="25565", section="Geral",
+           minimum=1, maximum=65535),
+        _f("enable-status", "Aparecer na lista de servidores", type=_BOOL, default="true",
+           section="Geral", advanced=True),
+        _f("hide-online-players", "Ocultar lista de jogadores online", type=_BOOL,
+           default="false", section="Geral", advanced=True),
+        _f("player-idle-timeout", "Expulsar por inatividade (minutos, 0 = nunca)", type=_INT,
+           default="0", section="Geral", minimum=0, advanced=True),
+
+        # -------------------------------------------------------------- Jogo
+        _f("gamemode", "Modo de jogo", type=_ENUM, default="survival", section="Jogo",
+           options=["survival", "creative", "adventure", "spectator"]),
+        _f("difficulty", "Dificuldade", type=_ENUM, default="normal", section="Jogo",
+           options=["peaceful", "easy", "normal", "hard"]),
+        _f("hardcore", "Hardcore", type=_BOOL, default="false", section="Jogo",
+           description="Morrer vira modo espectador permanentemente"),
+        _f("pvp", "PvP", type=_BOOL, default="true", section="Jogo"),
+        _f("allow-flight", "Permitir voo", type=_BOOL, default="false", section="Jogo",
+           description="Necessário com mods que dão voo, senão o servidor expulsa o jogador"),
+        _f("enable-command-block", "Blocos de comando", type=_BOOL, default="false",
+           section="Jogo"),
+        _f("force-gamemode", "Forçar modo de jogo ao entrar", type=_BOOL, default="false",
+           section="Jogo", advanced=True),
+        _f("spawn-monsters", "Gerar monstros", type=_BOOL, default="true", section="Jogo"),
+        _f("spawn-animals", "Gerar animais", type=_BOOL, default="true", section="Jogo"),
+        _f("spawn-npcs", "Gerar aldeões", type=_BOOL, default="true", section="Jogo"),
+        _f("allow-nether", "Permitir o Nether", type=_BOOL, default="true", section="Jogo"),
+
+        # ------------------------------------------------------------- Mundo
+        _f("level-name", "Nome da pasta do mundo", type=_STR, default="world", section="Mundo",
+           description="Precisa bater com o nome da pasta em disco, senão um mundo novo é criado"),
+        _f("level-seed", "Seed", type=_STR, section="Mundo",
+           description="Só afeta a geração de um mundo novo"),
+        _f("level-type", "Tipo de mundo", type=_ENUM, default="minecraft:normal", section="Mundo",
+           options=["minecraft:normal", "minecraft:flat", "minecraft:large_biomes",
+                    "minecraft:amplified", "minecraft:single_biome_surface"], advanced=True),
+        _f("generate-structures", "Gerar estruturas", type=_BOOL, default="true", section="Mundo"),
+        _f("spawn-protection", "Proteção do spawn (blocos)", type=_INT, default="16",
+           section="Mundo", minimum=0,
+           description="Raio onde só operadores podem construir. 0 desativa"),
+        _f("max-world-size", "Tamanho máximo do mundo (blocos)", type=_INT, default="29999984",
+           section="Mundo", minimum=1, advanced=True),
+
+        # -------------------------------------------------------- Desempenho
+        _f("view-distance", "Distância de visão (chunks)", type=_INT, default="10",
+           section="Desempenho", minimum=2, maximum=32,
+           description="O que mais pesa no servidor. 8–12 é o comum em servidor modado"),
+        _f("simulation-distance", "Distância de simulação (chunks)", type=_INT, default="10",
+           section="Desempenho", minimum=2, maximum=32,
+           description="Raio onde mobs e redstone rodam. Reduzir ajuda mais que a visão"),
+        _f("max-tick-time", "Tempo máximo por tick (ms, -1 desliga o watchdog)", type=_INT,
+           default="60000", section="Desempenho", advanced=True,
+           description="Com muitos mods, -1 evita o servidor se matar achando que travou"),
+        _f("network-compression-threshold", "Limiar de compressão de rede (bytes)", type=_INT,
+           default="256", section="Desempenho", advanced=True),
+        _f("entity-broadcast-range-percentage", "Alcance de entidades (%)", type=_INT,
+           default="100", section="Desempenho", minimum=10, maximum=1000, advanced=True),
+        _f("sync-chunk-writes", "Escrita síncrona de chunks", type=_BOOL, default="true",
+           section="Desempenho", advanced=True,
+           description="Desativar acelera em disco lento, com risco em queda de energia"),
+
+        # -------------------------------------------------- Acesso e segurança
+        _f("online-mode", "Online mode (contas originais)", type=_BOOL, default="true",
+           section="Acesso",
+           description="Desativado, qualquer pessoa entra com qualquer nome — use whitelist"),
+        _f("white-list", "Whitelist", type=_BOOL, default="false", section="Acesso",
+           description="Só quem está na lista entra. É a proteção quando online-mode está off"),
+        _f("enforce-whitelist", "Expulsar quem sair da whitelist", type=_BOOL, default="false",
+           section="Acesso"),
+        _f("enforce-secure-profile", "Exigir perfil assinado", type=_BOOL, default="true",
+           section="Acesso", advanced=True),
+        _f("prevent-proxy-connections", "Bloquear conexões via proxy", type=_BOOL,
+           default="false", section="Acesso", advanced=True),
+        _f("op-permission-level", "Nível de permissão dos operadores", type=_ENUM, default="4",
+           options=["1", "2", "3", "4"], section="Acesso", advanced=True),
+        _f("broadcast-console-to-ops", "Enviar saída do console aos operadores", type=_BOOL,
+           default="true", section="Acesso", advanced=True),
+
+        # ---------------------------------------------------- Pacote de recursos
+        _f("resource-pack", "URL do pacote de recursos", type=_STR, section="Pacote de recursos"),
+        _f("resource-pack-sha1", "SHA-1 do pacote", type=_STR, section="Pacote de recursos",
+           advanced=True, description="Sem isso o jogador rebaixa o pacote a cada entrada"),
+        _f("require-resource-pack", "Exigir o pacote", type=_BOOL, default="false",
+           section="Pacote de recursos"),
+        _f("resource-pack-prompt", "Mensagem ao pedir o pacote", type=_STR,
+           section="Pacote de recursos", advanced=True),
+
+        # ------------------------------------------------------ RCON e consulta
+        _f("enable-rcon", "Habilitar RCON", type=_BOOL, default="false", section="RCON",
+           description="Console remoto. Necessário para métricas de TPS e jogadores"),
+        _f("rcon.port", "Porta do RCON", type=_INT, default="25575", section="RCON",
+           minimum=1, maximum=65535),
+        _f("rcon.password", "Senha do RCON", type=_PASS, section="RCON",
+           description="Sem senha forte, qualquer um com acesso à porta controla o servidor"),
+        _f("enable-query", "Habilitar consulta (GameSpy4)", type=_BOOL, default="false",
+           section="RCON", advanced=True),
+        _f("query.port", "Porta da consulta", type=_INT, default="25565", section="RCON",
+           minimum=1, maximum=65535, advanced=True),
     ],
 )

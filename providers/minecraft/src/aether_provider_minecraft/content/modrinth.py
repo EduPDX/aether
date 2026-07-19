@@ -104,6 +104,10 @@ class ModrinthSource:
         offset: int = 0,
     ) -> list[SourceItem]:
         params: dict[str, Any] = {"query": query, "limit": limit, "offset": offset}
+        # Busca vazia = o usuário está navegando, não procurando: ordenar por
+        # downloads mostra o que é popular em vez de uma lista arbitrária.
+        if not query.strip():
+            params["index"] = "downloads"
         facetas = _facets(game_version, loader)
         if facetas:
             params["facets"] = facetas

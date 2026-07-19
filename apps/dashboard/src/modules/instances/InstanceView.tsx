@@ -1,5 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Play, RotateCw, Skull, Square } from "lucide-react";
+import {
+  Archive,
+  ArrowLeftRight,
+  FolderOpen,
+  Laptop,
+  Package,
+  Play,
+  RefreshCcwDot,
+  RotateCw,
+  Skull,
+  SlidersHorizontal,
+  Square,
+  Store,
+  TerminalSquare,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import { Badge, Button } from "../../components/ui";
@@ -31,6 +45,8 @@ const STATE_TONE: Record<InstanceState, "neutral" | "green" | "orange" | "red"> 
   stopping: "orange",
   crashed: "red",
 };
+
+type Aba = [Tab, string, React.ReactNode];
 
 type Tab =
   | "content"
@@ -111,35 +127,48 @@ export function InstanceView({ instance }: { instance: Instance }) {
         )}
         {errorMsg && <span className="text-xs text-danger">{errorMsg}</span>}
 
-        <div className="ml-auto flex rounded-md border border-border p-0.5">
-          {(
-            [
-              ["content", "Mods do servidor"],
-              ...(can(user, "content.read")
-                ? ([
-                    ["client", "Mods do cliente"],
-                    ["diff", "Servidor × Cliente"],
-                    ["catalog", "Catálogo"],
-                  ] as [Tab, string][])
-                : []),
-              ["console", "Console"],
-              ...(can(user, "files.read") ? [["files", "Arquivos"] as [Tab, string]] : []),
-              ...(can(user, "config.read") ? [["config", "Config"] as [Tab, string]] : []),
-              ...(can(user, "sync.read") ? [["sync", "Sync"] as [Tab, string]] : []),
-              ...(can(user, "backups.read") ? [["backups", "Backups"] as [Tab, string]] : []),
-            ] as [Tab, string][]
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`cursor-pointer rounded px-3 py-1 text-xs font-medium transition-colors ${
-                tab === key ? "bg-surface-3 text-text" : "text-muted hover:text-text"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      </div>
+
+      {/* Abas da instância: ícone + rótulo, com alvo de clique confortável. */}
+      <div className="flex flex-wrap gap-1 border-b border-border px-3 py-1.5">
+        {(
+          [
+            ["content", "Mods do servidor", <Package size={16} />],
+            ...(can(user, "content.read")
+              ? ([
+                  ["client", "Mods do cliente", <Laptop size={16} />],
+                  ["diff", "Servidor × Cliente", <ArrowLeftRight size={16} />],
+                  ["catalog", "Catálogo", <Store size={16} />],
+                ] as Aba[])
+              : []),
+            ["console", "Console", <TerminalSquare size={16} />],
+            ...(can(user, "files.read")
+              ? [["files", "Arquivos", <FolderOpen size={16} />] as Aba]
+              : []),
+            ...(can(user, "config.read")
+              ? [["config", "Config", <SlidersHorizontal size={16} />] as Aba]
+              : []),
+            ...(can(user, "sync.read")
+              ? [["sync", "Sync", <RefreshCcwDot size={16} />] as Aba]
+              : []),
+            ...(can(user, "backups.read")
+              ? [["backups", "Backups", <Archive size={16} />] as Aba]
+              : []),
+          ] as Aba[]
+        ).map(([key, label, icone]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              tab === key
+                ? "bg-surface-3 text-text"
+                : "text-muted hover:bg-surface-2 hover:text-text"
+            }`}
+          >
+            {icone}
+            {label}
+          </button>
+        ))}
       </div>
 
       <div className="min-h-0 flex-1">

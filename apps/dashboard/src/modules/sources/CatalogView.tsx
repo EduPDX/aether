@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpCircle,
+  ChevronLeft,
+  ChevronRight,
   Download,
   ExternalLink,
   PackagePlus,
@@ -34,14 +36,26 @@ export function CatalogView({ instance }: { instance: Instance }) {
   const [ok, setOk] = useState("");
   const [checarUpdates, setChecarUpdates] = useState(false);
   const [planejando, setPlanejando] = useState("");
+  const [pagina, setPagina] = useState(0);
 
   const versaoJogo = (instance.provider_data?.game_version as string) || null;
   const loader = (instance.provider_data?.loader as string) || null;
 
+  const POR_PAGINA = 24;
+  // Sem termo de busca a consulta continua valendo: o catálogo devolve os mais
+  // baixados, que é o que o site do Modrinth mostra ao abrir.
   const resultados = useQuery({
-    queryKey: ["catalogo", instance.id, enviada, todasVersoes],
-    queryFn: () => api.searchCatalog(instance.id, enviada, "modrinth", todasVersoes),
-    enabled: enviada.trim().length > 1,
+    queryKey: ["catalogo", instance.id, enviada, todasVersoes, pagina],
+    queryFn: () =>
+      api.searchCatalog(
+        instance.id,
+        enviada,
+        "modrinth",
+        todasVersoes,
+        pagina * POR_PAGINA,
+        POR_PAGINA,
+      ),
+    placeholderData: (anterior) => anterior,
   });
 
   const updates = useQuery({
@@ -208,7 +222,7 @@ export function CatalogView({ instance }: { instance: Instance }) {
         {ok && <p className="text-sm text-accent">{ok}</p>}
 
         <Panel
-          title="Buscar mods"
+          title={enviada ? `Resultados para “${enviada}”` : "Mods populares"}
           icon={<Search size={15} />}
           hint={
             versaoJogo
@@ -243,6 +257,7 @@ export function CatalogView({ instance }: { instance: Instance }) {
             onSubmit={(e) => {
               e.preventDefault();
               setOk("");
+              setPagina(0);
               setEnviada(busca);
             }}
           >
@@ -255,6 +270,19 @@ export function CatalogView({ instance }: { instance: Instance }) {
             <Button variant="primary" type="submit" disabled={busca.trim().length < 2}>
               <Search size={14} /> Buscar
             </Button>
+            {enviada && (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  setBusca("");
+                  setEnviada("");
+                  setPagina(0);
+                }}
+              >
+                Limpar
+              </Button>
+            )}
           </form>
 
           {resultados.isLoading && <Spinner />}
@@ -317,6 +345,21 @@ export function CatalogView({ instance }: { instance: Instance }) {
               </div>
             ))}
           </div>
+
+          {(lista.length > 0 || pagina > 0) && (
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <Button disabled={pagina === 0 || resultados.isFetching} onClick={() => setPagina((p) => p - 1)}>
+                <ChevronLeft size={14} /> Anterior
+              </Button>
+              <span className="text-xs text-muted">página {pagina + 1}</span>
+              <Button
+                disabled={lista.length < POR_PAGINA || resultados.isFetching}
+                onClick={() => setPagina((p) => p + 1)}
+              >
+                Próxima <ChevronRight size={14} />
+              </Button>
+            </div>
+          )}
         </Panel>
 
         <Panel
