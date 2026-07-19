@@ -20,12 +20,14 @@ export function FileGrid({
   size = "lg",
   onOpen,
   onToggleSelect,
+  onContextMenu,
 }: {
   entries: FileEntry[];
   selected: Set<string>;
   size?: IconSize;
   onOpen: (entry: FileEntry) => void;
   onToggleSelect: (name: string, checked: boolean) => void;
+  onContextMenu: (entry: FileEntry, x: number, y: number) => void;
 }) {
   const t = TILE[size];
   return (
@@ -39,6 +41,10 @@ export function FileGrid({
           <button
             key={entry.name}
             onDoubleClick={() => onOpen(entry)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              onContextMenu(entry, e.clientX, e.clientY);
+            }}
             onClick={(e) => {
               // Ctrl/Shift/clique no marcador = seleção; clique simples abre.
               if (e.ctrlKey || e.metaKey || e.shiftKey) onToggleSelect(entry.name, !isSel);
