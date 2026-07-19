@@ -127,7 +127,7 @@ Estas custaram depuração. Mudá-las sem entender o motivo reintroduz o bug:
 
 ## Deploy
 
-Produção é um LXC no Proxmox (`192.168.20.57:8600`), código em `/opt/aether`,
+Produção é um LXC no Proxmox (endereço na rede local do dono), código em `/opt/aether`,
 serviço systemd `aether-core`. O deploy empacota `git archive` + o `dist/` do
 dashboard, envia por `pct push` e reinicia o serviço. O dashboard é servido pelo
 próprio Core em `/app`.

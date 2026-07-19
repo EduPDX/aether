@@ -19,7 +19,7 @@ def main() -> None:
         prog="aether-sync",
         description="Sincroniza uma pasta local com um perfil publicado por um servidor Aether.",
     )
-    parser.add_argument("server", help="URL do Aether Core (ex.: http://192.168.20.57:8600)")
+    parser.add_argument("server", help="URL do Aether Core (ex.: http://192.168.1.10:8600)")
     parser.add_argument("profile_id", help="Id do perfil de sincronização publicado")
     parser.add_argument(
         "--dir", required=True, type=Path, help="Pasta de destino (ex.: .minecraft)"
