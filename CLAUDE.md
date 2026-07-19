@@ -34,9 +34,9 @@ AETHER_DATA_DIR=/tmp/aether-dev uv run uvicorn \
 
 CI roda ruff, `ruff format --check`, pytest e o build do dashboard.
 
-**Se `uv` não estiver no PATH** (acontece na máquina de desenvolvimento atual: o
-venv foi criado pelo uv, mas o executável não está acessível), use o Python do
-venv direto — é o mesmo ambiente:
+**Se `uv` não estiver no PATH** — acontece quando o venv foi criado pelo uv mas o
+executável não ficou acessível na sessão — use o Python do venv direto, que é o
+mesmo ambiente:
 
 ```bash
 ./.venv/Scripts/python.exe -m pytest        # Windows
