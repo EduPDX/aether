@@ -1,5 +1,7 @@
 """Schema-driven configuration use cases."""
 
+from pathlib import Path
+
 from aether_sdk import SupportsConfig
 
 from aether_core.application.events import EventBus
@@ -33,7 +35,25 @@ class ConfigService:
             except NotFoundError:
                 values = {}
                 exists = False
-            out.append({"schema": schema.model_dump(), "values": values, "file_exists": exists})
+            avisos = []
+            emitir = getattr(provider, "config_warnings", None)
+            if callable(emitir):
+                try:
+                    avisos = [
+                        {"key": a.key, "message": a.message, "level": a.level}
+                        for a in emitir(Path(instance.root_dir), values)
+                    ]
+                except Exception:
+                    # Um aviso quebrado não pode impedir a tela de config de abrir.
+                    avisos = []
+            out.append(
+                {
+                    "schema": schema.model_dump(),
+                    "values": values,
+                    "file_exists": exists,
+                    "warnings": avisos,
+                }
+            )
         return out
 
     async def update_config(

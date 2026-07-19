@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Save, Settings2, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Save, Settings2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Input, Panel, Select, Spinner, Switch } from "../../components/ui";
 import { ServerIconCard } from "./ServerIconCard";
@@ -154,6 +154,31 @@ export function ConfigView({ instance }: { instance: Instance }) {
       </div>
 
       <div className="mx-auto w-full max-w-4xl space-y-4 p-4">
+        {/* Avisos do provider: valores válidos no formato mas errados na
+            prática — como um mundo apontando para pasta que não existe. */}
+        {(config.warnings ?? []).map((a) => (
+          <div
+            key={a.key}
+            className={`flex items-start gap-3 rounded-xl border p-4 ${
+              a.level === "error"
+                ? "border-danger/50 bg-danger/10"
+                : "border-warn/50 bg-warn/10"
+            }`}
+          >
+            <AlertTriangle
+              size={18}
+              className={`mt-0.5 shrink-0 ${a.level === "error" ? "text-danger" : "text-warn"}`}
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">
+                {a.level === "error" ? "Isto vai dar problema" : "Atenção"}
+                <code className="ml-2 text-[11px] font-normal text-muted">{a.key}</code>
+              </div>
+              <p className="mt-0.5 text-sm text-muted">{a.message}</p>
+            </div>
+          </div>
+        ))}
+
         <ServerIconCard instance={instance} />
 
         {sections.map(([section, fields]) => {

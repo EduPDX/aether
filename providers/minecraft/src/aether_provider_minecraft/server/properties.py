@@ -1,6 +1,8 @@
 """server.properties: codec (comment-preserving) and config schema."""
 
-from aether_sdk import ConfigField, ConfigFieldType, ConfigSchema
+from pathlib import Path
+
+from aether_sdk import ConfigField, ConfigFieldType, ConfigSchema, ConfigWarning
 
 _BOOL = ConfigFieldType.BOOLEAN
 _INT = ConfigFieldType.INTEGER
@@ -157,3 +159,55 @@ SERVER_PROPERTIES_SCHEMA = ConfigSchema(
            minimum=1, maximum=65535, advanced=True),
     ],
 )
+
+
+def config_warnings(root: Path, values: dict[str, str]) -> list[ConfigWarning]:
+    """Problemas que o schema não pega porque o valor é sintaticamente válido.
+
+    O caso que motivou isto: `level-name` aceita qualquer texto, e apontar para
+    uma pasta que não existe faz o Minecraft **gerar um mundo novo e vazio** sem
+    reclamar. Aconteceu duas vezes neste projeto, e nas duas o sintoma só
+    apareceu quando alguém entrou no servidor e viu terreno desconhecido.
+    """
+    avisos: list[ConfigWarning] = []
+
+    nome = (values.get("level-name") or "").strip()
+    if nome and not (root / nome).is_dir():
+        candidatos = sorted(
+            d.name for d in root.iterdir() if d.is_dir() and (d / "level.dat").is_file()
+        )
+        sugestao = f" Mundos encontrados na pasta: {', '.join(candidatos)}." if candidatos else ""
+        avisos.append(
+            ConfigWarning(
+                key="level-name",
+                level="error",
+                message=(
+                    f"A pasta “{nome}” não existe. Ao iniciar, o servidor vai gerar um "
+                    f"mundo novo e vazio com esse nome em vez de carregar o seu.{sugestao}"
+                ),
+            )
+        )
+
+    if values.get("online-mode") == "false" and values.get("white-list") != "true":
+        avisos.append(
+            ConfigWarning(
+                key="white-list",
+                level="warning",
+                message=(
+                    "Com online-mode desligado e sem whitelist, qualquer pessoa que "
+                    "alcance o servidor entra com o nome que quiser — inclusive o de "
+                    "um operador."
+                ),
+            )
+        )
+
+    if values.get("enable-rcon") == "true" and not (values.get("rcon.password") or "").strip():
+        avisos.append(
+            ConfigWarning(
+                key="rcon.password",
+                level="error",
+                message="RCON habilitado sem senha: quem alcançar a porta controla o servidor.",
+            )
+        )
+
+    return avisos

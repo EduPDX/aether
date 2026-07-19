@@ -10,6 +10,7 @@ from aether_sdk.config import (
     ConfigField,
     ConfigFieldType,
     ConfigSchema,
+    ConfigWarning,
     SupportsConfig,
 )
 from aether_sdk.content import (
@@ -42,6 +43,7 @@ __all__ = [
     "ConfigField",
     "ConfigFieldType",
     "ConfigSchema",
+    "ConfigWarning",
     "ConsoleCodec",
     "ConsoleLine",
     "ContentAnalyzer",

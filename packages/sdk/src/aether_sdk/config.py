@@ -6,7 +6,9 @@ and layout. The Dashboard renders forms from the schema — providers never
 ship UI.
 """
 
+from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
@@ -54,6 +56,21 @@ class ConfigCodec(Protocol):
     def apply(self, text: str, values: dict[str, str]) -> str: ...
 
 
+@dataclass(frozen=True)
+class ConfigWarning:
+    """Aviso sobre um valor que é válido sintaticamente mas errado na prática.
+
+    Existe porque a configuração de um jogo tem armadilhas que o schema não
+    expressa: um campo pode aceitar qualquer texto e ainda assim apontar para
+    algo que não existe. O provider conhece essas armadilhas; o Core não.
+    """
+
+    key: str
+    message: str
+    """"error" impede o servidor de funcionar como esperado; "warning" é suspeita."""
+    level: str = "warning"
+
+
 @runtime_checkable
 class SupportsConfig(Protocol):
     """Optional provider capability: schema-driven config files."""
@@ -61,3 +78,7 @@ class SupportsConfig(Protocol):
     def config_schemas(self) -> list[ConfigSchema]: ...
 
     def config_codec(self, format: str) -> ConfigCodec: ...
+
+    def config_warnings(self, root: Path, values: dict[str, str]) -> list[ConfigWarning]:
+        """Problemas detectáveis nos valores atuais. Vazio = nada a apontar."""
+        ...

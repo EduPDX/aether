@@ -89,3 +89,83 @@ def test_missing_file_returns_empty_values(client, tmp_path):
     cfg = client.get(f"/api/v1/instances/{iid}/config").json()[0]
     assert cfg["file_exists"] is False
     assert cfg["values"] == {}
+
+
+def test_warning_when_level_name_points_to_a_missing_folder(client, tmp_path):
+    """Regressão que aconteceu duas vezes em produção.
+
+    `level-name` aceita qualquer texto; apontando para pasta inexistente, o
+    Minecraft gera um mundo novo e vazio sem reclamar. O sintoma só aparece
+    quando alguém entra e vê terreno desconhecido — depois de já ter perdido
+    o acesso ao mundo real.
+    """
+    root = tmp_path / "srv"
+    (root / "MeuMundo" / "region").mkdir(parents=True)
+    (root / "MeuMundo" / "level.dat").write_bytes(b"x")
+    (root / "server.properties").write_text("level-name=nao-existe\nonline-mode=true\n")
+
+    res = client.post(
+        "/api/v1/instances",
+        json={"name": "Srv", "provider_id": "minecraft", "root_dir": str(root)},
+    )
+    iid = res.json()["id"]
+
+    avisos = client.get(f"/api/v1/instances/{iid}/config").json()[0]["warnings"]
+    nivel = {a["key"]: a for a in avisos}
+
+    assert "level-name" in nivel
+    assert nivel["level-name"]["level"] == "error"
+    # aponta o mundo que existe, para o usuário saber o que colocar
+    assert "MeuMundo" in nivel["level-name"]["message"]
+
+
+def test_no_warning_when_the_world_folder_matches(client, tmp_path):
+    root = tmp_path / "ok"
+    (root / "MeuMundo").mkdir(parents=True)
+    (root / "MeuMundo" / "level.dat").write_bytes(b"x")
+    (root / "server.properties").write_text(
+        "level-name=MeuMundo\nonline-mode=false\nwhite-list=true\n"
+    )
+    res = client.post(
+        "/api/v1/instances",
+        json={"name": "Ok", "provider_id": "minecraft", "root_dir": str(root)},
+    )
+    iid = res.json()["id"]
+
+    avisos = client.get(f"/api/v1/instances/{iid}/config").json()[0]["warnings"]
+    assert [a["key"] for a in avisos] == []
+
+
+def test_warns_about_offline_mode_without_whitelist(client, tmp_path):
+    root = tmp_path / "aberto"
+    (root / "world").mkdir(parents=True)
+    (root / "world" / "level.dat").write_bytes(b"x")
+    (root / "server.properties").write_text(
+        "level-name=world\nonline-mode=false\nwhite-list=false\n"
+    )
+    res = client.post(
+        "/api/v1/instances",
+        json={"name": "Aberto", "provider_id": "minecraft", "root_dir": str(root)},
+    )
+    iid = res.json()["id"]
+
+    avisos = {a["key"] for a in client.get(f"/api/v1/instances/{iid}/config").json()[0]["warnings"]}
+    assert "white-list" in avisos
+
+
+def test_warns_about_rcon_without_password(client, tmp_path):
+    root = tmp_path / "rcon"
+    (root / "world").mkdir(parents=True)
+    (root / "world" / "level.dat").write_bytes(b"x")
+    (root / "server.properties").write_text(
+        "level-name=world\nonline-mode=true\nenable-rcon=true\nrcon.password=\n"
+    )
+    res = client.post(
+        "/api/v1/instances",
+        json={"name": "Rcon", "provider_id": "minecraft", "root_dir": str(root)},
+    )
+    iid = res.json()["id"]
+
+    cfg = client.get(f"/api/v1/instances/{iid}/config").json()[0]
+    avisos = {a["key"]: a for a in cfg["warnings"]}
+    assert avisos["rcon.password"]["level"] == "error"

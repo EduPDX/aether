@@ -25,6 +25,7 @@ from aether_provider_minecraft.server.launch import build_launch_spec
 from aether_provider_minecraft.server.properties import (
     SERVER_PROPERTIES_SCHEMA,
     PropertiesCodec,
+    config_warnings,
 )
 
 MANIFEST = ProviderManifest(
@@ -102,6 +103,9 @@ class MinecraftProvider:
     def set_http(self, get, post=None) -> None:
         self._http = get
         self._http_post = post
+
+    def config_warnings(self, root: Path, values: dict) -> list:
+        return config_warnings(root, values)
 
     def backup_spec(self, root: Path) -> BackupSpec:
         return backup_spec(root)

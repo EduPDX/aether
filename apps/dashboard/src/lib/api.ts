@@ -617,6 +617,12 @@ export interface BackupsPayload {
   spec: { include: string[]; exclude: string[]; summary: string };
 }
 
+export interface ConfigWarning {
+  key: string;
+  message: string;
+  level: "warning" | "error";
+}
+
 export interface ConfigFieldDef {
   advanced?: boolean;
   minimum?: number | null;
@@ -631,6 +637,7 @@ export interface ConfigFieldDef {
 }
 
 export interface InstanceConfig {
+  warnings?: ConfigWarning[];
   schema: { id: string; label: string; file: string; fields: ConfigFieldDef[] };
   values: Record<string, string>;
   file_exists: boolean;
