@@ -36,6 +36,7 @@ from aether_core.interfaces.http.routes import (
     public,
     sources,
     sync,
+    tasks,
     users,
 )
 from aether_core.interfaces.http.ws import router as ws_router
@@ -109,8 +110,20 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
         return SqlInstanceRepository(session)
 
+    def _task_service(session):
+        from aether_core.application.power import PowerService
+        from aether_core.application.tasks import TaskService
+        from aether_core.infrastructure.repositories import SqlScheduledTaskRepository
+
+        return TaskService(
+            repo=SqlScheduledTaskRepository(session),
+            supervisor=app.state.supervisor,
+            power=PowerService(providers=app.state.providers, supervisor=app.state.supervisor),
+            bus=app.state.bus,
+        )
+
     app.state.backup_scheduler = BackupScheduler(
-        app.state.session_factory, _backup_service, _instance_repo
+        app.state.session_factory, _backup_service, _instance_repo, _task_service
     )
 
     if settings.static_dir and settings.static_dir.is_dir():
@@ -135,6 +148,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(config.router)
     api.include_router(backups.router)
     api.include_router(sources.router)
+    api.include_router(tasks.router)
     api.include_router(sync.router)
     api.include_router(public.router)
     api.include_router(browse.router)

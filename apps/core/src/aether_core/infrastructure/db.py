@@ -4,7 +4,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Integer, String, Text
+from sqlalchemy import Boolean, Integer, String, Text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -79,6 +79,23 @@ class BackupPolicyRow(Base):
     schedule: Mapped[str] = mapped_column(String(20), default="off")
     keep: Mapped[int] = mapped_column(Integer, default=7)
     last_run: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+
+class ScheduledTaskRow(Base):
+    __tablename__ = "scheduled_tasks"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    instance_id: Mapped[str] = mapped_column(String(32))
+    kind: Mapped[str] = mapped_column(String(20))
+    schedule: Mapped[str] = mapped_column(String(20))
+    at_hour: Mapped[int] = mapped_column(Integer, default=4)
+    at_minute: Mapped[int] = mapped_column(Integer, default=0)
+    weekday: Mapped[int] = mapped_column(Integer, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    command: Mapped[str] = mapped_column(Text, default="")
+    warn_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    last_run: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40))
 
 
 class AuditLogRow(Base):

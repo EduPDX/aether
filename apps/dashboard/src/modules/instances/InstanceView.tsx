@@ -6,6 +6,7 @@ import {
   Laptop,
   Package,
   Play,
+  CalendarClock,
   RefreshCcwDot,
   RotateCw,
   Skull,
@@ -27,6 +28,7 @@ import { ConsoleView } from "../console/ConsoleView";
 import { ContentView } from "../content/ContentView";
 import { ServerClientDiff } from "../content/ServerClientDiff";
 import { CatalogView } from "../sources/CatalogView";
+import { TasksView } from "../tasks/TasksView";
 import { FilesView } from "../files/FilesView";
 import { SyncView } from "../sync/SyncView";
 
@@ -57,7 +59,8 @@ type Tab =
   | "files"
   | "config"
   | "sync"
-  | "backups";
+  | "backups"
+  | "tasks";
 
 export function InstanceView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
@@ -154,6 +157,9 @@ export function InstanceView({ instance }: { instance: Instance }) {
             ...(can(user, "backups.read")
               ? [["backups", "Backups", <Archive size={16} />] as Aba]
               : []),
+            ...(can(user, "power.use")
+              ? [["tasks", "Agendamentos", <CalendarClock size={16} />] as Aba]
+              : []),
           ] as Aba[]
         ).map(([key, label, icone]) => (
           <button
@@ -183,6 +189,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
         {tab === "config" && <ConfigView instance={instance} />}
         {tab === "sync" && <SyncView instance={instance} />}
         {tab === "backups" && <BackupsView instance={instance} />}
+        {tab === "tasks" && <TasksView instance={instance} />}
       </div>
     </div>
   );

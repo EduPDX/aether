@@ -1,4 +1,4 @@
-"""Laço de fundo que dispara os backups agendados.
+"""Laço de fundo que dispara o trabalho agendado.
 
 Deliberadamente simples: acorda de tempos em tempos, pergunta a cada instância
 se o agendamento venceu e roda o que venceu. Não tenta ser cron — sem
@@ -20,10 +20,13 @@ TICK_SECONDS = 60.0
 
 
 class BackupScheduler:
-    def __init__(self, session_factory, service_factory, instances_factory) -> None:
+    def __init__(
+        self, session_factory, service_factory, instances_factory, task_service_factory=None
+    ) -> None:
         self._session_factory = session_factory
         self._service_factory = service_factory
         self._instances_factory = instances_factory
+        self._task_service_factory = task_service_factory
         self._task: asyncio.Task | None = None
 
     def start(self) -> None:
@@ -73,4 +76,34 @@ class BackupScheduler:
                     logger.exception(
                         "falha ao criar backup agendado da instância %s", instance.name
                     )
+
+            await self._rodar_tarefas(session, instances, agora)
         return criados
+
+    async def _rodar_tarefas(self, session, instances, agora) -> None:
+        """Reinícios e comandos agendados.
+
+        Vive no mesmo laço dos backups de propósito: dois laços independentes
+        seriam duas coisas para acordar, monitorar e depurar.
+        """
+        if self._task_service_factory is None:
+            return
+        servico = self._task_service_factory(session)
+        por_id = {i.id: i for i in await instances.list_all()}
+        for tarefa in await servico.due_tasks(agora):
+            instancia = por_id.get(tarefa.instance_id)
+            if instancia is None:
+                continue
+            try:
+                await servico.run_now(instancia, tarefa)
+                await servico.mark_run(tarefa, agora)
+                logger.info(
+                    "tarefa agendada executada: %s em %s", tarefa.kind, instancia.name
+                )
+            except Exception:
+                # Marca mesmo em falha: sem isso o ciclo tentaria de novo a cada
+                # minuto dentro da janela, repetindo o erro sem parar.
+                await servico.mark_run(tarefa, agora)
+                logger.exception(
+                    "falha na tarefa agendada %s da instância %s", tarefa.id, instancia.name
+                )

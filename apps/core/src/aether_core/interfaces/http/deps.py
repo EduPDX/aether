@@ -16,6 +16,7 @@ from aether_core.application.instances import InstanceService
 from aether_core.application.power import PowerService
 from aether_core.application.sources import SourceService
 from aether_core.application.sync import SyncService
+from aether_core.application.tasks import TaskService
 from aether_core.domain.errors import AuthenticationError, ForbiddenError
 from aether_core.domain.users import User
 from aether_core.infrastructure import security
@@ -23,6 +24,7 @@ from aether_core.infrastructure.repositories import (
     SqlBackupRepository,
     SqlContentCache,
     SqlInstanceRepository,
+    SqlScheduledTaskRepository,
     SqlSyncProfileRepository,
     SqlUserRepository,
 )
@@ -202,6 +204,19 @@ def get_server_icon_service(request: Request) -> ServerIconService:
 
 
 ServerIconServiceDep = Annotated[ServerIconService, Depends(get_server_icon_service)]
+
+
+def get_task_service(request: Request, session: SessionDep) -> TaskService:
+    state = request.app.state
+    return TaskService(
+        repo=SqlScheduledTaskRepository(session),
+        supervisor=state.supervisor,
+        power=get_power_service(request),
+        bus=state.bus,
+    )
+
+
+TaskServiceDep = Annotated[TaskService, Depends(get_task_service)]
 
 
 def get_sync_service(request: Request, session: SessionDep) -> SyncService:

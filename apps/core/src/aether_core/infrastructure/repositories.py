@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aether_core.application.ports import CachedContent
 from aether_core.domain.backups import Backup, BackupKind, BackupPolicy, BackupSchedule
 from aether_core.domain.instances import Instance
+from aether_core.domain.tasks import ScheduledTask, TaskKind, TaskSchedule
 from aether_core.domain.users import Role, User
 from aether_core.infrastructure.db import (
     AuditLogRow,
@@ -17,6 +18,7 @@ from aether_core.infrastructure.db import (
     BackupRow,
     ContentCacheRow,
     InstanceRow,
+    ScheduledTaskRow,
     SyncProfileRow,
     UserRow,
 )
@@ -337,3 +339,81 @@ class SqlBackupRepository:
             self._session.add(row)
         row.last_run = when.isoformat()
         await self._session.commit()
+
+
+def _row_to_task(row: ScheduledTaskRow) -> ScheduledTask:
+    return ScheduledTask(
+        id=row.id,
+        instance_id=row.instance_id,
+        kind=TaskKind(row.kind),
+        schedule=TaskSchedule(row.schedule),
+        at_hour=row.at_hour,
+        at_minute=row.at_minute,
+        weekday=row.weekday,
+        enabled=bool(row.enabled),
+        command=row.command or "",
+        warn_minutes=row.warn_minutes,
+        last_run=datetime.fromisoformat(row.last_run) if row.last_run else None,
+        created_at=datetime.fromisoformat(row.created_at),
+    )
+
+
+class SqlScheduledTaskRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, task: ScheduledTask) -> None:
+        self._session.add(
+            ScheduledTaskRow(
+                id=task.id,
+                instance_id=task.instance_id,
+                kind=str(task.kind),
+                schedule=str(task.schedule),
+                at_hour=task.at_hour,
+                at_minute=task.at_minute,
+                weekday=task.weekday,
+                enabled=task.enabled,
+                command=task.command,
+                warn_minutes=task.warn_minutes,
+                last_run=task.last_run.isoformat() if task.last_run else None,
+                created_at=task.created_at.isoformat(),
+            )
+        )
+        await self._session.commit()
+
+    async def list_for(self, instance_id: str) -> list[ScheduledTask]:
+        rows = await self._session.scalars(
+            select(ScheduledTaskRow)
+            .where(ScheduledTaskRow.instance_id == instance_id)
+            .order_by(ScheduledTaskRow.created_at)
+        )
+        return [_row_to_task(r) for r in rows]
+
+    async def list_all(self) -> list[ScheduledTask]:
+        rows = await self._session.scalars(select(ScheduledTaskRow))
+        return [_row_to_task(r) for r in rows]
+
+    async def get(self, task_id: str) -> ScheduledTask | None:
+        row = await self._session.get(ScheduledTaskRow, task_id)
+        return _row_to_task(row) if row else None
+
+    async def save(self, task: ScheduledTask) -> None:
+        row = await self._session.get(ScheduledTaskRow, task.id)
+        if row is None:
+            return
+        row.schedule = str(task.schedule)
+        row.at_hour = task.at_hour
+        row.at_minute = task.at_minute
+        row.weekday = task.weekday
+        row.enabled = task.enabled
+        row.command = task.command
+        row.warn_minutes = task.warn_minutes
+        row.last_run = task.last_run.isoformat() if task.last_run else None
+        await self._session.commit()
+
+    async def delete(self, task_id: str) -> bool:
+        result = await self._session.execute(
+            delete(ScheduledTaskRow).where(ScheduledTaskRow.id == task_id)
+        )
+        await self._session.commit()
+        return result.rowcount > 0

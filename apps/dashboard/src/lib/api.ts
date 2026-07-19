@@ -294,6 +294,23 @@ export const api = {
     request<UpdateCandidate[]>(
       `/api/v1/instances/${id}/sources/updates?type=${type}&source_id=${sourceId}`,
     ),
+  tasks: (id: string) => request<ScheduledTask[]>(`/api/v1/instances/${id}/tasks`),
+  createTask: (id: string, body: TaskInput) =>
+    request<ScheduledTask>(`/api/v1/instances/${id}/tasks`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateTask: (id: string, taskId: string, body: TaskInput) =>
+    request<ScheduledTask>(`/api/v1/instances/${id}/tasks/${taskId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteTask: (id: string, taskId: string) =>
+    request<void>(`/api/v1/instances/${id}/tasks/${taskId}`, { method: "DELETE" }),
+  runTask: (id: string, taskId: string) =>
+    request<Record<string, unknown>>(`/api/v1/instances/${id}/tasks/${taskId}/run`, {
+      method: "POST",
+    }),
   backups: (id: string) => request<BackupsPayload>(`/api/v1/instances/${id}/backups`),
   createBackup: (id: string, note = "") =>
     request<BackupEntry>(`/api/v1/instances/${id}/backups`, {
@@ -515,6 +532,35 @@ export interface UpdateCandidate {
   latest_version_id: string;
   latest_file_name: string;
   released_at: string | null;
+}
+
+export type TaskKind = "restart" | "command" | "backup";
+export type TaskSchedule = "hourly" | "daily" | "weekly";
+
+export interface TaskInput {
+  kind: TaskKind;
+  schedule: TaskSchedule;
+  at_hour?: number;
+  at_minute?: number;
+  weekday?: number;
+  enabled?: boolean;
+  command?: string;
+  warn_minutes?: number;
+}
+
+export interface ScheduledTask {
+  id: string;
+  kind: TaskKind;
+  schedule: TaskSchedule;
+  at_hour: number;
+  at_minute: number;
+  weekday: number;
+  enabled: boolean;
+  command: string;
+  warn_minutes: number;
+  last_run: string | null;
+  /** Frase pronta vinda do Core — a interface não remonta a regra. */
+  description: string;
 }
 
 export type BackupSchedule = "off" | "hourly" | "daily" | "weekly";
