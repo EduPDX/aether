@@ -94,15 +94,20 @@ Leia o [CLAUDE.md](CLAUDE.md) antes de mexer em backup, métricas, download ou
 agendamento. Há decisões contraintuitivas ali que já custaram depuração — e o
 teste que as protege pode parecer errado até você entender o motivo.
 
-## O que você não vai conseguir fazer (e tudo bem)
+## Deploy
 
-O **deploy é manual e sai da máquina do dono do projeto**: ele empacota o código,
-envia por SSH para um LXC no Proxmox da rede local dele e reinicia o serviço.
-Não há pipeline de deploy automático, e a chave de acesso não está no
-repositório.
+Não há pipeline automático. O deploy é manual e exige acesso ao servidor de
+produção — um LXC no Proxmox, em rede local. Quem tem esse acesso empacota o
+código com `git archive`, envia junto com o `dist/` do dashboard, roda
+`uv sync` e reinicia o serviço `aether-core`.
 
-Na prática: seu trabalho termina no pull request. Depois de aprovado, o deploy
-para o servidor real é feito por quem tem a chave.
+Se você **não** tem acesso ao servidor, seu trabalho termina no pull request:
+alguém com acesso publica. Se você tem, rode a suíte completa antes — o CI não
+implanta nada, então um teste vermelho passa direto para produção se ninguém
+olhar.
+
+O painel é servido pelo próprio Core em `/app`, então o `dist/` do dashboard
+precisa ir junto no mesmo deploy. Enviar só o Python deixa a interface velha.
 
 ## Escopo dos repositórios
 
