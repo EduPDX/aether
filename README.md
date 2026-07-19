@@ -2,7 +2,19 @@
 
 > Plataforma modular e extensível para administração de servidores de jogos, launchers e sincronização — pensada para durar anos.
 
-**Status:** fase de arquitetura (nenhum código de produção escrito ainda).
+**Status:** v0.5 concluída e em uso num servidor Forge 1.20.1 real.
+Painel, console, arquivos, sync, launcher, backups, catálogo de mods e
+agendamentos funcionando.
+
+## Repositórios
+
+| Repositório | Conteúdo |
+|---|---|
+| **este** | Core (API), Dashboard, SDK e Providers |
+| [aether-launcher](https://github.com/EduPDX/aether-launcher) | Launcher desktop do jogador (Tauri + Rust) |
+
+O launcher fala com o Core por [três endpoints públicos](apps/LAUNCHER.md) e
+nada mais.
 
 ## O que é
 
