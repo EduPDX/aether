@@ -13,6 +13,7 @@ from aether_core.application.content import ContentService
 from aether_core.application.files import FilesService
 from aether_core.application.instances import InstanceService
 from aether_core.application.power import PowerService
+from aether_core.application.sources import SourceService
 from aether_core.application.sync import SyncService
 from aether_core.domain.errors import AuthenticationError, ForbiddenError
 from aether_core.domain.users import User
@@ -166,6 +167,24 @@ def get_backup_service(request: Request, session: SessionDep) -> BackupService:
 
 
 BackupServiceDep = Annotated[BackupService, Depends(get_backup_service)]
+
+
+def get_source_service(request: Request, session: SessionDep) -> SourceService:
+    state = request.app.state
+    conteudo = get_content_service(request, session)
+
+    def pasta(instance, ctype_id):
+        return conteudo.folder_for(instance, ctype_id)
+
+    return SourceService(
+        providers=state.providers,
+        downloader=state.downloader,
+        bus=state.bus,
+        content_dir_of=pasta,
+    )
+
+
+SourceServiceDep = Annotated[SourceService, Depends(get_source_service)]
 
 
 def get_config_service(request: Request) -> ConfigService:

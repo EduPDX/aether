@@ -28,6 +28,12 @@ from aether_sdk.launch import (
 )
 from aether_sdk.manifest import SDK_VERSION, ProviderManifest
 from aether_sdk.provider import GameProvider
+from aether_sdk.source import (
+    ContentSource,
+    SourceDependency,
+    SourceItem,
+    SourceVersion,
+)
 
 __all__ = [
     "SDK_VERSION",
@@ -39,6 +45,7 @@ __all__ = [
     "ConsoleCodec",
     "ConsoleLine",
     "ContentAnalyzer",
+    "ContentSource",
     "ContentDependency",
     "ContentMetadata",
     "ContentType",
@@ -47,6 +54,9 @@ __all__ = [
     "LaunchSpec",
     "ProviderManifest",
     "QuiescePlan",
+    "SourceDependency",
+    "SourceItem",
+    "SourceVersion",
     "SupportsBackup",
     "SupportsConfig",
     "SupportsGameMetadata",

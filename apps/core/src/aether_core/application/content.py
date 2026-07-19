@@ -69,6 +69,10 @@ class ContentService:
             f"provider {instance.provider_id!r} has no content type {ctype_id!r}"
         )
 
+    def folder_for(self, instance: Instance, ctype_id: str) -> Path:
+        """Pasta de um tipo de conteúdo pelo id — usada pelo catálogo."""
+        return self._folder(instance, self._content_type(instance, ctype_id))
+
     def _folder(self, instance: Instance, ct: ContentType) -> Path:
         """Pasta do tipo de conteúdo; criada sob demanda.
 

@@ -11,6 +11,7 @@ from aether_core.application.metrics import MetricsService
 from aether_core.application.scheduler import BackupScheduler
 from aether_core.infrastructure.db import make_engine, make_session_factory, run_migrations
 from aether_core.infrastructure.filesystem import FileIconStore, LocalContentFilesystem
+from aether_core.infrastructure.http_client import CatalogHttp, HttpDownloader
 from aether_core.infrastructure.processes import LocalProcessSupervisor
 from aether_core.infrastructure.registry import EntryPointProviderRegistry
 from aether_core.infrastructure.security import (
@@ -33,6 +34,7 @@ from aether_core.interfaces.http.routes import (
     metrics,
     power,
     public,
+    sources,
     sync,
     users,
 )
@@ -60,6 +62,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.backup_scheduler.start()
         yield
         await app.state.backup_scheduler.stop()
+        await app.state.catalog_http.close()
         await app.state.supervisor.shutdown()
 
     app = FastAPI(
@@ -77,6 +80,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.state.icons = FileIconStore(settings.icons_dir)
     app.state.supervisor = LocalProcessSupervisor(app.state.bus)
     app.state.metrics = MetricsService(app.state.supervisor)
+    app.state.catalog_http = CatalogHttp()
+    app.state.downloader = HttpDownloader()
+    # Providers que sabem falar com catálogos recebem o transporte aqui: eles
+    # não abrem conexão sozinhos, para seguirem testáveis sem rede.
+    for provider in app.state.providers.all().values():
+        injetar = getattr(provider, "set_http", None)
+        if callable(injetar):
+            injetar(app.state.catalog_http.get, app.state.catalog_http.post)
+
     app.state.jwt_secret = load_or_create_secret(settings.data_dir)
     app.state.sync_signer = _SyncSigner(load_or_create_sync_key(settings.data_dir))
 
@@ -122,6 +134,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(files.router)
     api.include_router(config.router)
     api.include_router(backups.router)
+    api.include_router(sources.router)
     api.include_router(sync.router)
     api.include_router(public.router)
     api.include_router(browse.router)

@@ -8,6 +8,7 @@ from aether_sdk import (
     ConfigSchema,
     ConsoleCodec,
     ContentAnalyzer,
+    ContentSource,
     ContentType,
     LaunchContext,
     LaunchSpec,
@@ -16,6 +17,7 @@ from aether_sdk import (
 )
 
 from aether_provider_minecraft.content.jar_analyzer import JarModAnalyzer
+from aether_provider_minecraft.content.modrinth import ModrinthSource
 from aether_provider_minecraft.server.backup import backup_spec, quiesce_plan
 from aether_provider_minecraft.server.console import MinecraftConsoleCodec
 from aether_provider_minecraft.server.game_meta import detect_game_metadata
@@ -54,6 +56,8 @@ class MinecraftProvider:
     manifest = MANIFEST
 
     def __init__(self) -> None:
+        self._http = None
+        self._http_post = None
         self._analyzers: dict[str, ContentAnalyzer] = {
             "mod": JarModAnalyzer("mod"),
             "mod_client": JarModAnalyzer("mod_client"),
@@ -84,6 +88,20 @@ class MinecraftProvider:
         if format != "properties":
             raise LookupError(f"unknown config format: {format!r}")
         return PropertiesCodec()
+
+    def content_sources(self) -> list[ContentSource]:
+        """Catálogos disponíveis para Minecraft.
+
+        Só existem quando o Core injeta um transporte HTTP — o provider não
+        abre conexão por conta própria, para continuar testável sem rede.
+        """
+        if self._http is None:
+            return []
+        return [ModrinthSource(self._http, self._http_post)]
+
+    def set_http(self, get, post=None) -> None:
+        self._http = get
+        self._http_post = post
 
     def backup_spec(self, root: Path) -> BackupSpec:
         return backup_spec(root)

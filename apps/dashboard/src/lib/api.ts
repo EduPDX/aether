@@ -228,6 +228,29 @@ export const api = {
     }),
   logs: (id: string, tail = 500) =>
     request<{ lines: string[] }>(`/api/v1/instances/${id}/logs?tail=${tail}`),
+  sources: (id: string) => request<SourceInfo[]>(`/api/v1/instances/${id}/sources`),
+  searchCatalog: (id: string, q: string, sourceId = "modrinth", allVersions = false) =>
+    request<CatalogItem[]>(
+      `/api/v1/instances/${id}/sources/search?q=${encodeURIComponent(q)}` +
+        `&source_id=${sourceId}&all_versions=${allVersions}`,
+    ),
+  catalogVersions: (id: string, projectId: string, sourceId = "modrinth", allVersions = false) =>
+    request<CatalogVersion[]>(
+      `/api/v1/instances/${id}/sources/versions?project_id=${encodeURIComponent(projectId)}` +
+        `&source_id=${sourceId}&all_versions=${allVersions}`,
+    ),
+  installFromCatalog: (
+    id: string,
+    body: { source_id: string; version_id: string; type?: string; overwrite?: boolean },
+  ) =>
+    request<{ file: string; size: number; version: string }>(
+      `/api/v1/instances/${id}/sources/install`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  catalogUpdates: (id: string, type = "mod", sourceId = "modrinth") =>
+    request<UpdateCandidate[]>(
+      `/api/v1/instances/${id}/sources/updates?type=${type}&source_id=${sourceId}`,
+    ),
   backups: (id: string) => request<BackupsPayload>(`/api/v1/instances/${id}/backups`),
   createBackup: (id: string, note = "") =>
     request<BackupEntry>(`/api/v1/instances/${id}/backups`, {
@@ -372,6 +395,50 @@ export interface FileEntry {
   is_dir: boolean;
   size: number;
   mtime: number;
+}
+
+export interface SourceInfo {
+  id: string;
+  label: string;
+  requires_api_key: boolean;
+}
+
+export interface CatalogItem {
+  source_id: string;
+  project_id: string;
+  slug: string;
+  name: string;
+  summary: string;
+  author: string;
+  downloads: number;
+  icon_url: string | null;
+  page_url: string | null;
+  categories: string[];
+}
+
+export interface CatalogVersion {
+  source_id: string;
+  project_id: string;
+  version_id: string;
+  version_number: string;
+  file_name: string;
+  size: number;
+  game_versions: string[];
+  loaders: string[];
+  released_at: string | null;
+  dependencies: { project_id: string; kind: string }[];
+}
+
+export interface UpdateCandidate {
+  file: string;
+  project_id: string;
+  source_id: string;
+  display_name: string;
+  current_version: string;
+  latest_version: string;
+  latest_version_id: string;
+  latest_file_name: string;
+  released_at: string | null;
 }
 
 export type BackupSchedule = "off" | "hourly" | "daily" | "weekly";
