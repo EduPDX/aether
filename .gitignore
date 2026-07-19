@@ -38,3 +38,4 @@ target/
 !.vscode/settings.example.json
 .DS_Store
 Thumbs.db
+apps/launcher/
