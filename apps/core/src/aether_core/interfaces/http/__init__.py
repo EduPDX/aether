@@ -2,14 +2,17 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 
 from aether_core import __version__
 from aether_core.application.events import EventBus
 from aether_core.application.images import ImageService
+from aether_core.application.install import InstallService
 from aether_core.application.metrics import MetricsService
 from aether_core.application.power import SupervisorHub
+from aether_core.application.removal import InstanceRemover
 from aether_core.application.scheduler import BackupScheduler
 from aether_core.domain.instances import InstanceRuntime
 from aether_core.infrastructure.containers import AiodockerRuntime, DockerContainerSupervisor
@@ -19,6 +22,7 @@ from aether_core.infrastructure.http_client import CatalogHttp, HttpDownloader
 from aether_core.infrastructure.processes import LocalProcessSupervisor
 from aether_core.infrastructure.registry import EntryPointProviderRegistry
 from aether_core.infrastructure.security import (
+    load_or_create_install_id,
     load_or_create_secret,
     load_or_create_sync_key,
     public_key_hex,
@@ -34,6 +38,7 @@ from aether_core.interfaces.http.routes import (
     content,
     files,
     images,
+    install,
     instances,
     meta,
     metrics,
@@ -73,6 +78,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         await app.state.backup_scheduler.stop()
         await app.state.catalog_http.close()
         await app.state.images.shutdown()
+        await app.state.installs.shutdown()
         await app.state.supervisor.shutdown()
         await app.state.container_runtime.close()
 
@@ -84,6 +90,14 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
         async with app.state.session_factory() as session:
             instances = await SqlInstanceRepository(session).list_all()
+
+        # Varre o que sobrou de remoções antigas (antes de a exclusão limpar
+        # os recursos) ou de um Core que morreu no meio de uma delas.
+        ids = {i.id for i in instances}
+        raizes = {str(Path(i.root_dir).resolve()) for i in instances}
+        await app.state.remover.limpar_containers_orfaos(ids)
+        await app.state.remover.limpar_pastas_orfas(ids, raizes)
+
         codecs = {}
         for inst in instances:
             if inst.runtime != InstanceRuntime.DOCKER:
@@ -109,7 +123,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.state.fs = LocalContentFilesystem()
     app.state.icons = FileIconStore(settings.icons_dir)
     process_supervisor = LocalProcessSupervisor(app.state.bus)
-    app.state.container_runtime = AiodockerRuntime()
+    # A identidade da instalação carimba os containers: sem ela, duas
+    # instalações na mesma engine Docker limpariam os órfãos uma da outra.
+    app.state.install_id = load_or_create_install_id(settings.data_dir)
+    app.state.container_runtime = AiodockerRuntime(app.state.install_id)
     app.state.docker_supervisor = DockerContainerSupervisor(
         app.state.container_runtime, app.state.bus
     )
@@ -126,6 +143,37 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         container_runtime=app.state.container_runtime,
     )
     app.state.images = ImageService(app.state.container_runtime, app.state.providers, app.state.bus)
+
+    async def _guardar_resultado(instance_id: str, resultado: dict) -> None:
+        """Sessão própria: a instalação roda em segundo plano e termina muito
+        depois de a request que a disparou ter fechado a dela."""
+        from aether_core.application.instances import InstanceService
+        from aether_core.infrastructure.repositories import SqlInstanceRepository
+
+        async with app.state.session_factory() as session:
+            svc = InstanceService(
+                repo=SqlInstanceRepository(session),
+                providers=app.state.providers,
+                fs=app.state.fs,
+                bus=app.state.bus,
+                instances_dir=settings.instances_dir,
+            )
+            await svc.merge_provider_data(instance_id, resultado)
+
+    app.state.installs = InstallService(
+        app.state.container_runtime,
+        app.state.providers,
+        app.state.supervisor,
+        app.state.bus,
+        persistir=_guardar_resultado,
+    )
+    app.state.remover = InstanceRemover(
+        instances_dir=settings.instances_dir,
+        backups_dir=settings.backups_dir,
+        runtime=app.state.container_runtime,
+        docker_supervisor=app.state.docker_supervisor,
+        installs=app.state.installs,
+    )
     app.state.catalog_http = CatalogHttp()
     app.state.downloader = HttpDownloader()
     # Providers que sabem falar com catálogos recebem o transporte aqui: eles
@@ -201,6 +249,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(browse.router)
     api.include_router(metrics.router)
     api.include_router(images.router)
+    api.include_router(install.router)
     app.include_router(api)
     app.include_router(ws_router)
 

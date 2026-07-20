@@ -3,6 +3,7 @@
 import asyncio
 import shutil
 import uuid
+from dataclasses import asdict
 from pathlib import Path
 
 from aether_sdk import SupportsContainer, SupportsProvision
@@ -76,6 +77,15 @@ class InstanceService:
         await self._bus.publish("instance.created", {"instance_id": instance.id, "name": name})
         return instance
 
+    async def merge_provider_data(self, instance_id: str, mudancas: dict) -> Instance:
+        """Mescla mudanças no provider_data (o que a instalação descobriu, por
+        exemplo). Merge raso de propósito: o provider é dono das suas chaves e
+        substitui o bloco inteiro quando quer."""
+        instance = await self.get(instance_id)
+        novo = {**instance.provider_data, **mudancas}
+        await self._repo.update_provider_data(instance_id, novo)
+        return await self.get(instance_id)
+
     async def get(self, instance_id: str) -> Instance:
         instance = await self._repo.get(instance_id)
         if instance is None:
@@ -85,8 +95,27 @@ class InstanceService:
     async def list_all(self) -> list[Instance]:
         return await self._repo.list_all()
 
-    async def delete(self, instance_id: str) -> None:
-        """Deregister the instance. Never touches files on disk."""
+    async def delete(self, instance_id: str, *, remover=None, apagar_dados: bool = True) -> dict:
+        """Remove a instância e o que era exclusivo dela.
+
+        Pasta adotada nunca é apagada — o servidor é do usuário e existia antes
+        do painel. Já o que o Core criou (pasta gerenciada, container, backups)
+        sai junto: deixar para trás foi o que encheu 17 GB de disco com pastas
+        de instâncias que ninguém mais via.
+
+        A remoção dos arquivos vem antes de apagar o registro: se o processo
+        morrer no meio, sobra uma instância órfã visível na interface (que o
+        usuário pode remover de novo) em vez de arquivos invisíveis para sempre.
+        """
+        instance = await self.get(instance_id)
+
+        relatorio = {}
+        if remover is not None:
+            rel = await remover.remove(instance, apagar_dados=apagar_dados)
+            relatorio = asdict(rel)
+
+        relatorio["registros_removidos"] = await self._repo.delete_related(instance_id)
         if not await self._repo.delete(instance_id):
             raise InstanceNotFoundError(f"instance not found: {instance_id}")
         await self._bus.publish("instance.deleted", {"instance_id": instance_id})
+        return relatorio

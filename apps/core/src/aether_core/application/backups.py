@@ -24,7 +24,12 @@ from aether_core.domain.backups import (
     backup_file_name,
     select_for_pruning,
 )
-from aether_core.domain.errors import ConflictError, NotFoundError, ValidationFailedError
+from aether_core.domain.errors import (
+    ConflictError,
+    EmptyBackupError,
+    NotFoundError,
+    ValidationFailedError,
+)
 from aether_core.domain.instances import Instance, InstanceState
 
 
@@ -163,7 +168,7 @@ class BackupService:
         try:
             arquivos = await asyncio.to_thread(collect_files, root, spec)
             if not arquivos:
-                raise ValidationFailedError(
+                raise EmptyBackupError(
                     "nada para salvar: nenhum arquivo casou com o que o provider define como backup"
                 )
             tamanho = await asyncio.to_thread(self._write_zip, alvo, root, arquivos)

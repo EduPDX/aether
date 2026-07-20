@@ -39,7 +39,10 @@ def test_eula_recusada_barra_a_criacao(client):
     assert "EULA" in res.json()["detail"]
 
 
-def test_criar_instancia_sevendays_do_zero(client):
+def test_criar_instancia_sevendays_guarda_escolhas_para_apos_instalar(client):
+    """O serverconfig.xml precisa ser cópia do arquivo da versão instalada, e
+    na criação o jogo ainda não existe em disco. As respostas ficam pendentes
+    até o after_install — nunca geramos o arquivo do zero."""
     res = client.post(
         "/api/v1/instances",
         json={
@@ -50,9 +53,55 @@ def test_criar_instancia_sevendays_do_zero(client):
         },
     )
     assert res.status_code == 201, res.text
+    body = res.json()
+    root = Path(body["root_dir"])
+
+    assert not (root / "serverconfig.xml").exists()
+    assert body["provider_data"]["pending_config"]["ServerName"] == "Meu 7DTD"
+    assert (root / "UserData").is_dir()
+
+
+def test_remover_instancia_criada_pelo_painel_apaga_os_arquivos(client):
+    """O Core criou a pasta, então o Core a remove. Deixá-la para trás foi o
+    que encheu o disco de produção com instâncias que ninguém mais via."""
+    res = client.post(
+        "/api/v1/instances",
+        json={
+            "name": "descartável",
+            "provider_id": "minecraft",
+            "runtime": "docker",
+            "provision_values": {"eula": "true"},
+        },
+    )
+    iid = res.json()["id"]
     root = Path(res.json()["root_dir"])
-    assert (root / "serverconfig.xml").is_file()
-    assert "Meu 7DTD" in (root / "serverconfig.xml").read_text()
+    (root / "mundo.dat").write_bytes(b"x" * 4096)
+    assert root.is_dir()
+
+    relatorio = client.delete(f"/api/v1/instances/{iid}").json()
+
+    assert not root.exists()
+    assert relatorio["pasta_removida"] == str(root)
+    assert relatorio["bytes_liberados"] >= 4096
+    assert relatorio["falhas"] == []
+
+
+def test_remover_com_keep_files_mantem_a_pasta(client):
+    res = client.post(
+        "/api/v1/instances",
+        json={
+            "name": "guardar",
+            "provider_id": "minecraft",
+            "runtime": "docker",
+            "provision_values": {"eula": "true"},
+        },
+    )
+    iid = res.json()["id"]
+    root = Path(res.json()["root_dir"])
+
+    client.delete(f"/api/v1/instances/{iid}?keep_files=true")
+
+    assert root.is_dir()
 
 
 def test_runtime_desconhecido_e_recusado(client, tmp_path):

@@ -35,6 +35,12 @@ def test_create_with_missing_dir_fails(client, tmp_path):
 
 def test_delete_instance(client, mods_dir):
     iid = create_instance(client, mods_dir)
-    assert client.delete(f"/api/v1/instances/{iid}").status_code == 204
+    res = client.delete(f"/api/v1/instances/{iid}")
+
+    assert res.status_code == 200
+    # Pasta adotada continua no disco: o servidor é do usuário.
+    assert res.json()["pasta_preservada"] == str(mods_dir)
+    assert mods_dir.is_dir()
+
     assert client.get(f"/api/v1/instances/{iid}").status_code == 404
     assert client.delete(f"/api/v1/instances/{iid}").status_code == 404
