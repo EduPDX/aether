@@ -278,7 +278,15 @@ def test_run_as_ajusta_o_dono_do_volume(tmp_path, monkeypatch):
     from aether_core.infrastructure import containers as mod
 
     chowns: list[tuple[str, int, int]] = []
-    monkeypatch.setattr(mod.os, "chown", lambda p, uid, gid: chowns.append((str(p), uid, gid)))
+    # `raising=False` porque no Windows `os.chown` não existe — sem isso o
+    # monkeypatch falha antes do teste começar, e a lógica ficava sem cobertura
+    # em metade das máquinas do time.
+    monkeypatch.setattr(
+        mod.os,
+        "chown",
+        lambda p, uid, gid: chowns.append((str(p), uid, gid)),
+        raising=False,
+    )
 
     (tmp_path / "UserData").mkdir()
     spec = ContainerSpec(
@@ -292,6 +300,27 @@ def test_run_as_ajusta_o_dono_do_volume(tmp_path, monkeypatch):
     assert str(tmp_path.resolve()) in alvos
     assert str((tmp_path / "UserData").resolve()) in alvos
     assert all(c[1:] == (1000, 1000) for c in chowns)
+
+
+def test_run_as_nao_explode_onde_nao_existe_chown(tmp_path, monkeypatch):
+    """No Windows `os.chown` não existe, e isso não pode derrubar a criação.
+
+    O `suppress(OSError)` de dentro não cobre este caso: o erro é
+    `AttributeError`, levantado antes de qualquer chamada. Passava despercebido
+    porque quem escreveu roda macOS, onde `os.chown` existe.
+    """
+    from aether_core.infrastructure import containers as mod
+
+    monkeypatch.delattr(mod.os, "chown", raising=False)
+
+    (tmp_path / "UserData").mkdir()
+    spec = ContainerSpec(
+        image="cm2network/steamcmd:root",
+        volumes=[VolumeMount(container_path="/data", subdir=".")],
+        run_as="1000:1000",
+    )
+
+    mod._dono_dos_volumes(spec, tmp_path)  # não deve levantar
 
 
 def test_reconcile_readota_container_vivo(tmp_path):
