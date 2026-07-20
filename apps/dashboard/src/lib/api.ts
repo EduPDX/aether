@@ -121,6 +121,7 @@ export interface GameCatalogEntry {
   so_do_servidor: string[];
   logo_url: string;
   banner_url: string;
+  atribuicao_da_imagem: string;
   requisitos_servidor_minimo: RequisitosDeHardware | null;
   requisitos_servidor_recomendado: RequisitosDeHardware | null;
   requisitos_cliente_minimo: RequisitosDeHardware | null;

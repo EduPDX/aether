@@ -31,5 +31,5 @@ async def media(request: Request, game_id: str, arquivo: str) -> FileResponse:
     conteúdo é capa de jogo publicada pela própria loja — exigir token aqui só
     quebraria a imagem sem proteger nada.
     """
-    caminho = request.app.state.catalog.media_path(game_id, arquivo)
-    return FileResponse(caminho, media_type="image/jpeg")
+    caminho, tipo = request.app.state.catalog.media_path(game_id, arquivo)
+    return FileResponse(caminho, media_type=tipo)

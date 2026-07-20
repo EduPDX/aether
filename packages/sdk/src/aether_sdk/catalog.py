@@ -67,6 +67,12 @@ class GameCatalogEntry(BaseModel):
 
     logo_url: str = ""
     banner_url: str = ""
+    atribuicao_da_imagem: str = ""
+    """Crédito exigido pela licença da imagem, quando houver.
+
+    Existe porque nem toda imagem livre é livre de obrigações: a do Minecraft é
+    CC BY, que pede atribuição. Guardar isso junto da URL é o que garante que o
+    crédito apareça onde a imagem aparece."""
 
     requisitos_servidor_minimo: RequisitosDeHardware | None = None
     requisitos_servidor_recomendado: RequisitosDeHardware | None = None

@@ -83,6 +83,9 @@ export function GameView({
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-bg to-transparent" />
         <div className="absolute right-4 bottom-4 left-4 flex flex-wrap items-end gap-3">
+          {jogo.logo_url && (
+            <img src={jogo.logo_url} alt="" className="h-9 max-w-[180px] object-contain" />
+          )}
           <div className="min-w-0 flex-1">
             <h2 className="text-xl font-bold">{jogo.nome}</h2>
             {jogo.tagline && <p className="text-[13px] text-muted">{jogo.tagline}</p>}
@@ -100,6 +103,12 @@ export function GameView({
         >
           <ArrowLeft size={13} /> Voltar ao catálogo
         </button>
+
+        {/* Crédito da imagem: a licença de algumas artes (CC BY) exige atribuição
+            onde a imagem aparece — omitir é violar a licença, não descuido de UI. */}
+        {jogo.atribuicao_da_imagem && (
+          <p className="text-[11px] text-muted">{jogo.atribuicao_da_imagem}</p>
+        )}
 
         {(jogo.descricao || jogo.genero.length > 0) && (
           <Panel title="Sobre" icon={<Info size={15} />}>

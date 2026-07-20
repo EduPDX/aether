@@ -186,12 +186,14 @@ def test_imagem_e_baixada_uma_vez_e_servida_pelo_core(tmp_path):
         assert ficha["banner_url"].startswith("/api/v1/catalog/jogo/media/")
         assert len(baixados) == 1
 
-        # Segunda visita vem do cache e não baixa de novo.
-        await svc.get("jogo", atualizar=True)
+        # Segunda visita vem do cache e nem chega a tentar baixar.
+        await svc.get("jogo")
         assert len(baixados) == 1
 
         arquivo = ficha["banner_url"].rsplit("/", 1)[-1]
-        assert svc.media_path("jogo", arquivo).read_bytes() == b"imagem-falsa"
+        caminho, tipo = svc.media_path("jogo", arquivo)
+        assert caminho.read_bytes() == b"imagem-falsa"
+        assert tipo == "image/jpeg"
 
     asyncio.run(caso())
 
@@ -211,3 +213,33 @@ def test_media_path_nao_escapa_da_pasta(tmp_path):
         pass
     else:  # pragma: no cover
         raise AssertionError("deveria recusar caminho para fora da pasta de mídia")
+
+
+def test_imagem_curada_tambem_e_baixada(tmp_path):
+    """O Minecraft não tem fonte externa e mesmo assim tem logo e banner: se só
+    o que vem de fonte fosse localizado, a página dependeria da CDN de terceiro
+    a cada visita."""
+
+    async def caso():
+        baixados: list[str] = []
+
+        async def baixar(url: str) -> bytes:
+            baixados.append(url)
+            return b"png-falso"
+
+        entrada = _entrada(steam_app_id=None, logo_url="https://commons.exemplo/logo.svg")
+        svc = CatalogService(
+            Registry(jogo=ProviderComCatalogo(entrada)), tmp_path, [], baixar=baixar
+        )
+
+        ficha = await svc.get("jogo")
+
+        assert baixados == ["https://commons.exemplo/logo.svg"]
+        assert ficha["logo_url"].startswith("/api/v1/catalog/jogo/media/")
+        # A extensão é preservada: servir um SVG como image/jpeg não desenha nada.
+        arquivo = ficha["logo_url"].rsplit("/", 1)[-1]
+        assert arquivo.endswith(".svg")
+        _, tipo = svc.media_path("jogo", arquivo)
+        assert tipo == "image/svg+xml"
+
+    asyncio.run(caso())

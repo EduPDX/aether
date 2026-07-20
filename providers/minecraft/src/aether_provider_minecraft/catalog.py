@@ -30,6 +30,14 @@ def catalog_entry() -> GameCatalogEntry:
         publicadora="Mojang Studios",
         plataformas_do_cliente=["Windows", "macOS", "Linux"],
         so_do_servidor=["Linux", "Windows", "macOS"],
+        # Imagens do Wikimedia Commons, escolhidas pela licença: o logo é domínio
+        # público e a arte é CC BY 3.0. Pegar da loja ou do site oficial seria
+        # cópia de material proprietário num projeto aberto.
+        logo_url="https://upload.wikimedia.org/wikipedia/commons/c/cb/Minecraft_Logo-en.svg",
+        banner_url=(
+            "https://upload.wikimedia.org/wikipedia/commons/6/6a/Minecraft_Trails_and_Tales_Art.png"
+        ),
+        atribuicao_da_imagem="Arte: Xbox MENA, CC BY 3.0, via Wikimedia Commons",
         requisitos_servidor_minimo=RequisitosDeHardware(
             cpu="2 núcleos",
             ram="2 GB para a JVM",
