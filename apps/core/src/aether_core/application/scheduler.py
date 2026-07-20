@@ -97,9 +97,7 @@ class BackupScheduler:
             try:
                 await servico.run_now(instancia, tarefa)
                 await servico.mark_run(tarefa, agora)
-                logger.info(
-                    "tarefa agendada executada: %s em %s", tarefa.kind, instancia.name
-                )
+                logger.info("tarefa agendada executada: %s em %s", tarefa.kind, instancia.name)
             except Exception:
                 # Marca mesmo em falha: sem isso o ciclo tentaria de novo a cada
                 # minuto dentro da janela, repetindo o erro sem parar.

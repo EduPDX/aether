@@ -12,9 +12,12 @@ from aether_core.domain.instances import Instance
 class CreateInstanceRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     provider_id: str
-    root_dir: str
+    root_dir: str = ""
+    runtime: str = "process"
     content_dirs: dict[str, str] = Field(default_factory=dict)
     provider_data: dict[str, Any] = Field(default_factory=dict)
+    provision_values: dict[str, Any] | None = None
+    """Presente = criar servidor do zero (o Core gera o root_dir)."""
 
 
 class InstanceOut(BaseModel):
@@ -22,6 +25,7 @@ class InstanceOut(BaseModel):
     name: str
     provider_id: str
     root_dir: str
+    runtime: str = "process"
     content_dirs: dict[str, str]
     provider_data: dict[str, Any]
     created_at: datetime

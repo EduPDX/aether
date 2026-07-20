@@ -26,7 +26,13 @@ async def create_instance(
     request: Request, body: CreateInstanceRequest, svc: InstanceServiceDep, _: InstancesWrite
 ) -> InstanceOut:
     instance = await svc.create(
-        body.name, body.provider_id, body.root_dir, body.content_dirs, body.provider_data
+        body.name,
+        body.provider_id,
+        body.root_dir,
+        runtime=body.runtime,
+        content_dirs=body.content_dirs,
+        provider_data=body.provider_data,
+        provision_values=body.provision_values,
     )
     return _out(request, instance)
 

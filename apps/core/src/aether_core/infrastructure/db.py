@@ -21,6 +21,7 @@ class InstanceRow(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     provider_id: Mapped[str] = mapped_column(String(64))
+    runtime: Mapped[str] = mapped_column(String(20), default="process")
     root_dir: Mapped[str] = mapped_column(Text)
     content_dirs: Mapped[str] = mapped_column(Text, default="{}")
     provider_data: Mapped[str] = mapped_column(Text, default="{}")

@@ -1,11 +1,16 @@
 """Instance use cases."""
 
+import asyncio
+import shutil
+import uuid
 from pathlib import Path
+
+from aether_sdk import SupportsContainer, SupportsProvision
 
 from aether_core.application.events import EventBus
 from aether_core.application.ports import ContentFilesystem, InstanceRepository, ProviderRegistry
 from aether_core.domain.errors import InstanceNotFoundError, ValidationFailedError
-from aether_core.domain.instances import Instance
+from aether_core.domain.instances import Instance, InstanceRuntime
 
 
 class InstanceService:
@@ -15,24 +20,58 @@ class InstanceService:
         providers: ProviderRegistry,
         fs: ContentFilesystem,
         bus: EventBus,
+        instances_dir: Path | None = None,
     ) -> None:
         self._repo = repo
         self._providers = providers
         self._fs = fs
         self._bus = bus
+        self._instances_dir = instances_dir
 
     async def create(
         self,
         name: str,
         provider_id: str,
-        root_dir: str,
+        root_dir: str = "",
+        runtime: str = InstanceRuntime.PROCESS,
         content_dirs: dict[str, str] | None = None,
         provider_data: dict | None = None,
+        provision_values: dict | None = None,
     ) -> Instance:
-        self._providers.get(provider_id)  # raises ProviderNotFoundError
-        if not self._fs.is_dir(Path(root_dir)):
+        provider = self._providers.get(provider_id)  # raises ProviderNotFoundError
+        if runtime not in (InstanceRuntime.PROCESS, InstanceRuntime.DOCKER):
+            raise ValidationFailedError(f"unknown runtime: {runtime}")
+        if runtime == InstanceRuntime.DOCKER and not isinstance(provider, SupportsContainer):
+            raise ValidationFailedError(f"provider {provider_id!r} does not support containers")
+
+        provisioned_dir: Path | None = None
+        if provision_values is not None:
+            # Criação do zero: o Core dá um diretório vazio gerenciado e o
+            # provider materializa os arquivos iniciais a partir do formulário.
+            if not isinstance(provider, SupportsProvision):
+                raise ValidationFailedError(
+                    f"provider {provider_id!r} does not support server creation"
+                )
+            if self._instances_dir is None:
+                raise ValidationFailedError("managed instances directory is not configured")
+            provisioned_dir = self._instances_dir / uuid.uuid4().hex
+            provisioned_dir.mkdir(parents=True, exist_ok=False)
+            try:
+                data = await asyncio.to_thread(
+                    provider.provision, provisioned_dir, dict(provision_values)
+                )
+            except ValidationFailedError:
+                shutil.rmtree(provisioned_dir, ignore_errors=True)
+                raise
+            except Exception as exc:  # noqa: BLE001 - provision de provider não derruba a API
+                shutil.rmtree(provisioned_dir, ignore_errors=True)
+                raise ValidationFailedError(f"provider provisioning failed: {exc}") from exc
+            root_dir = str(provisioned_dir)
+            provider_data = {**(provider_data or {}), **(data or {})}
+
+        if not root_dir or not self._fs.is_dir(Path(root_dir)):
             raise ValidationFailedError(f"root_dir is not a directory: {root_dir}")
-        instance = Instance.new(name, provider_id, root_dir, content_dirs, provider_data)
+        instance = Instance.new(name, provider_id, root_dir, runtime, content_dirs, provider_data)
         await self._repo.add(instance)
         await self._bus.publish("instance.created", {"instance_id": instance.id, "name": name})
         return instance

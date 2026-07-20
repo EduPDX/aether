@@ -67,9 +67,7 @@ class BackupPolicy:
 _SEGURO = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
-def backup_file_name(
-    instance_name: str, when: datetime, kind: BackupKind, token: str
-) -> str:
+def backup_file_name(instance_name: str, when: datetime, kind: BackupKind, token: str) -> str:
     """Nome ordenável, único e seguro para uso como caminho.
 
     O carimbo vem primeiro para a ordenação alfabética coincidir com a

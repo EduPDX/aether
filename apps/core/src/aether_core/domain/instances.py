@@ -21,12 +21,20 @@ class InstanceState(StrEnum):
     CRASHED = "crashed"
 
 
+class InstanceRuntime(StrEnum):
+    """Como o servidor da instância executa: processo local ou container."""
+
+    PROCESS = "process"
+    DOCKER = "docker"
+
+
 @dataclass(frozen=True)
 class Instance:
     id: str
     name: str
     provider_id: str
     root_dir: str
+    runtime: str = InstanceRuntime.PROCESS
     content_dirs: dict[str, str] = field(default_factory=dict)
     provider_data: dict = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -36,6 +44,7 @@ class Instance:
         name: str,
         provider_id: str,
         root_dir: str,
+        runtime: str = InstanceRuntime.PROCESS,
         content_dirs: dict[str, str] | None = None,
         provider_data: dict | None = None,
     ) -> "Instance":
@@ -44,6 +53,7 @@ class Instance:
             name=name,
             provider_id=provider_id,
             root_dir=root_dir,
+            runtime=runtime,
             content_dirs=dict(content_dirs or {}),
             provider_data=dict(provider_data or {}),
         )

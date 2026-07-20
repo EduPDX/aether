@@ -7,7 +7,9 @@ dependencies = [
     "aether-sdk",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
-    "sqlalchemy>=2.0",
+    # [asyncio] garante o greenlet também no macOS arm64, onde o marker
+    # padrão do SQLAlchemy não o instala e todo caminho async de DB quebra.
+    "sqlalchemy[asyncio]>=2.0",
     "aiosqlite>=0.20",
     "alembic>=1.13",
     "pydantic-settings>=2.5",
@@ -17,11 +19,13 @@ dependencies = [
     "cryptography>=43.0",
     "python-multipart>=0.0.9",
     "psutil>=6.0",
+    "aiodocker>=0.24",
 ]
 
 [dependency-groups]
 dev = [
     "aether-provider-minecraft",
+    "aether-provider-sevendays",
 ]
 
 [build-system]
@@ -34,3 +38,4 @@ packages = ["src/aether_core"]
 [tool.uv.sources]
 aether-sdk = { workspace = true }
 aether-provider-minecraft = { workspace = true }
+aether-provider-sevendays = { workspace = true }

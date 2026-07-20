@@ -199,9 +199,7 @@ class ModrinthSource:
         return _versao(corpo) if corpo else None
 
     async def lookup_by_hash(self, sha1: str) -> SourceVersion | None:
-        corpo = await self._http(
-            f"{self._base}/version_file/{sha1}", {"algorithm": "sha1"}
-        )
+        corpo = await self._http(f"{self._base}/version_file/{sha1}", {"algorithm": "sha1"})
         return _versao(corpo) if corpo else None
 
     async def lookup_many(self, hashes: list[str]) -> dict[str, SourceVersion]:

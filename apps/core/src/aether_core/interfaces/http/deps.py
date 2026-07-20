@@ -138,6 +138,7 @@ def get_instance_service(request: Request, session: SessionDep) -> InstanceServi
         providers=state.providers,
         fs=state.fs,
         bus=state.bus,
+        instances_dir=state.settings.instances_dir,
     )
 
 
@@ -164,7 +165,7 @@ def get_content_service(request: Request, session: SessionDep) -> ContentService
 
 def get_power_service(request: Request) -> PowerService:
     state = request.app.state
-    return PowerService(providers=state.providers, supervisor=state.supervisor)
+    return PowerService(providers=state.providers, supervisors=state.supervisors)
 
 
 def get_files_service(request: Request, session: SessionDep) -> FilesService:
@@ -214,7 +215,7 @@ def get_config_service(request: Request, session: SessionDep) -> ConfigService:
 
 
 def get_server_icon_service(request: Request) -> ServerIconService:
-    return ServerIconService(bus=request.app.state.bus)
+    return ServerIconService(bus=request.app.state.bus, providers=request.app.state.providers)
 
 
 ServerIconServiceDep = Annotated[ServerIconService, Depends(get_server_icon_service)]

@@ -2,11 +2,14 @@
 
 export type InstanceState = "stopped" | "starting" | "running" | "stopping" | "crashed";
 
+export type InstanceRuntime = "process" | "docker";
+
 export interface Instance {
   id: string;
   name: string;
   provider_id: string;
   root_dir: string;
+  runtime: InstanceRuntime;
   content_dirs: Record<string, string>;
   provider_data: Record<string, unknown>;
   created_at: string;
@@ -56,9 +59,41 @@ export interface CompareResult {
   version_diffs: VersionDiff[];
 }
 
+/** O que o provider sabe fazer — a interface liga telas por capability,
+ * nunca por id de provider. */
+export interface ProviderCapabilities {
+  launch: boolean;
+  container: boolean;
+  provision: boolean;
+  config: boolean;
+  backup: boolean;
+  sources: boolean;
+  game_metadata: boolean;
+}
+
 export interface ProviderInfo {
-  manifest: { id: string; name: string; version: string; games: string[] };
+  manifest: {
+    id: string;
+    name: string;
+    version: string;
+    games: string[];
+    icon_spec?: { file: string; size: number } | null;
+  };
   content_types: { id: string; label: string; default_directory: string }[];
+  capabilities: ProviderCapabilities;
+  provision_schema?: { id: string; label: string; fields: ConfigFieldDef[] };
+}
+
+export interface ImageInfo {
+  id: string;
+  tags: string[];
+  size_bytes: number;
+}
+
+export interface ImagesPayload {
+  referenced: { provider_id: string; image: string }[];
+  installed: ImageInfo[];
+  pulling: string[];
 }
 
 // ------------------------------------------------------------------ auth --
@@ -205,9 +240,19 @@ export const api = {
   createInstance: (body: {
     name: string;
     provider_id: string;
-    root_dir: string;
-    content_dirs: Record<string, string>;
+    root_dir?: string;
+    runtime?: InstanceRuntime;
+    content_dirs?: Record<string, string>;
+    provision_values?: Record<string, string>;
   }) => request<Instance>("/api/v1/instances", { method: "POST", body: JSON.stringify(body) }),
+  images: () => request<ImagesPayload>("/api/v1/images"),
+  pullImage: (image: string) =>
+    request<{ image: string }>("/api/v1/images/pull", {
+      method: "POST",
+      body: JSON.stringify({ image }),
+    }),
+  removeImage: (image: string) =>
+    request<void>(`/api/v1/images?image=${encodeURIComponent(image)}`, { method: "DELETE" }),
   deleteInstance: (id: string) =>
     request<void>(`/api/v1/instances/${id}`, { method: "DELETE" }),
   metrics: () => request<MetricsPayload>("/api/v1/metrics"),

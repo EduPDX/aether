@@ -183,9 +183,7 @@ class ContentService:
         servidor é levado para o perfil do cliente da mesma instância.
         """
         src_folder = self._folder(source, self._content_type(source, ctype_id))
-        dst_folder = self._folder(
-            target, self._content_type(target, target_ctype_id or ctype_id)
-        )
+        dst_folder = self._folder(target, self._content_type(target, target_ctype_id or ctype_id))
         file_name = Path(file_name).name
         if src_folder == dst_folder:
             raise ValidationFailedError("origem e destino são a mesma pasta")

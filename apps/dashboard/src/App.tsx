@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   Boxes,
   ClipboardList,
+  Layers,
   LayoutDashboard,
   LogOut,
   Plus,
@@ -23,6 +24,7 @@ import { CreateInstanceDialog } from "./modules/instances/CreateInstanceDialog";
 import { InstanceView } from "./modules/instances/InstanceView";
 import { useDialog } from "./components/Dialog";
 import { AuditView, UsersView } from "./modules/admin/AdminViews";
+import { ImagesView } from "./modules/images/ImagesView";
 import { OverviewView } from "./modules/overview/OverviewView";
 import { SettingsView } from "./modules/settings/SettingsView";
 
@@ -32,6 +34,7 @@ type View =
   | { kind: "compare" }
   | { kind: "users" }
   | { kind: "audit" }
+  | { kind: "images" }
   | { kind: "settings" }
   | { kind: "profile" };
 
@@ -40,6 +43,7 @@ const TITLES: Record<string, string> = {
   compare: "Comparar instâncias",
   users: "Usuários",
   audit: "Auditoria",
+  images: "Imagens de container",
   settings: "Configurações",
   profile: "Meu perfil",
 };
@@ -217,6 +221,14 @@ export default function App() {
                   onClick={() => setView({ kind: "audit" })}
                 />
               )}
+              {canSeeAudit && (
+                <NavItem
+                  icon={<Layers size={17} />}
+                  label="Imagens"
+                  active={view?.kind === "images"}
+                  onClick={() => setView({ kind: "images" })}
+                />
+              )}
             </>
           )}
 
@@ -296,6 +308,7 @@ export default function App() {
           )}
           {view?.kind === "users" && <UsersView />}
           {view?.kind === "audit" && <AuditView />}
+          {view?.kind === "images" && <ImagesView />}
           {view?.kind === "settings" && <SettingsView />}
           {/* O perfil virou uma seção das configurações; o atalho da barra
               lateral apenas abre essa seção direto. */}

@@ -7,9 +7,11 @@ from aether_sdk import (
     ConfigCodec,
     ConfigSchema,
     ConsoleCodec,
+    ContainerSpec,
     ContentAnalyzer,
     ContentSource,
     ContentType,
+    IconSpec,
     LaunchContext,
     LaunchSpec,
     ProviderManifest,
@@ -20,6 +22,11 @@ from aether_provider_minecraft.content.jar_analyzer import JarModAnalyzer
 from aether_provider_minecraft.content.modrinth import ModrinthSource
 from aether_provider_minecraft.server.backup import backup_spec, quiesce_plan
 from aether_provider_minecraft.server.console import MinecraftConsoleCodec
+from aether_provider_minecraft.server.container import (
+    PROVISION_SCHEMA,
+    build_container_spec,
+    provision,
+)
 from aether_provider_minecraft.server.game_meta import detect_game_metadata
 from aether_provider_minecraft.server.launch import build_launch_spec
 from aether_provider_minecraft.server.properties import (
@@ -33,6 +40,9 @@ MANIFEST = ProviderManifest(
     name="Minecraft",
     version="0.1.0.dev0",
     games=["minecraft-java"],
+    # O jogo exige exatamente um PNG 64x64 chamado server-icon.png; qualquer
+    # outra coisa e o servidor ignora o arquivo em silêncio.
+    icon_spec=IconSpec(file="server-icon.png", size=64),
 )
 
 CONTENT_TYPES = [
@@ -78,6 +88,15 @@ class MinecraftProvider:
 
     def console_codec(self) -> ConsoleCodec:
         return MinecraftConsoleCodec()
+
+    def container_spec(self, ctx: LaunchContext) -> ContainerSpec | None:
+        return build_container_spec(ctx)
+
+    def provision_schema(self) -> ConfigSchema:
+        return PROVISION_SCHEMA
+
+    def provision(self, root_dir, values: dict) -> dict:
+        return provision(root_dir, values)
 
     def game_metadata(self, ctx: LaunchContext) -> dict | None:
         return detect_game_metadata(ctx.root_dir, ctx.provider_data)
