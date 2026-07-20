@@ -192,3 +192,19 @@ def test_progresso_sai_pelo_event_bus(tmp_path, monkeypatch):
         assert etapas[-1] == "done"
 
     asyncio.run(caso())
+
+
+def test_comando_ausente_vira_mensagem_clara(tmp_path, monkeypatch):
+    """A unit do systemd roda com um PATH enxuto que não inclui ~/.local/bin,
+    onde o uv se instala. Sem tratamento o usuário via um FileNotFoundError sem
+    contexto — e o culpado ficava invisível."""
+
+    async def caso():
+        _, clone = _repo(tmp_path)
+        svc = _servico(clone, _dados(tmp_path), monkeypatch)
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+
+        with pytest.raises(ValidationFailedError, match="não foi encontrado"):
+            await svc._rodar("uv", "sync")
+
+    asyncio.run(caso())

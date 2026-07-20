@@ -17,6 +17,7 @@ ter volta.
 
 import asyncio
 import logging
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -203,7 +204,28 @@ class UpdateService:
         shutil.copy2(banco, alvo)
         return alvo
 
+    @staticmethod
+    def _resolver(programa: str) -> str:
+        """Caminho completo do executável, procurando além do PATH do systemd.
+
+        A unit roda com um PATH enxuto que não inclui ~/.local/bin, onde o uv se
+        instala. Sem isto o erro chega ao usuário como um FileNotFoundError sem
+        contexto, e o culpado é invisível.
+        """
+        caminho = shutil.which(programa)
+        if caminho:
+            return caminho
+        extra = f"{os.environ.get('PATH', '')}:{Path.home() / '.local/bin'}:/usr/local/bin"
+        caminho = shutil.which(programa, path=extra)
+        if caminho:
+            return caminho
+        raise ValidationFailedError(
+            f"'{programa}' não foi encontrado no servidor. "
+            "Reinstale com o install.sh ou garanta que ele esteja no PATH do serviço."
+        )
+
     async def _rodar(self, *comando: str) -> None:
+        comando = (self._resolver(comando[0]), *comando[1:])
         proc = await asyncio.create_subprocess_exec(
             *comando,
             cwd=str(self._dir),

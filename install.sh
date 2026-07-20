@@ -122,13 +122,24 @@ passo "uv (gerencia o Python 3.11 que a aplicação exige)"
 if command -v uv >/dev/null 2>&1; then
   ok "uv já instalado"
 else
-  # O instalador do uv escreve em ~/.local/bin; como rodamos como root, é
-  # /root/.local/bin — daí o link no /usr/local/bin, que está no PATH do systemd.
   executar bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null'
-  executar ln -sf "$HOME/.local/bin/uv" /usr/local/bin/uv
   ok "uv instalado"
 fi
 export PATH="$HOME/.local/bin:$PATH"
+
+# O link é criado SEMPRE, não só quando instalamos o uv agora: o instalador do
+# uv escreve em ~/.local/bin, que não está no PATH do systemd. Sem o link, a
+# atualização pelo painel falha com "No such file or directory" numa máquina
+# onde o uv já existia.
+if [ "$DRY_RUN" = "0" ]; then
+  UV_BIN="$(command -v uv 2>/dev/null || true)"
+  if [ -n "$UV_BIN" ] && [ "$UV_BIN" != "/usr/local/bin/uv" ]; then
+    ln -sf "$UV_BIN" /usr/local/bin/uv
+    ok "uv acessível em /usr/local/bin (PATH do systemd)"
+  fi
+else
+  printf '    [dry-run] ln -sf $(command -v uv) /usr/local/bin/uv\n'
+fi
 
 if [ "$COM_NODE" = "1" ]; then
   passo "Node 22 (compila o painel web)"
@@ -209,6 +220,9 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=$DIR
 Environment=AETHER_DATA_DIR=$DATA_DIR
+# O PATH do systemd é enxuto e não inclui ~/.local/bin, onde o uv se instala.
+# A atualização pelo painel chama uv e corepack, então eles precisam estar aqui.
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin
 # Sem AETHER_STATIC_DIR o Core sobe, mas /app responde 404: é esta variável que
 # diz onde está o painel compilado.
 Environment=AETHER_STATIC_DIR=$DIR/apps/dashboard/dist
