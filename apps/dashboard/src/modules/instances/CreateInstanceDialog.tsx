@@ -1,11 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Container, FolderSearch, Gamepad2 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Button, Input, Modal } from "../../components/ui";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Input, Modal, Select } from "../../components/ui";
 import type { ProviderInfo } from "../../lib/api";
 import { api } from "../../lib/api";
 import { useProviders } from "../../lib/providers";
+import { useQuery } from "@tanstack/react-query";
 import { FieldControl } from "../config/FieldControl";
+import { valoresIniciais, visivel } from "../config/fields";
 import { FolderBrowser } from "./FolderBrowser";
 
 type Modo = "adopt" | "create";
@@ -25,6 +27,7 @@ export function CreateInstanceDialog({ open, onClose }: { open: boolean; onClose
   const [rootDir, setRootDir] = useState("");
   const [isContentFolder, setIsContentFolder] = useState(false);
   const [provisionValues, setProvisionValues] = useState<Record<string, string>>({});
+  const [version, setVersion] = useState("");
   const [browserOpen, setBrowserOpen] = useState(false);
   const [error, setError] = useState("");
 
@@ -39,6 +42,21 @@ export function CreateInstanceDialog({ open, onClose }: { open: boolean; onClose
     [provider],
   );
 
+  // Os padrões precisam existir desde o início: sem eles a dependência de
+  // "mundo gerado" nunca bate e os campos de semente/tamanho não aparecem.
+  useEffect(() => {
+    setProvisionValues(camposProvision.length ? valoresIniciais(camposProvision) : {});
+  }, [camposProvision]);
+
+  const versoes = useQuery({
+    queryKey: ["versions", providerId],
+    queryFn: () => api.providerVersions(providerId!),
+    enabled: Boolean(providerId) && Boolean(provider?.capabilities.install) && modo === "create",
+    staleTime: 5 * 60 * 1000,
+  });
+  const opcoesDeVersao = versoes.data ?? [];
+  const versaoEscolhida = version || opcoesDeVersao.find((v) => v.stable)?.id || "";
+
   const reset = () => {
     setProviderId(null);
     setModo("adopt");
@@ -46,19 +64,25 @@ export function CreateInstanceDialog({ open, onClose }: { open: boolean; onClose
     setRootDir("");
     setIsContentFolder(false);
     setProvisionValues({});
+    setVersion("");
     setError("");
   };
 
   const create = useMutation({
     mutationFn: () => {
       if (modo === "create") {
+        // Campo escondido pela dependência não vai: mandar semente de mapa
+        // pré-gerado gravaria configuração que o jogo ignora.
         const values: Record<string, string> = {};
-        for (const f of camposProvision) values[f.key] = provisionValues[f.key] ?? f.default;
+        for (const f of camposProvision) {
+          if (visivel(f, provisionValues)) values[f.key] = provisionValues[f.key] ?? f.default;
+        }
         return api.createInstance({
           name,
           provider_id: providerId!,
           runtime: "docker",
           provision_values: values,
+          version: version || undefined,
         });
       }
       return api.createInstance({
@@ -208,27 +232,71 @@ export function CreateInstanceDialog({ open, onClose }: { open: boolean; onClose
             </>
           ) : (
             <div className="space-y-1 rounded-xl border border-border bg-surface-2 p-1">
-              {camposProvision.map((f) => (
-                <div key={f.key} className="flex items-center gap-3 px-3 py-2">
+              {provider.capabilities.install && (
+                <div className="flex items-center gap-3 border-b border-border px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13px]">{f.label}</div>
-                    {f.description && (
-                      <div className="text-[11px] text-muted">{f.description}</div>
-                    )}
+                    <div className="text-[13px]">Versão do servidor</div>
+                    <div className="text-[11px] text-muted">
+                      {versoes.isLoading
+                        ? "consultando as versões disponíveis…"
+                        : opcoesDeVersao.length === 0
+                          ? "não foi possível listar; a mais recente será instalada"
+                          : "os arquivos do jogo são baixados nesta versão."}
+                    </div>
                   </div>
-                  <FieldControl
-                    field={f}
-                    value={provisionValues[f.key] ?? f.default}
-                    onChange={(v) => {
-                      setProvisionValues((prev) => ({ ...prev, [f.key]: v }));
-                      setError("");
-                    }}
-                  />
+                  <Select
+                    className="w-56"
+                    value={versaoEscolhida}
+                    disabled={opcoesDeVersao.length === 0}
+                    onChange={(e) => setVersion(e.target.value)}
+                  >
+                    {opcoesDeVersao.length === 0 && <option value="">Mais recente</option>}
+                    {opcoesDeVersao
+                      .filter((v) => v.stable)
+                      .map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.label}
+                        </option>
+                      ))}
+                    {opcoesDeVersao.some((v) => !v.stable) && (
+                      <optgroup label="Instáveis">
+                        {opcoesDeVersao
+                          .filter((v) => !v.stable)
+                          .map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.label}
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                  </Select>
                 </div>
-              ))}
+              )}
+
+              {camposProvision
+                .filter((f) => visivel(f, provisionValues))
+                .map((f) => (
+                  <div key={f.key} className="flex items-center gap-3 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px]">{f.label}</div>
+                      {f.description && (
+                        <div className="text-[11px] text-muted">{f.description}</div>
+                      )}
+                    </div>
+                    <FieldControl
+                      field={f}
+                      value={provisionValues[f.key] ?? f.default}
+                      onChange={(v) => {
+                        setProvisionValues((prev) => ({ ...prev, [f.key]: v }));
+                        setError("");
+                      }}
+                    />
+                  </div>
+                ))}
               <p className="px-3 pt-1 pb-2 text-[11px] leading-relaxed text-muted/80">
                 O servidor roda isolado num container Docker; os arquivos ficam numa pasta
-                gerenciada pelo Aether. A imagem é baixada na primeira inicialização.
+                gerenciada pelo Aether. A configuração é criada a partir do arquivo que a
+                versão escolhida distribui, então nenhuma opção do jogo se perde.
               </p>
             </div>
           )}

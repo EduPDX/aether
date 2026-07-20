@@ -3,6 +3,7 @@ import {
   Archive,
   ArrowLeftRight,
   FolderOpen,
+  HardDriveDownload,
   Laptop,
   Package,
   Play,
@@ -31,6 +32,7 @@ import { ServerClientDiff } from "../content/ServerClientDiff";
 import { CatalogView } from "../sources/CatalogView";
 import { TasksView } from "../tasks/TasksView";
 import { FilesView } from "../files/FilesView";
+import { VersionView } from "./VersionView";
 import { SyncView } from "../sync/SyncView";
 
 const STATE_LABEL: Record<InstanceState, string> = {
@@ -61,6 +63,7 @@ type Tab =
   | "config"
   | "sync"
   | "backups"
+  | "version"
   | "tasks";
 
 export function InstanceView({ instance }: { instance: Instance }) {
@@ -181,6 +184,10 @@ export function InstanceView({ instance }: { instance: Instance }) {
             ...(can(user, "power.use")
               ? [["tasks", "Agendamentos", <CalendarClock size={16} />] as Aba]
               : []),
+            // Só para jogos cujo servidor o painel instala e atualiza.
+            ...(can(user, "instances.write") && caps?.install
+              ? [["version", "Versão", <HardDriveDownload size={16} />] as Aba]
+              : []),
           ] as Aba[]
         ).map(([key, label, icone]) => (
           <button
@@ -211,6 +218,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
         {tab === "sync" && <SyncView instance={instance} />}
         {tab === "backups" && <BackupsView instance={instance} />}
         {tab === "tasks" && <TasksView instance={instance} />}
+        {tab === "version" && <VersionView instance={instance} />}
       </div>
     </div>
   );

@@ -69,6 +69,8 @@ export interface ProviderCapabilities {
   backup: boolean;
   sources: boolean;
   game_metadata: boolean;
+  /** O painel instala e atualiza a versão do servidor deste jogo. */
+  install: boolean;
 }
 
 export interface ProviderInfo {
@@ -244,6 +246,8 @@ export const api = {
     runtime?: InstanceRuntime;
     content_dirs?: Record<string, string>;
     provision_values?: Record<string, string>;
+    /** Versão a instalar; a criação já dispara a instalação. */
+    version?: string;
   }) => request<Instance>("/api/v1/instances", { method: "POST", body: JSON.stringify(body) }),
   images: () => request<ImagesPayload>("/api/v1/images"),
   pullImage: (image: string) =>
@@ -443,6 +447,34 @@ export const api = {
       body: JSON.stringify({ op, path, new_name: newName }),
     }),
   configs: (id: string) => request<InstanceConfig[]>(`/api/v1/instances/${id}/config`),
+  // --------------------------------------------------- config em modo avançado
+  rawConfig: (id: string, schemaId: string) =>
+    request<RawConfig>(`/api/v1/instances/${id}/config/raw?schema_id=${schemaId}`),
+  validateRawConfig: (id: string, schemaId: string, content: string) =>
+    request<RawConfigValidation>(`/api/v1/instances/${id}/config/raw/validate`, {
+      method: "POST",
+      body: JSON.stringify({ schema_id: schemaId, content }),
+    }),
+  writeRawConfig: (id: string, schemaId: string, content: string) =>
+    request<{ file: string; has_previous: boolean }>(`/api/v1/instances/${id}/config/raw`, {
+      method: "PUT",
+      body: JSON.stringify({ schema_id: schemaId, content }),
+    }),
+  restoreRawConfig: (id: string, schemaId: string) =>
+    request<{ file: string; content: string }>(
+      `/api/v1/instances/${id}/config/raw/restore?schema_id=${schemaId}`,
+      { method: "POST" },
+    ),
+  // ------------------------------------------------------ versão do servidor
+  providerVersions: (providerId: string) =>
+    request<VersionInfo[]>(`/api/v1/providers/${providerId}/versions`),
+  instanceVersion: (id: string) =>
+    request<InstanceVersion>(`/api/v1/instances/${id}/version`),
+  installVersion: (id: string, version: string, skipBackup = false) =>
+    request<ServerInstallResult>(`/api/v1/instances/${id}/install`, {
+      method: "POST",
+      body: JSON.stringify({ version, skip_backup: skipBackup }),
+    }),
   updateConfig: (id: string, schemaId: string, values: Record<string, string>) =>
     request<void>(`/api/v1/instances/${id}/config`, {
       method: "PUT",
@@ -672,6 +704,8 @@ export interface ConfigFieldDef {
   advanced?: boolean;
   minimum?: number | null;
   maximum?: number | null;
+  /** Só aparece quando outro campo tem certo valor (semente/tamanho ↔ RWG). */
+  depends_on?: Record<string, string>;
   key: string;
   label: string;
   type: "string" | "integer" | "boolean" | "enum" | "password";
@@ -679,6 +713,42 @@ export interface ConfigFieldDef {
   default: string;
   options: string[];
   section: string;
+}
+
+export interface RawConfig {
+  file: string;
+  format: string;
+  content: string;
+  has_previous: boolean;
+}
+
+export interface RawConfigValidation {
+  valid: boolean;
+  message?: string;
+  line?: number;
+  column?: number;
+}
+
+export interface VersionInfo {
+  id: string;
+  label: string;
+  description: string;
+  build: string;
+  stable: boolean;
+}
+
+export interface InstanceVersion {
+  installed: string;
+  requested: string;
+  installing: boolean;
+}
+
+/** Resultado de instalar/atualizar a versão do servidor (não confundir com
+ * o InstallResult do catálogo de mods). */
+export interface ServerInstallResult {
+  version: string;
+  status?: string;
+  install?: { config_seeded?: boolean; new_properties?: string[]; build?: string };
 }
 
 export interface InstanceConfig {

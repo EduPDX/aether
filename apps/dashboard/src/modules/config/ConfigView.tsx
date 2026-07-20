@@ -1,12 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Save, Settings2, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, FileCode2, Save, Settings2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Panel, Spinner } from "../../components/ui";
 import { FieldControl } from "./FieldControl";
+import { RawConfigEditor } from "./RawConfigEditor";
 import { ServerIconCard } from "./ServerIconCard";
+import { valoresIniciais, visivel } from "./fields";
 import type { ConfigFieldDef, Instance } from "../../lib/api";
 import { api } from "../../lib/api";
 import { useProvider } from "../../lib/providers";
+
+type Modo = "basico" | "avancado";
 
 export function ConfigView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
@@ -17,6 +21,7 @@ export function ConfigView({ instance }: { instance: Instance }) {
   });
 
   const config = query.data?.[0];
+  const [modo, setModo] = useState<Modo>("basico");
   const [values, setValues] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
@@ -25,11 +30,7 @@ export function ConfigView({ instance }: { instance: Instance }) {
 
   useEffect(() => {
     if (!config) return;
-    const initial: Record<string, string> = {};
-    for (const f of config.schema.fields) {
-      initial[f.key] = config.values[f.key] ?? f.default;
-    }
-    setValues(initial);
+    setValues(valoresIniciais(config.schema.fields, config.values));
     setDirty(false);
   }, [config]);
 
@@ -45,7 +46,18 @@ export function ConfigView({ instance }: { instance: Instance }) {
   }, [config]);
 
   const save = useMutation({
-    mutationFn: () => api.updateConfig(instance.id, config!.schema.id, values),
+    mutationFn: () =>
+      // Campo escondido pela dependência não vai junto: mandar a semente de
+      // um mundo pré-gerado escreveria configuração que o jogo ignora.
+      api.updateConfig(
+        instance.id,
+        config!.schema.id,
+        Object.fromEntries(
+          config!.schema.fields
+            .filter((f) => visivel(f, values))
+            .map((f) => [f.key, values[f.key] ?? f.default]),
+        ),
+      ),
     onSuccess: () => {
       setDirty(false);
       setSaved(true);
@@ -62,6 +74,47 @@ export function ConfigView({ instance }: { instance: Instance }) {
         Este provider não expõe configurações por formulário.
       </div>
     );
+
+  const seletorDeModo = (
+    <span className="flex overflow-hidden rounded-lg border border-border">
+      {(
+        [
+          ["basico", "Básico", <Settings2 key="b" size={13} />],
+          ["avancado", "Avançado", <FileCode2 key="a" size={13} />],
+        ] as [Modo, string, React.ReactNode][]
+      ).map(([m, rotulo, icone]) => (
+        <button
+          key={m}
+          onClick={() => setModo(m)}
+          title={
+            m === "basico"
+              ? "Formulário com as opções que o painel conhece"
+              : "Editar o arquivo inteiro, inclusive o que o painel não mapeia"
+          }
+          className={`flex cursor-pointer items-center gap-1.5 px-3 py-1.5 text-xs ${
+            modo === m ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2 hover:text-text"
+          }`}
+        >
+          {icone}
+          {rotulo}
+        </button>
+      ))}
+    </span>
+  );
+
+  if (modo === "avancado") {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-3 border-b border-border px-4 py-2">
+          <span className="text-sm font-semibold">{config.schema.label}</span>
+          <span className="ml-auto">{seletorDeModo}</span>
+        </div>
+        <div className="min-h-0 flex-1">
+          <RawConfigEditor instance={instance} schemaId={config.schema.id} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -85,6 +138,7 @@ export function ConfigView({ instance }: { instance: Instance }) {
             <SlidersHorizontal size={13} />
             <span>Opções avançadas</span>
           </label>
+          {seletorDeModo}
           <Button variant="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
             <Save size={13} /> Salvar
           </Button>
@@ -120,7 +174,10 @@ export function ConfigView({ instance }: { instance: Instance }) {
         {/* Só para jogos que têm a noção de ícone de servidor no disco. */}
         {provider?.manifest.icon_spec && <ServerIconCard instance={instance} />}
 
-        {sections.map(([section, fields]) => {
+        {sections.map(([section, todos]) => {
+          // Campo cuja dependência não bate some: com mapa pré-gerado, semente
+          // e tamanho não fazem sentido nenhum.
+          const fields = todos.filter((f) => visivel(f, values));
           const essenciais = fields.filter((f) => !f.advanced);
           const avancadas = fields.filter((f) => f.advanced);
           const visiveis = mostrarAvancadas ? fields : essenciais;
