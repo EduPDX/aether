@@ -123,9 +123,7 @@ async def versions(
     all_versions: bool = False,
 ) -> list[dict]:
     instance = await instances.get(instance_id)
-    lista = await sources.versions(
-        instance, source_id, project_id, filter_by_game=not all_versions
-    )
+    lista = await sources.versions(instance, source_id, project_id, filter_by_game=not all_versions)
     return [_version(v) for v in lista]
 
 

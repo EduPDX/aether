@@ -116,9 +116,7 @@ def test_audit_log_records_actions(client: TestClient, tmp_path):
 
 
 def _logar(client, usuario="admin", senha="senha-forte-123"):
-    return client.post(
-        "/api/v1/auth/login", json={"username": usuario, "password": senha}
-    ).json()
+    return client.post("/api/v1/auth/login", json={"username": usuario, "password": senha}).json()
 
 
 def test_password_change_requires_the_current_one(client):
@@ -187,9 +185,7 @@ def test_old_refresh_token_stops_working_after_the_change(client):
         json={"current_password": "senha-forte-123", "new_password": "nova-senha-456"},
     )
 
-    res = client.post(
-        "/api/v1/auth/refresh", json={"refresh_token": inicial["refresh_token"]}
-    )
+    res = client.post("/api/v1/auth/refresh", json={"refresh_token": inicial["refresh_token"]})
     assert res.status_code == 401
 
 

@@ -58,9 +58,12 @@ class HttpDownloader:
 
     def stream(self, url: str) -> AsyncIterator[bytes]:
         async def gen() -> AsyncIterator[bytes]:
-            async with httpx.AsyncClient(
-                timeout=TIMEOUT, headers={"User-Agent": USER_AGENT}, follow_redirects=True
-            ) as client, client.stream("GET", url) as res:
+            async with (
+                httpx.AsyncClient(
+                    timeout=TIMEOUT, headers={"User-Agent": USER_AGENT}, follow_redirects=True
+                ) as client,
+                client.stream("GET", url) as res,
+            ):
                 res.raise_for_status()
                 async for bloco in res.aiter_bytes(self._chunk):
                     yield bloco

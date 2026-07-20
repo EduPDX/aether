@@ -83,9 +83,7 @@ class TaskService:
         """Executa a tarefa. Usado pelo agendador e pelo botão "executar agora"."""
         if task.kind is TaskKind.COMMAND:
             if self._supervisor.state(instance.id) is not InstanceState.RUNNING:
-                raise ValidationFailedError(
-                    "o servidor precisa estar no ar para receber comandos"
-                )
+                raise ValidationFailedError("o servidor precisa estar no ar para receber comandos")
             await self._supervisor.send_command(instance.id, task.command)
             resultado = {"sent": task.command}
 
