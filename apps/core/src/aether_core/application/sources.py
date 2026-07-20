@@ -148,12 +148,8 @@ class SourceService:
         cats = getattr(fonte, "available_categories", None)
         loaders = getattr(fonte, "available_loaders", None)
         return {
-            "categories": [
-                {"id": i, "label": r} for i, r in (cats() if callable(cats) else ())
-            ],
-            "loaders": [
-                {"id": i, "label": r} for i, r in (loaders() if callable(loaders) else ())
-            ],
+            "categories": [{"id": i, "label": r} for i, r in (cats() if callable(cats) else ())],
+            "loaders": [{"id": i, "label": r} for i, r in (loaders() if callable(loaders) else ())],
         }
 
     async def versions(

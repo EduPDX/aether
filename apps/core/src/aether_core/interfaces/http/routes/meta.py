@@ -7,6 +7,7 @@ from aether_sdk import (
     SupportsGameMetadata,
     SupportsInstall,
     SupportsLaunch,
+    SupportsPlayers,
     SupportsProvision,
 )
 from fastapi import APIRouter, Request
@@ -32,6 +33,7 @@ def _capabilities(p) -> dict:
         "config": isinstance(p, SupportsConfig),
         "backup": isinstance(p, SupportsBackup),
         "install": isinstance(p, SupportsInstall),
+        "players": isinstance(p, SupportsPlayers),
         "sources": bool(getattr(p, "content_sources", None) and p.content_sources()),
         "game_metadata": isinstance(p, SupportsGameMetadata),
     }

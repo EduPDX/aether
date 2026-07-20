@@ -55,7 +55,15 @@ def _dono_dos_volumes(spec: ContainerSpec, root_dir: Path) -> None:
 
     Recursivo só na criação (a árvore está vazia ou pequena); depois disso os
     arquivos já nascem com o dono certo, escritos pelo próprio servidor.
+
+    Sem efeito onde `os.chown` não existe (Windows). Não dá para tratar isso
+    com o `suppress(OSError)` abaixo: lá a chamada nem chega a falhar, o
+    atributo simplesmente não existe e o erro é `AttributeError`. E não há o
+    que ajustar mesmo — no Docker Desktop quem traduz as permissões é a VM.
     """
+    if not hasattr(os, "chown"):
+        return
+
     uid_gid = spec.run_as.split(":")
     uid = int(uid_gid[0])
     gid = int(uid_gid[1]) if len(uid_gid) > 1 else uid

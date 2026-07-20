@@ -174,6 +174,8 @@ async def file_op(
     elif body.op == "rename":
         await files.rename(instance, body.path, body.new_name or "")
     elif body.op == "delete":
-        moved_to = await files.delete(instance, body.path)
-        return {"ok": True, "moved_to": moved_to}
+        # O id serve para a interface oferecer "desfazer" logo depois. Antes
+        # daqui saía o caminho absoluto no servidor, que não ajudava ninguém.
+        item_id = await files.delete(instance, body.path)
+        return {"ok": True, "trash_item_id": item_id}
     return {"ok": True}

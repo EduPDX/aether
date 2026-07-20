@@ -73,6 +73,7 @@ export interface ProviderCapabilities {
   game_metadata: boolean;
   /** O painel instala e atualiza a versão do servidor deste jogo. */
   install: boolean;
+  players: boolean;
 }
 
 export interface ProviderInfo {
@@ -298,7 +299,7 @@ export const api = {
       body: JSON.stringify({ type, file }),
     }),
   trash: (id: string, file: string, type = "mod") =>
-    request<{ moved_to: string }>(`/api/v1/instances/${id}/content/trash`, {
+    request<{ trash_item_id: string }>(`/api/v1/instances/${id}/content/trash`, {
       method: "POST",
       body: JSON.stringify({ type, file }),
     }),
@@ -404,6 +405,22 @@ export const api = {
     request<Record<string, unknown>>(`/api/v1/instances/${id}/tasks/${taskId}/run`, {
       method: "POST",
     }),
+  /** Conteúdo da lixeira. Não confundir com `trash`, que *manda* um mod para lá. */
+  players: (id: string) => request<{ lists: PlayerList[] }>(`/api/v1/instances/${id}/players`),
+  playerAction: (id: string, action: PlayerAction, name: string, reason = "") =>
+    request<{ applied_via: "console" | "arquivo" }>(
+      `/api/v1/instances/${id}/players/action`,
+      { method: "POST", body: JSON.stringify({ action, name, reason }) },
+    ),
+  listTrash: (id: string) => request<TrashPayload>(`/api/v1/instances/${id}/trash`),
+  restoreTrash: (id: string, itemId: string) =>
+    request<{ restored_to: string }>(`/api/v1/instances/${id}/trash/${itemId}/restore`, {
+      method: "POST",
+    }),
+  purgeTrash: (id: string, itemId: string) =>
+    request<void>(`/api/v1/instances/${id}/trash/${itemId}`, { method: "DELETE" }),
+  emptyTrash: (id: string) =>
+    request<{ removed: number }>(`/api/v1/instances/${id}/trash`, { method: "DELETE" }),
   backups: (id: string) => request<BackupsPayload>(`/api/v1/instances/${id}/backups`),
   createBackup: (id: string, note = "") =>
     request<BackupEntry>(`/api/v1/instances/${id}/backups`, {
@@ -708,6 +725,47 @@ export interface BackupsPayload {
   policy: BackupPolicy;
   /** O que o provider define como backup — mostrado para não haver surpresa. */
   spec: { include: string[]; exclude: string[]; summary: string };
+}
+
+export interface TrashItem {
+  id: string;
+  /** Nome original — `original_path` é o que permite devolver ao lugar. */
+  name: string;
+  original_path: string;
+  is_dir: boolean;
+  size_bytes: number;
+  origin: "files" | "content";
+  content_type: string;
+  trashed_at: string;
+}
+
+export interface TrashPayload {
+  items: TrashItem[];
+  total_bytes: number;
+}
+
+export type PlayerAction =
+  | "allow_add"
+  | "allow_remove"
+  | "admin_add"
+  | "admin_remove"
+  | "ban"
+  | "unban"
+  | "kick";
+
+export interface PlayerEntry {
+  name: string;
+  id: string;
+  /** Texto do jogo: motivo do ban, nível do operador. O front não interpreta. */
+  detail: string;
+}
+
+export interface PlayerList {
+  kind: "allow" | "admin" | "banned";
+  label: string;
+  /** Falso quando o servidor está ignorando a lista (white-list=false). */
+  enforced: boolean;
+  entries: PlayerEntry[];
 }
 
 export interface ConfigWarning {

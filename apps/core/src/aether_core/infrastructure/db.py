@@ -113,6 +113,20 @@ class AuditLogRow(Base):
     created_at: Mapped[str] = mapped_column(String(40))
 
 
+class TrashItemRow(Base):
+    __tablename__ = "trash_items"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    instance_id: Mapped[str] = mapped_column(String(32))
+    original_path: Mapped[str] = mapped_column(Text)
+    stored_name: Mapped[str] = mapped_column(String(255))
+    is_dir: Mapped[bool] = mapped_column(Boolean, default=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    origin: Mapped[str] = mapped_column(String(20), default="files")
+    content_type: Mapped[str] = mapped_column(String(50), default="")
+    trashed_at: Mapped[str] = mapped_column(String(40))
+
+
 def run_migrations(db_path: Path) -> None:
     """Bring the SQLite database to the latest schema (runs at startup)."""
     cfg = Config()

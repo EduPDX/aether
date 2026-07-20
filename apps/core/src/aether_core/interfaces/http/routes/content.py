@@ -59,8 +59,8 @@ async def trash_content(
     _: ContentWrite,
 ) -> dict:
     instance = await instances.get(instance_id)
-    moved_to = await content.trash(instance, body.type, body.file)
-    return {"moved_to": moved_to}
+    item_id = await content.trash(instance, body.type, body.file)
+    return {"trash_item_id": item_id}
 
 
 @router.post("/instances/{instance_id}/content/copy", status_code=204)

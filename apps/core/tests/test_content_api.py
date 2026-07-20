@@ -1,7 +1,5 @@
 """Content API tests: list, toggle, trash, copy, compare, icons."""
 
-from pathlib import Path
-
 from conftest import create_instance, make_mod_jar
 
 
@@ -79,7 +77,15 @@ def test_trash_moves_file_out(client, mods_dir):
     )
     assert res.status_code == 200
     assert not (mods_dir / "alpha-1.0.jar").exists()
-    assert Path(res.json()["moved_to"]).exists()
+
+    # A garantia que interessa não é onde o arquivo foi parar, e sim que ele
+    # aparece na lixeira e volta de lá.
+    item_id = res.json()["trash_item_id"]
+    itens = client.get(f"/api/v1/instances/{iid}/trash").json()["items"]
+    assert [i["id"] for i in itens] == [item_id]
+
+    client.post(f"/api/v1/instances/{iid}/trash/{item_id}/restore")
+    assert (mods_dir / "alpha-1.0.jar").exists()
 
 
 def test_copy_between_instances(client, mods_dir, tmp_path):

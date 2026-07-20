@@ -6,12 +6,12 @@ editing is capped to protect the UI (and the server) from huge files.
 """
 
 import asyncio
-import shutil
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from aether_core.application.events import EventBus
+from aether_core.application.trash import TrashService
 from aether_core.domain.errors import (
     ConflictError,
     ForbiddenError,
@@ -19,6 +19,7 @@ from aether_core.domain.errors import (
     ValidationFailedError,
 )
 from aether_core.domain.instances import Instance
+from aether_core.domain.trash import TrashOrigin
 
 
 class _StreamSink:
@@ -53,6 +54,7 @@ class _StreamSink:
         self._buf.clear()
         return pedaco
 
+
 MAX_TEXT_BYTES = 2 * 1024 * 1024  # 2 MB
 MAX_UPLOAD_BYTES = 512 * 1024 * 1024  # 512 MB por arquivo
 
@@ -66,8 +68,8 @@ class FileEntryInfo:
 
 
 class FilesService:
-    def __init__(self, trash_root: Path, bus: EventBus) -> None:
-        self._trash_root = trash_root
+    def __init__(self, trash: TrashService, bus: EventBus) -> None:
+        self._trash = trash
         self._bus = bus
 
     # -------------------------------------------------------------- sandbox --
@@ -246,23 +248,13 @@ class FilesService:
         await asyncio.to_thread(source.rename, target)
 
     async def delete(self, instance: Instance, rel_path: str) -> str:
+        """Move para a lixeira — de onde dá para voltar, via TrashService."""
         source = self._resolve(instance, rel_path)
         if source == Path(instance.root_dir).resolve():
             raise ForbiddenError("cannot delete the instance root")
         if not source.exists():
             raise NotFoundError(f"not found: {rel_path}")
 
-        def _trash() -> str:
-            trash_dir = self._trash_root / instance.id / "files"
-            trash_dir.mkdir(parents=True, exist_ok=True)
-            dest = trash_dir / source.name
-            base, i = dest, 1
-            while dest.exists():
-                dest = Path(f"{base}.{i}")
-                i += 1
-            shutil.move(str(source), str(dest))
-            return str(dest)
-
-        moved_to = await asyncio.to_thread(_trash)
+        item = await self._trash.store(instance, source, rel_path, origin=TrashOrigin.FILES)
         await self._bus.publish("files.trashed", {"instance_id": instance.id, "path": rel_path})
-        return moved_to
+        return item.id

@@ -22,6 +22,7 @@ import { Button, Segmented, Select, Spinner } from "../../components/ui";
 import type { FileEntry, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
 import { languageFor } from "../../lib/monaco";
+import { FileContextMenu, type MenuTarget } from "./FileContextMenu";
 import { FileGrid } from "./FileGrid";
 import { FileIcon, fileKind } from "./FileIcon";
 
@@ -51,6 +52,7 @@ export function FilesView({ instance }: { instance: Instance }) {
   const [sort, setSort] = useState<SortKey>("name");
   const [asc, setAsc] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [busy, setBusy] = useState("");
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem(VIEW_KEY) as ViewMode | null) ?? "lg",
@@ -176,6 +178,29 @@ export function FilesView({ instance }: { instance: Instance }) {
     onSuccess: invalidate,
     onError: (e) => setError(String(e)),
   });
+
+  /* Ações por item, compartilhadas entre a visão de lista e o menu de
+     contexto da grade — duplicar os diálogos faria as duas divergirem. */
+
+  async function renameEntry(entry: FileEntry) {
+    const rel = join(path, entry.name);
+    const name = await dialog.promptText({
+      title: "Renomear",
+      input: { label: "Novo nome", initialValue: entry.name },
+      confirmText: "Renomear",
+    });
+    if (name && name !== entry.name) op.mutate({ kind: "rename", target: rel, newName: name });
+  }
+
+  async function trashEntry(entry: FileEntry) {
+    const ok = await dialog.confirm({
+      title: "Mover para a lixeira",
+      message: `“${entry.name}” vai para a lixeira do Aether.`,
+      confirmText: "Mover",
+      tone: "danger",
+    });
+    if (ok) op.mutate({ kind: "delete", target: join(path, entry.name) });
+  }
 
   async function deleteSelected() {
     const nomes = [...selected];
@@ -337,6 +362,7 @@ export function FilesView({ instance }: { instance: Instance }) {
                   entry.is_dir ? setPath(join(path, entry.name)) : open(join(path, entry.name))
                 }
                 onToggleSelect={toggleSelect}
+                onContextMenu={(entry, x, y) => setMenu({ entry, x, y })}
               />
             )}
 
@@ -386,6 +412,10 @@ export function FilesView({ instance }: { instance: Instance }) {
                       key={entry.name}
                       className={`group cursor-pointer ${isSel ? "bg-surface-3" : "hover:bg-surface-2"}`}
                       onClick={() => (entry.is_dir ? setPath(rel) : open(rel))}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setMenu({ entry, x: e.clientX, y: e.clientY });
+                      }}
                     >
                       <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                         <input
@@ -429,30 +459,14 @@ export function FilesView({ instance }: { instance: Instance }) {
                           <button
                             title="Renomear"
                             className="cursor-pointer text-muted hover:text-text"
-                            onClick={async () => {
-                              const name = await dialog.promptText({
-                                title: "Renomear",
-                                input: { label: "Novo nome", initialValue: entry.name },
-                                confirmText: "Renomear",
-                              });
-                              if (name && name !== entry.name)
-                                op.mutate({ kind: "rename", target: rel, newName: name });
-                            }}
+                            onClick={() => renameEntry(entry)}
                           >
                             <Pencil size={13} />
                           </button>
                           <button
                             title="Mover para a lixeira"
                             className="cursor-pointer text-muted hover:text-danger"
-                            onClick={async () => {
-                              const ok = await dialog.confirm({
-                                title: "Mover para a lixeira",
-                                message: `“${entry.name}” vai para a lixeira do Aether.`,
-                                confirmText: "Mover",
-                                tone: "danger",
-                              });
-                              if (ok) op.mutate({ kind: "delete", target: rel });
-                            }}
+                            onClick={() => trashEntry(entry)}
                           >
                             <Trash2 size={13} />
                           </button>
@@ -526,6 +540,15 @@ export function FilesView({ instance }: { instance: Instance }) {
           </div>
         )}
       </div>
+
+      <FileContextMenu
+        target={menu}
+        onClose={() => setMenu(null)}
+        onOpen={(e) => (e.is_dir ? setPath(join(path, e.name)) : open(join(path, e.name)))}
+        onDownload={(e) => download(join(path, e.name))}
+        onRename={renameEntry}
+        onTrash={trashEntry}
+      />
     </div>
   );
 }

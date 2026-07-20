@@ -79,7 +79,11 @@ def test_mkdir_rename_delete(client, tmp_path):
     res = client.post(base, json={"op": "delete", "path": "old-backups"})
     assert res.status_code == 200
     assert not (root / "old-backups").exists()
-    assert Path(res.json()["moved_to"]).exists()  # foi para a lixeira
+
+    # Foi para a lixeira, e de lá volta inteira.
+    item_id = res.json()["trash_item_id"]
+    client.post(f"/api/v1/instances/{iid}/trash/{item_id}/restore")
+    assert (root / "old-backups").is_dir()
 
     # raiz é intocável
     assert client.post(base, json={"op": "delete", "path": ""}).status_code == 403
