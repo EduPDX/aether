@@ -44,3 +44,52 @@ def detect_game_metadata(root: Path, provider_data: dict) -> dict | None:
         if m and m.group(1).startswith("1."):
             return {"minecraft": m.group(1), "loader": "vanilla"}
     return None
+
+
+# O formulário de criação usa os rótulos do jogo (FORGE, FABRIC…); o Modrinth
+# usa os nomes do loader em minúsculo. VANILLA não tem loader de mods e PAPER
+# usa plugins — mas ambos ganham o mapeamento mais próximo para o filtro por
+# versão continuar valendo.
+_TYPE_TO_LOADER = {
+    "FORGE": "forge",
+    "NEOFORGE": "neoforge",
+    "FABRIC": "fabric",
+    "QUILT": "quilt",
+    "PAPER": "paper",
+    # VANILLA: ausente de propósito — sem loader, o catálogo não filtra por ele.
+}
+
+
+def catalog_context(provider_data: dict) -> tuple[str | None, str | None]:
+    """Versão do jogo e loader para filtrar o catálogo de mods.
+
+    Uma instância nasce de dois jeitos e guarda essa informação em lugares
+    diferentes — é a origem do bug que fazia o catálogo baixar mod de qualquer
+    versão:
+
+    - **provisionada** (servidor criado do zero): versão e tipo vivem no bloco
+      ``container``, e o tipo vem em maiúsculo do formulário;
+    - **adotada** (pasta existente): vêm da detecção dos arquivos, no bloco
+      ``game``, já no formato do loader.
+
+    Devolve ``(None, None)`` quando não dá para saber — melhor não filtrar do
+    que filtrar por um valor inválido e não achar nada.
+    """
+    dados = provider_data or {}
+
+    container = dados.get("container") or {}
+    version = container.get("version")
+    loader = _TYPE_TO_LOADER.get(str(container.get("type") or "").upper())
+
+    game = dados.get("game") or {}
+    version = version or game.get("minecraft")
+    loader = loader or game.get("loader")
+
+    # LATEST não é uma versão concreta (só se resolve quando o servidor sobe);
+    # vanilla não carrega jar de mod. Nos dois casos, some com o filtro daquele
+    # eixo em vez de travar a busca inteira.
+    if version and str(version).upper() == "LATEST":
+        version = None
+    if loader in (None, "", "vanilla"):
+        loader = None
+    return version, loader

@@ -29,7 +29,7 @@ from aether_provider_minecraft.server.container import (
     build_container_spec,
     provision,
 )
-from aether_provider_minecraft.server.game_meta import detect_game_metadata
+from aether_provider_minecraft.server.game_meta import catalog_context, detect_game_metadata
 from aether_provider_minecraft.server.launch import build_launch_spec
 from aether_provider_minecraft.server.players import (
     apply_player_action,
@@ -110,6 +110,10 @@ class MinecraftProvider:
 
     def game_metadata(self, ctx: LaunchContext) -> dict | None:
         return detect_game_metadata(ctx.root_dir, ctx.provider_data)
+
+    def catalog_context(self, provider_data: dict) -> tuple[str | None, str | None]:
+        """Versão e loader para o Core filtrar o catálogo — vê `catalog_context`."""
+        return catalog_context(provider_data)
 
     def config_schemas(self) -> list[ConfigSchema]:
         return [SERVER_PROPERTIES_SCHEMA]

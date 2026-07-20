@@ -110,13 +110,18 @@ class SourceService:
         raise NotFoundError(f"catálogo desconhecido: {source_id}")
 
     def _game_context(self, instance: Instance) -> tuple[str | None, str | None]:
-        """Versão do jogo e loader detectados, para filtrar a busca.
+        """Versão do jogo e loader da instância, para filtrar a busca.
 
         Sem isso a busca devolve mods de qualquer versão e o usuário instala
-        algo que não carrega.
+        algo que não carrega. Onde essa informação mora dentro do provider_data
+        é conhecimento do jogo, então quem traduz é o provider — o Core só
+        pergunta.
         """
-        dados = instance.provider_data or {}
-        return dados.get("game_version"), dados.get("loader")
+        provider = self._providers.get(instance.provider_id)
+        traduzir = getattr(provider, "catalog_context", None)
+        if callable(traduzir):
+            return traduzir(instance.provider_data or {})
+        return None, None
 
     # ----------------------------------------------------------------- busca
     async def search(

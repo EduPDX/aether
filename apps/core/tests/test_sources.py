@@ -11,6 +11,7 @@ import pytest
 from aether_core.application.sources import SourceService
 from aether_core.domain.errors import ConflictError, ValidationFailedError
 from aether_core.domain.instances import Instance
+from aether_provider_minecraft.server.game_meta import catalog_context as mc_catalog_context
 from aether_sdk import SourceItem, SourceVersion
 
 CONTEUDO = b"conteudo do jar" * 100
@@ -85,6 +86,11 @@ class _Registro:
             def content_sources(self):
                 return [catalogo]
 
+            def catalog_context(self, provider_data):
+                # Usa a tradução real do provider: o teste cobre a fiação do
+                # Core (perguntar ao provider) junto do mapeamento de verdade.
+                return mc_catalog_context(provider_data)
+
         return _Provider()
 
     def all(self):
@@ -113,8 +119,14 @@ def _servico(tmp_path, catalogo=None, baixador=None):
 
 
 def _instancia() -> Instance:
+    # Formato real de uma instância provisionada: versão e tipo no bloco
+    # container. Era a divergência com este formato que fazia o filtro do
+    # catálogo não valer nada.
     return Instance.new(
-        "Srv", "minecraft", "/tmp/srv", provider_data={"game_version": "1.20.1", "loader": "Forge"}
+        "Srv",
+        "minecraft",
+        "/tmp/srv",
+        provider_data={"container": {"type": "FORGE", "version": "1.20.1"}},
     )
 
 
@@ -171,7 +183,7 @@ def test_search_filters_by_the_instance_game_version_and_loader(tmp_path):
     servico, catalogo = _servico(tmp_path)
     asyncio.run(servico.search(_instancia(), "falso", "sodium"))
 
-    assert catalogo.buscas == [("sodium", "1.20.1", "Forge", ())]
+    assert catalogo.buscas == [("sodium", "1.20.1", "forge", ())]
 
 
 def test_search_passes_categories_and_loader_override(tmp_path):
