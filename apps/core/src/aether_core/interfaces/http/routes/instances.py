@@ -13,7 +13,11 @@ router = APIRouter(prefix="/instances", tags=["instances"])
 
 
 def _out(request: Request, instance) -> InstanceOut:
-    return InstanceOut.from_domain(instance, state=request.app.state.supervisor.state(instance.id))
+    return InstanceOut.from_domain(
+        instance,
+        state=request.app.state.supervisor.state(instance.id),
+        managed_dir=request.app.state.remover.e_gerenciada(instance),
+    )
 
 
 @router.get("")
@@ -54,11 +58,27 @@ async def get_instance(
     return _out(request, await svc.get(instance_id))
 
 
-@router.delete("/{instance_id}", status_code=204)
+@router.delete("/{instance_id}")
 async def delete_instance(
-    request: Request, instance_id: str, svc: InstanceServiceDep, _: InstancesWrite
-) -> None:
+    request: Request,
+    instance_id: str,
+    svc: InstanceServiceDep,
+    _: InstancesWrite,
+    keep_files: bool = False,
+) -> dict:
+    """Remove a instância e os recursos que eram exclusivos dela.
+
+    Devolve o relatório do que saiu (container, pasta, backups, espaço
+    liberado) em vez de 204: o usuário precisa saber o que foi apagado, ainda
+    mais quando alguma etapa falha.
+
+    ``keep_files`` preserva os dados em disco para quem quer só tirar do painel.
+    """
     state = request.app.state.supervisor.state(instance_id)
     if state not in (InstanceState.STOPPED, InstanceState.CRASHED):
         raise ConflictError(f"stop the instance before removing it (state: {state})")
-    await svc.delete(instance_id)
+    return await svc.delete(
+        instance_id,
+        remover=request.app.state.remover,
+        apagar_dados=not keep_files,
+    )

@@ -48,6 +48,22 @@ def load_or_create_secret(data_dir: Path) -> str:
     return secret
 
 
+def load_or_create_install_id(data_dir: Path) -> str:
+    """Identidade desta instalação, para marcar os containers que são nossos.
+
+    Duas instalações do Aether podem dividir a mesma engine Docker (produção e
+    um ambiente de teste na mesma máquina, por exemplo). Sem esta marca, a
+    varredura de órfãos de uma enxergaria os containers da outra como lixo e os
+    removeria — aconteceu em teste, e derrubou o servidor do vizinho.
+    """
+    path = data_dir / "install.id"
+    if path.is_file():
+        return path.read_text().strip()
+    install_id = secrets.token_hex(8)
+    path.write_text(install_id)
+    return install_id
+
+
 def load_or_create_sync_key(data_dir: Path) -> Ed25519PrivateKey:
     """Ed25519 signing key for sync manifests, generated once per install."""
     path = data_dir / "sync_signing.key"

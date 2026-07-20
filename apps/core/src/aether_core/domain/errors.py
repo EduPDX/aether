@@ -41,6 +41,17 @@ class ContentFileNotFoundError(NotFoundError):
     pass
 
 
+class EmptyBackupError(ValidationFailedError):
+    """Não havia nada para salvar.
+
+    Tem tipo próprio porque quem exige backup antes de uma operação de risco
+    precisa distinguir "o backup falhou" (disco cheio, permissão) de "não havia
+    o que salvar" — no segundo caso não há nada a perder, e recusar a operação
+    criaria um impasse: não instala porque o backup falha, e o backup falha
+    porque ainda não há instalação.
+    """
+
+
 class ContentFolderMissingError(ValidationFailedError):
     pass
 

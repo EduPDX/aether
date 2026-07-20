@@ -32,10 +32,15 @@ class InstanceOut(BaseModel):
     provider_data: dict[str, Any]
     created_at: datetime
     state: str = "stopped"
+    managed_dir: bool = False
+    """A pasta foi criada pelo painel (e some com a instância) ou é do usuário?
+    A interface precisa saber para avisar o que a remoção vai apagar."""
 
     @staticmethod
-    def from_domain(instance: Instance, state: str = "stopped") -> "InstanceOut":
-        return InstanceOut(**instance.__dict__, state=state)
+    def from_domain(
+        instance: Instance, state: str = "stopped", managed_dir: bool = False
+    ) -> "InstanceOut":
+        return InstanceOut(**instance.__dict__, state=state, managed_dir=managed_dir)
 
 
 class ContentFileRequest(BaseModel):

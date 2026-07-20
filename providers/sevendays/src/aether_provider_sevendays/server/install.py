@@ -20,6 +20,7 @@ from aether_provider_sevendays.server.container import IMAGE, INSTALL_DIR, RUN_A
 
 STEAM_APP_ID = 294420
 BRANCH_PADRAO = "public"
+HOME_STEAM = "/home/steam"
 
 _STEAMCMD = "/home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux"
 
@@ -40,6 +41,10 @@ def install_spec(ctx: LaunchContext, version: str) -> ContainerSpec:
     )
     return ContainerSpec(
         image=IMAGE,
+        # HOME explícito porque rodamos com uid numérico: nesse caso o Docker
+        # não lê o /etc/passwd do container, e o SteamCMD sem HOME não acha
+        # onde gravar a própria configuração ("Missing configuration").
+        env={"HOME": HOME_STEAM},
         command=["bash", "-c", comando],
         volumes=[VolumeMount(container_path="/data", subdir=".")],
         run_as=RUN_AS,
@@ -50,6 +55,7 @@ def versions_spec() -> ContainerSpec:
     """Container efêmero que pergunta à Steam quais versões existem."""
     return ContainerSpec(
         image=IMAGE,
+        env={"HOME": HOME_STEAM},
         command=[
             "bash",
             "-c",

@@ -14,6 +14,8 @@ export interface Instance {
   provider_data: Record<string, unknown>;
   created_at: string;
   state: InstanceState;
+  /** A pasta foi criada pelo painel (some com a instância) ou é do usuário? */
+  managed_dir: boolean;
 }
 
 export interface ContentDependency {
@@ -84,6 +86,17 @@ export interface ProviderInfo {
   content_types: { id: string; label: string; default_directory: string }[];
   capabilities: ProviderCapabilities;
   provision_schema?: { id: string; label: string; fields: ConfigFieldDef[] };
+}
+
+/** O que a remoção de uma instância levou junto. */
+export interface RemocaoRelatorio {
+  container_removido: boolean;
+  pasta_removida: string;
+  pasta_preservada: string;
+  backups_removidos: number;
+  bytes_liberados: number;
+  registros_removidos: Record<string, number>;
+  falhas: string[];
 }
 
 export interface ImageInfo {
@@ -257,8 +270,11 @@ export const api = {
     }),
   removeImage: (image: string) =>
     request<void>(`/api/v1/images?image=${encodeURIComponent(image)}`, { method: "DELETE" }),
-  deleteInstance: (id: string) =>
-    request<void>(`/api/v1/instances/${id}`, { method: "DELETE" }),
+  deleteInstance: (id: string, keepFiles = false) =>
+    request<RemocaoRelatorio>(
+      `/api/v1/instances/${id}${keepFiles ? "?keep_files=true" : ""}`,
+      { method: "DELETE" },
+    ),
   metrics: () => request<MetricsPayload>("/api/v1/metrics"),
   users: () => request<UserOut[]>("/api/v1/users"),
   createUser: (

@@ -39,6 +39,12 @@ from aether_core.domain.instances import InstanceState
 log = logging.getLogger(__name__)
 
 INSTANCE_LABEL = "aether.instance"
+INSTALL_LABEL = "aether.install"
+"""Marca qual instalação do Aether criou o container.
+
+Sem ela, duas instalações na mesma engine Docker se enxergam: a varredura de
+órfãos de uma trata os containers da outra como lixo e os remove.
+"""
 JOB_LABEL = "aether.job"
 HISTORY_LINES = 1000
 STOP_GRACE_SECONDS = 30
@@ -66,10 +72,11 @@ def _dono_dos_volumes(spec: ContainerSpec, root_dir: Path) -> None:
 class AiodockerRuntime:
     """Implementação da porta ``ContainerRuntime`` sobre a API do Docker."""
 
-    def __init__(self) -> None:
+    def __init__(self, install_id: str = "") -> None:
         # Conexão preguiçosa: o Core precisa subir normalmente numa máquina
         # sem Docker — só o uso do runtime docker exige a engine.
         self._docker = None
+        self._install_id = install_id
 
     async def _client(self):
         if self._docker is None:
@@ -117,7 +124,7 @@ class AiodockerRuntime:
             "OpenStdin": True,  # send_command escreve no stdin do servidor
             "Tty": False,
             "StopSignal": spec.stop_signal,
-            "Labels": labels,
+            "Labels": {**labels, INSTALL_LABEL: self._install_id} if self._install_id else labels,
             "ExposedPorts": exposed,
             "HostConfig": {"Binds": binds, "PortBindings": bindings},
         }
@@ -195,8 +202,16 @@ class AiodockerRuntime:
         return int(result.get("StatusCode", -1))
 
     async def list_managed(self) -> list[ManagedContainer]:
+        """Só os containers desta instalação.
+
+        O filtro por `aether.install` é o que impede uma instalação de mexer
+        nos containers de outra que use a mesma engine Docker.
+        """
         docker = await self._client()
-        containers = await docker.containers.list(all=True, filters={"label": [INSTANCE_LABEL]})
+        marcas = [INSTANCE_LABEL]
+        if self._install_id:
+            marcas.append(f"{INSTALL_LABEL}={self._install_id}")
+        containers = await docker.containers.list(all=True, filters={"label": marcas})
         managed = []
         for c in containers:
             info = c._container  # payload da listagem; evita um inspect por container
@@ -294,6 +309,16 @@ class DockerContainerSupervisor:
     def tracks(self, instance_id: str) -> bool:
         """O hub usa isto para saber a quem uma instância pertence."""
         return instance_id in self._containers
+
+    def forget(self, instance_id: str) -> None:
+        """Esquece a instância removida.
+
+        Sem isto o supervisor continuaria reportando estado de um servidor que
+        não existe mais, e o id ficaria ocupado se outro reaproveitasse.
+        """
+        rc = self._containers.pop(instance_id, None)
+        if rc and rc.reader:
+            rc.reader.cancel()
 
     def state(self, instance_id: str) -> InstanceState:
         rc = self._containers.get(instance_id)

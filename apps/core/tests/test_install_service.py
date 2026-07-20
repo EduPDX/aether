@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from aether_core.application.events import EventBus
 from aether_core.application.install import InstallService
-from aether_core.domain.errors import ConflictError, ValidationFailedError
+from aether_core.domain.errors import ConflictError, EmptyBackupError, ValidationFailedError
 from aether_core.domain.instances import Instance, InstanceState
 from aether_sdk import ContainerSpec, VersionInfo
 
@@ -127,6 +127,28 @@ def test_backup_que_falha_cancela_a_atualizacao(tmp_path):
             await svc.install(_instancia(tmp_path), "v3.0.1", backup_service=backups)
 
         assert "run_once" not in chamadas  # nada foi baixado
+
+    asyncio.run(caso())
+
+
+def test_instalacao_incompleta_nao_trava_por_falta_de_backup(tmp_path):
+    """Uma instalação que falhou no meio deixa o manifesto do jogo sem nenhum
+    dado do usuário. Exigir backup aí cria um impasse: não instala porque o
+    backup falha, e o backup falha porque não há o que salvar."""
+
+    async def caso():
+        chamadas: list[str] = []
+        svc = _servico(chamadas, instalado="23906567")
+
+        class BackupVazio(FakeBackups):
+            async def create(self, instance, kind=None, note: str = ""):
+                self.chamadas.append("backup")
+                raise EmptyBackupError("nada para salvar")
+
+        await svc.install(_instancia(tmp_path), "public", backup_service=BackupVazio(chamadas))
+
+        # Seguiu em frente em vez de travar.
+        assert chamadas == ["backup", "run_once", "after_install"]
 
     asyncio.run(caso())
 

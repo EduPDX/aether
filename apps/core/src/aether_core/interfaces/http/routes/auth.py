@@ -47,9 +47,7 @@ async def status(auth: AuthServiceDep) -> dict:
 
 @router.post("/setup", status_code=201)
 async def setup(body: Credentials, auth: AuthServiceDep, request: Request) -> dict:
-    user = await auth.setup_owner(
-        body.username, body.password, body.email, body.display_name
-    )
+    user = await auth.setup_owner(body.username, body.password, body.email, body.display_name)
     access, refresh, _ = await auth.login(body.username, body.password)
     await _audit(request, f"auth.setup owner={user.username}", user)
     return {"user": _user_out(user), "access_token": access, "refresh_token": refresh}
