@@ -46,9 +46,17 @@ class ConfigService:
                 except Exception:
                     # Um aviso quebrado não pode impedir a tela de config de abrir.
                     avisos = []
+            visivel = schema
+            if schema.fields_from_file and exists:
+                # A versão instalada é que decide o que existe: oferecer um
+                # campo que aquele build ignora produz configuração fantasma —
+                # o usuário salva, nada acontece, e não há como saber por quê.
+                visivel = schema.model_copy(deep=True)
+                visivel.fields = [f for f in schema.fields if f.key in values]
+
             out.append(
                 {
-                    "schema": schema.model_dump(),
+                    "schema": visivel.model_dump(),
                     "values": values,
                     "file_exists": exists,
                     "warnings": avisos,
@@ -76,6 +84,17 @@ class ConfigService:
             text = await self._files.read_text(instance, schema.file)
         except NotFoundError:
             text = ""
+
+        if schema.fields_from_file and text:
+            # Salvar não pode inventar propriedade: numa versão que não conhece
+            # a chave, escrevê-la só suja o arquivo sem configurar nada.
+            no_arquivo = set(codec.parse(text))
+            ignoradas = sorted(set(values) - no_arquivo)
+            if ignoradas:
+                raise ValidationFailedError(
+                    "estas opções não existem na versão instalada do servidor: "
+                    + ", ".join(ignoradas)
+                )
         new_text = codec.apply(text, {k: str(v) for k, v in values.items()})
         await self._files.write_text(instance, schema.file, new_text)
         await self._bus.publish("config.updated", {"instance_id": instance.id, "schema": schema_id})

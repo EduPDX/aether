@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aether_core.application.auth import AuthService
 from aether_core.application.backups import BackupService
 from aether_core.application.config import ConfigService
+from aether_core.application.config_raw import RawConfigService
 from aether_core.application.content import ContentService
 from aether_core.application.files import FilesService
 from aether_core.application.icons import ServerIconService
@@ -201,6 +202,16 @@ def get_config_service(request: Request) -> ConfigService:
         files=get_files_service(request),
         bus=state.bus,
     )
+
+
+def get_raw_config_service(request: Request) -> RawConfigService:
+    state = request.app.state
+    return RawConfigService(
+        providers=state.providers, files=get_files_service(request), bus=state.bus
+    )
+
+
+RawConfigServiceDep = Annotated[RawConfigService, Depends(get_raw_config_service)]
 
 
 def get_server_icon_service(request: Request) -> ServerIconService:
