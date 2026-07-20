@@ -11,7 +11,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from aether_core.application.catalog import CatalogService
+from aether_core.application.catalog import PREFIXO_MEDIA, CatalogService
 from aether_core.infrastructure.steam_store import SteamStoreSource
 from aether_sdk import GameCatalogEntry, PortaDoJogo, RamPorJogadores
 
@@ -241,5 +241,31 @@ def test_imagem_curada_tambem_e_baixada(tmp_path):
         assert arquivo.endswith(".svg")
         _, tipo = svc.media_path("jogo", arquivo)
         assert tipo == "image/svg+xml"
+
+    asyncio.run(caso())
+
+
+def test_cache_gravado_sem_imagem_nao_trava_a_url_externa(tmp_path):
+    """Instalação que já rodou antes tem cache sem imagem. Se ele bloqueasse a
+    localização, a página buscaria a CDN externa até o TTL vencer — e o TTL
+    renova a cada visita, ou seja, para sempre."""
+
+    async def caso():
+        entrada = _entrada(steam_app_id=None, logo_url="https://commons.exemplo/logo.svg")
+        registry = Registry(jogo=ProviderComCatalogo(entrada))
+
+        # Primeira vida do serviço: sem `baixar`, grava cache sem imagem.
+        await CatalogService(registry, tmp_path, []).get("jogo")
+
+        baixados: list[str] = []
+
+        async def baixar(url: str) -> bytes:
+            baixados.append(url)
+            return b"png-falso"
+
+        ficha = await CatalogService(registry, tmp_path, [], baixar=baixar).get("jogo")
+
+        assert baixados == ["https://commons.exemplo/logo.svg"]
+        assert ficha["logo_url"].startswith(PREFIXO_MEDIA)
 
     asyncio.run(caso())

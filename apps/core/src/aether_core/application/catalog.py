@@ -84,12 +84,22 @@ class CatalogService:
         extra = None if atualizar else self._ler_cache(game_id)
         if extra is None:
             extra = await self._buscar_nas_fontes(entrada)
-            # As imagens são localizadas depois da fusão, e não dentro da busca,
-            # porque também precisam ser baixadas quando o provider as declara —
-            # o Minecraft não tem fonte externa e mesmo assim tem logo e banner.
-            extra = await self._localizar_imagens(self._aplicar(entrada, extra), extra)
-            self._gravar_cache(game_id, extra)
-        return self._aplicar(entrada, extra).model_dump()
+
+        # As imagens são localizadas depois da fusão, e não dentro da busca, por
+        # dois motivos: o provider também declara imagens (o Minecraft não tem
+        # fonte externa e mesmo assim tem logo e banner), e um cache gravado antes
+        # de a imagem existir travaria a URL externa até o TTL vencer — numa
+        # instalação já rodando, para sempre na prática.
+        final = self._aplicar(entrada, extra)
+        if self._falta_localizar(final):
+            extra = await self._localizar_imagens(final, extra)
+            final = self._aplicar(entrada, extra)
+        self._gravar_cache(game_id, extra)
+        return final.model_dump()
+
+    @staticmethod
+    def _falta_localizar(final: GameCatalogEntry) -> bool:
+        return any(str(getattr(final, campo, "")).startswith("http") for campo in IMAGENS)
 
     # ------------------------------------------------------------------ fusão
     @staticmethod
