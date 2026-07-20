@@ -15,6 +15,7 @@ import {
   Store,
   TerminalSquare,
   Trash2,
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useDialog } from "../../components/Dialog";
@@ -25,6 +26,7 @@ import { useProvider } from "../../lib/providers";
 import { subscribeTopic } from "../../lib/ws";
 import { useAuth } from "../auth/AuthGate";
 import { BackupsView } from "../backups/BackupsView";
+import { PlayersView } from "../players/PlayersView";
 import { TrashView } from "../trash/TrashView";
 import { ConfigView } from "../config/ConfigView";
 import { ConsoleView } from "../console/ConsoleView";
@@ -60,6 +62,7 @@ type Tab =
   | "catalog"
   | "console"
   | "files"
+  | "players"
   | "trash"
   | "config"
   | "sync"
@@ -169,6 +172,9 @@ export function InstanceView({ instance }: { instance: Instance }) {
               ? [["catalog", "Catálogo", <Store size={16} />] as Aba]
               : []),
             ["console", "Console", <TerminalSquare size={16} />],
+            ...(can(user, "power.use") && caps?.players
+              ? [["players", "Jogadores", <Users size={16} />] as Aba]
+              : []),
             ...(can(user, "files.read")
               ? [["files", "Arquivos", <FolderOpen size={16} />] as Aba]
               : []),
@@ -216,6 +222,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
         {tab === "console" && <ConsoleView instance={instance} />}
         {tab === "files" && <FilesView instance={instance} />}
         {tab === "config" && <ConfigView instance={instance} />}
+        {tab === "players" && <PlayersView instance={instance} />}
         {tab === "trash" && <TrashView instance={instance} />}
         {tab === "sync" && <SyncView instance={instance} />}
         {tab === "backups" && <BackupsView instance={instance} />}

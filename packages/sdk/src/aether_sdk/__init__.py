@@ -35,6 +35,14 @@ from aether_sdk.launch import (
     SupportsLaunch,
 )
 from aether_sdk.manifest import SDK_VERSION, IconSpec, ProviderManifest
+from aether_sdk.players import (
+    LIVE_ONLY,
+    PlayerAction,
+    PlayerEntry,
+    PlayerList,
+    PlayerListKind,
+    SupportsPlayers,
+)
 from aether_sdk.provider import GameProvider
 from aether_sdk.source import (
     ContentSource,
@@ -69,7 +77,13 @@ __all__ = [
     "SourceDependency",
     "SourceItem",
     "SourceVersion",
+    "LIVE_ONLY",
+    "PlayerAction",
+    "PlayerEntry",
+    "PlayerList",
+    "PlayerListKind",
     "SupportsBackup",
+    "SupportsPlayers",
     "SupportsConfig",
     "SupportsContainer",
     "SupportsGameMetadata",

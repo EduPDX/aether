@@ -37,6 +37,7 @@ from aether_core.interfaces.http.routes import (
     instances,
     meta,
     metrics,
+    players,
     power,
     public,
     sources,
@@ -192,6 +193,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(config.router)
     api.include_router(backups.router)
     api.include_router(trash.router)
+    api.include_router(players.router)
     api.include_router(sources.router)
     api.include_router(tasks.router)
     api.include_router(sync.router)

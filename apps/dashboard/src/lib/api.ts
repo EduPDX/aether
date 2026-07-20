@@ -69,6 +69,7 @@ export interface ProviderCapabilities {
   backup: boolean;
   sources: boolean;
   game_metadata: boolean;
+  players: boolean;
 }
 
 export interface ProviderInfo {
@@ -385,6 +386,12 @@ export const api = {
       method: "POST",
     }),
   /** Conteúdo da lixeira. Não confundir com `trash`, que *manda* um mod para lá. */
+  players: (id: string) => request<{ lists: PlayerList[] }>(`/api/v1/instances/${id}/players`),
+  playerAction: (id: string, action: PlayerAction, name: string, reason = "") =>
+    request<{ applied_via: "console" | "arquivo" }>(
+      `/api/v1/instances/${id}/players/action`,
+      { method: "POST", body: JSON.stringify({ action, name, reason }) },
+    ),
   listTrash: (id: string) => request<TrashPayload>(`/api/v1/instances/${id}/trash`),
   restoreTrash: (id: string, itemId: string) =>
     request<{ restored_to: string }>(`/api/v1/instances/${id}/trash/${itemId}/restore`, {
@@ -687,6 +694,30 @@ export interface TrashItem {
 export interface TrashPayload {
   items: TrashItem[];
   total_bytes: number;
+}
+
+export type PlayerAction =
+  | "allow_add"
+  | "allow_remove"
+  | "admin_add"
+  | "admin_remove"
+  | "ban"
+  | "unban"
+  | "kick";
+
+export interface PlayerEntry {
+  name: string;
+  id: string;
+  /** Texto do jogo: motivo do ban, nível do operador. O front não interpreta. */
+  detail: string;
+}
+
+export interface PlayerList {
+  kind: "allow" | "admin" | "banned";
+  label: string;
+  /** Falso quando o servidor está ignorando a lista (white-list=false). */
+  enforced: boolean;
+  entries: PlayerEntry[];
 }
 
 export interface ConfigWarning {

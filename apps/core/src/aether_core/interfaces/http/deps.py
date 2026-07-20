@@ -13,6 +13,7 @@ from aether_core.application.content import ContentService
 from aether_core.application.files import FilesService
 from aether_core.application.icons import ServerIconService
 from aether_core.application.instances import InstanceService
+from aether_core.application.players import PlayerService
 from aether_core.application.power import PowerService
 from aether_core.application.sources import SourceService
 from aether_core.application.sync import SyncService
@@ -168,6 +169,15 @@ def get_power_service(request: Request) -> PowerService:
     return PowerService(providers=state.providers, supervisors=state.supervisors)
 
 
+def get_player_service(request: Request) -> PlayerService:
+    state = request.app.state
+    return PlayerService(
+        providers=state.providers,
+        power=get_power_service(request),
+        bus=state.bus,
+    )
+
+
 def get_files_service(request: Request, session: SessionDep) -> FilesService:
     state = request.app.state
     return FilesService(trash=get_trash_service(request, session), bus=state.bus)
@@ -251,3 +261,4 @@ FilesServiceDep = Annotated[FilesService, Depends(get_files_service)]
 ConfigServiceDep = Annotated[ConfigService, Depends(get_config_service)]
 SyncServiceDep = Annotated[SyncService, Depends(get_sync_service)]
 TrashServiceDep = Annotated[TrashService, Depends(get_trash_service)]
+PlayerServiceDep = Annotated[PlayerService, Depends(get_player_service)]

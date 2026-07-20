@@ -29,6 +29,11 @@ from aether_provider_minecraft.server.container import (
 )
 from aether_provider_minecraft.server.game_meta import detect_game_metadata
 from aether_provider_minecraft.server.launch import build_launch_spec
+from aether_provider_minecraft.server.players import (
+    apply_player_action,
+    player_command,
+    player_lists,
+)
 from aether_provider_minecraft.server.properties import (
     SERVER_PROPERTIES_SCHEMA,
     PropertiesCodec,
@@ -131,3 +136,13 @@ class MinecraftProvider:
 
     def quiesce_plan(self) -> QuiescePlan:
         return quiesce_plan()
+
+    # ------------------------------------------------------------ jogadores --
+    def player_lists(self, root: Path) -> list:
+        return player_lists(root)
+
+    def player_command(self, action, name: str, reason: str = "") -> str | None:
+        return player_command(action, name, reason)
+
+    def apply_player_action(self, root: Path, action, name: str, reason: str = "") -> None:
+        apply_player_action(root, action, name, reason)
