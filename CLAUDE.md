@@ -12,6 +12,24 @@ O launcher do jogador vive em outro repositório:
 [EduPDX/aether-launcher](https://github.com/EduPDX/aether-launcher). A fronteira
 entre os dois está documentada em [apps/LAUNCHER.md](apps/LAUNCHER.md).
 
+## Ambiente de desenvolvimento
+
+**Desenvolva em Linux — no Windows, dentro do WSL2.** O alvo do Aether é servidor,
+e servidor é Linux; produção é um LXC Debian. Desenvolver fora disso faz o time
+divergir em coisas que só aparecem numa das máquinas.
+
+Não é hipotético. Já custou: `os.chown` não existe no Windows, e como o
+`suppress(OSError)` não pega `AttributeError`, criar instância em container
+quebrava numa máquina e funcionava na outra. No mesmo commit, 20 testes do
+provider `sevendays` nem chegavam a rodar. No WSL a suíte fecha em 243; no
+Windows eram 221 passando e 2 falhando.
+
+Montagem, uma vez: `wsl --install` (precisa de SVM/VT-x ligado na BIOS), depois
+`wsl --install -d Ubuntu`. Trabalhe em `~/aether`, **não** em `/mnt/c/...` — o
+acesso ao disco do Windows por ali é lento e traz de volta os problemas de
+permissão que a mudança resolve. Instale o `uv` com `pipx install uv`, que vem do
+PyPI com verificação de integridade, em vez de `curl | sh`.
+
 ## Comandos
 
 ```bash
@@ -134,3 +152,24 @@ Produção é um LXC no Proxmox (endereço na rede local do dono), código em `/
 serviço systemd `aether-core`. O deploy empacota `git archive` + o `dist/` do
 dashboard, envia por `pct push` e reinicia o serviço. O dashboard é servido pelo
 próprio Core em `/app`.
+
+**Sincronize com `rsync --delete`, nunca extraindo o tar por cima.** O `tar -xzf`
+sobrescreve o que mudou mas não remove o que saiu do repositório, então arquivo
+renomeado ou apagado vira fantasma no servidor — para sempre.
+
+Isso já derrubou produção uma vez: a migração `0008_trash.py` foi renomeada para
+`0009_trash.py`, a antiga continuou lá, e o Alembic se recusou a subir com duas
+cabeças (`Multiple head revisions`). O sintoma foi numa migração, mas o problema
+vale para qualquer arquivo.
+
+O caminho correto: extrair o `git archive` numa árvore limpa em `/tmp` e sincronizar
+com `rsync -a --delete`, excluindo o que não vem do git (`.venv/`, `node_modules/`,
+`dist/`, `__pycache__/`). Limpar o bytecode velho junto, senão módulo removido
+continua importável.
+
+**Dependência nova não chega sozinha.** O LXC não tem `uv` nem `pip` — o deploy só
+copia arquivos. Quando o `pyproject.toml` ganhar uma dependência, ela precisa ser
+instalada à mão no servidor, senão o recurso sobe morto. Hoje é o caso do
+`aiodocker` e do provider `sevendays`: estão no código, ausentes do venv de
+produção. Efeito colateral bom: como a descoberta é por entry point, o provider
+simplesmente não aparece na interface em vez de oferecer uma opção que quebra.
