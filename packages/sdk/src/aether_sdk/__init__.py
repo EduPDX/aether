@@ -26,6 +26,7 @@ from aether_sdk.content import (
     ContentMetadata,
     ContentType,
 )
+from aether_sdk.install import InstallResult, SupportsInstall, VersionInfo
 from aether_sdk.launch import (
     ConsoleCodec,
     ConsoleLine,
@@ -61,6 +62,7 @@ __all__ = [
     "ContentType",
     "GameProvider",
     "IconSpec",
+    "InstallResult",
     "LaunchContext",
     "LaunchSpec",
     "PortMapping",
@@ -73,7 +75,9 @@ __all__ = [
     "SupportsConfig",
     "SupportsContainer",
     "SupportsGameMetadata",
+    "SupportsInstall",
     "SupportsLaunch",
     "SupportsProvision",
+    "VersionInfo",
     "VolumeMount",
 ]

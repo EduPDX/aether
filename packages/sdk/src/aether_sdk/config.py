@@ -36,6 +36,10 @@ class ConfigField(BaseModel):
     """Limites de um campo numérico, quando o jogo os define."""
     minimum: int | None = None
     maximum: int | None = None
+    depends_on: dict[str, str] = Field(default_factory=dict)
+    """Só faz sentido quando outro campo tem certo valor — a semente e o
+    tamanho do mundo, por exemplo, só existem em mapa gerado. A interface
+    esconde o campo enquanto a condição não bate."""
 
 
 class ConfigSchema(BaseModel):
@@ -45,6 +49,14 @@ class ConfigSchema(BaseModel):
     """Path of the config file, relative to the instance root."""
     format: str = "properties"
     fields: list[ConfigField] = Field(default_factory=list)
+    fields_from_file: bool = False
+    """O arquivo distribuído pelo jogo é que define quais campos existem.
+
+    Com isto ligado o Core esconde os campos ausentes do arquivo, em vez de
+    oferecer uma configuração que aquela versão ignora — o 7 Days to Die
+    trocou o conjunto de propriedades entre versões mais de uma vez. Fica
+    desligado para formatos onde chave ausente significa "usar o padrão"
+    (o ``server.properties`` do Minecraft)."""
 
 
 @runtime_checkable
