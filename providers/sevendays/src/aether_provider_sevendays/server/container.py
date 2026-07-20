@@ -1,50 +1,50 @@
-"""Container do 7 Days to Die: SteamCMD instala, o binário roda em foreground.
+"""Container que roda o servidor de 7 Days to Die.
 
-A escolha da imagem é deliberada: ``cm2network/steamcmd:root`` em vez de uma
-imagem pronta de 7DTD (LinuxGSM etc.). O motivo é arquitetural — as imagens
-prontas escondem servidor, config e saves em caminhos próprios e administram
-via telnet, o que quebraria os módulos de config, files e backup do Aether.
-Aqui tudo mora no volume ``/data`` (a raiz da instância): o SteamCMD valida a
-instalação a cada subida e o binário roda com stdout/stdin ligados ao Core,
-como qualquer outra instância.
+A escolha da imagem é deliberada: ``cm2network/steamcmd`` em vez de uma imagem
+pronta de 7DTD (LinuxGSM etc.). O motivo é arquitetural — as prontas escondem
+servidor, config e saves em caminhos próprios e administram via telnet, o que
+quebraria os módulos de config, arquivos e backup do Aether. Aqui tudo mora no
+volume ``/data`` (a raiz da instância) e o binário roda com stdout/stdin
+ligados ao Core, como qualquer outra instância.
+
+A instalação **não** acontece aqui: ela é uma fase própria (``install.py``),
+o que deixa a subida do servidor rápida e permite escolher versão, preparar a
+configuração a partir do que o jogo distribui e atualizar sob controle.
 """
 
 from pathlib import Path
 
 from aether_sdk import ContainerSpec, LaunchContext, PortMapping, VolumeMount
 
-from aether_provider_sevendays.server.serverconfig import (
-    CONFIG_FILE,
-    SERVERCONFIG_SCHEMA,
-    render_initial_config,
-)
+from aether_provider_sevendays.server.serverconfig import CONFIG_FILE, SERVERCONFIG_SCHEMA
 
 IMAGE = "cm2network/steamcmd:root"
-STEAM_APP_ID = 294420
 DEFAULT_PORT = 26900
 
 # O SteamCMD recusa rodar como root ("Missing file permissions") — a imagem
-# traz o usuário `steam` justamente para isso.
+# traz o usuário `steam` justamente para isso. O servidor herda o mesmo usuário
+# para conseguir escrever nos arquivos que o instalador criou.
 RUN_AS = "1000:1000"
 
-# `+@sSteamCmdForcePlatformType linux` vem ANTES do login e não é opcional: o
-# 294420 é um app do tipo "Tool", e para esses o SteamCMD não resolve a
-# plataforma sozinho — aborta com "Missing configuration" sem baixar nada.
-#
+INSTALL_DIR = "/data/server"
+BINARIO = "7DaysToDieServer.x86_64"
+
 # -logfile é omitido de propósito: com ele o Unity silencia o stdout e o
 # console do painel ficaria vazio.
 _BOOT = (
-    "set -e; "
-    "/home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux "
-    f"+force_install_dir /data/server "
-    f"+login anonymous +app_update {STEAM_APP_ID} validate +quit; "
-    "cd /data/server; "
-    "exec ./7DaysToDieServer.x86_64 -quit -batchmode -nographics -dedicated "
+    f"set -e; cd {INSTALL_DIR}; "
+    f"exec ./{BINARIO} -quit -batchmode -nographics -dedicated "
     f"-configfile=/data/{CONFIG_FILE}"
 )
 
 
 def build_container_spec(ctx: LaunchContext) -> ContainerSpec | None:
+    """``None`` enquanto o servidor não foi instalado — sem os arquivos do
+    jogo não há o que subir, e o erro fica claro em vez de um container que
+    morre com 'no such file'."""
+    if not (Path(ctx.root_dir) / "server" / BINARIO).is_file():
+        return None
+
     cfg = dict(ctx.provider_data.get("container") or {})
     porta = int(cfg.get("port") or DEFAULT_PORT)
     return ContainerSpec(
@@ -66,8 +66,11 @@ def build_container_spec(ctx: LaunchContext) -> ContainerSpec | None:
 
 
 def provision_schema():
-    """Criar servidor = preencher o serverconfig inicial; o schema é o mesmo
-    da tela de config, sem os campos avançados."""
+    """Criar servidor = escolher o essencial do serverconfig.
+
+    Mesmo schema da tela de Config, sem os campos avançados: o resto tem
+    padrão bom e pode ser ajustado depois, com o arquivo do jogo já em disco.
+    """
     schema = SERVERCONFIG_SCHEMA.model_copy(deep=True)
     schema.id = "sevendays-provision"
     schema.label = "Novo servidor 7 Days to Die"
@@ -76,7 +79,15 @@ def provision_schema():
 
 
 def provision(root_dir: Path, values: dict) -> dict:
-    (root_dir / CONFIG_FILE).write_text(render_initial_config(values), encoding="utf-8")
+    """Guarda as escolhas do usuário; o arquivo de config só nasce depois.
+
+    Não dá para escrever o serverconfig.xml agora: ele precisa ser uma cópia
+    do arquivo da versão que ainda vai ser instalada. As respostas ficam
+    guardadas e são aplicadas pelo ``after_install``.
+    """
     (root_dir / "server").mkdir(exist_ok=True)
     (root_dir / "UserData").mkdir(exist_ok=True)
-    return {"container": {"port": DEFAULT_PORT}}
+    return {
+        "container": {"port": DEFAULT_PORT},
+        "pending_config": {k: str(v) for k, v in values.items()},
+    }
