@@ -13,6 +13,49 @@
 
 ---
 
+## Instalação rápida
+
+Num servidor Linux com systemd (Debian/Ubuntu, Fedora/RHEL ou Arch), um comando:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EduPDX/aether/main/install.sh | sudo bash
+```
+
+O script instala as dependências (uv com o Python 3.11, Node e Docker), clona o
+projeto em `/opt/aether`, compila o painel, cria o serviço `aether-core` e o
+habilita para subir junto com a máquina. Ao final ele mostra o endereço do
+painel — na primeira vez, ele pede para criar a conta de dono.
+
+Rodar de novo **atualiza** a instalação: o diretório de dados (`/var/lib/aether`)
+nunca é tocado, então reinstalar não custa mundos nem backups.
+
+### Opções
+
+```bash
+curl -fsSL .../install.sh | sudo bash -s -- --sem-docker --porta 9000
+```
+
+| Opção | Para que serve |
+|---|---|
+| `--sem-docker` | não instala o Docker (só instâncias em processo local funcionam) |
+| `--sem-node` | não instala Node/pnpm (o painel web não é compilado) |
+| `--dir CAMINHO` | onde instalar o código (padrão `/opt/aether`) |
+| `--dados CAMINHO` | onde ficam os dados (padrão `/var/lib/aether`) |
+| `--porta NUM` | porta do painel (padrão `8600`) |
+| `--branch NOME` | branch a instalar (padrão `main`) |
+| `--dry-run` | mostra o que faria, sem alterar nada |
+
+### Atualizar depois
+
+Em **Configurações → Sistema** existe o botão **Atualizar Aether**: ele busca a
+versão mais recente da `main`, reinstala dependências, recompila o painel e
+reinicia o serviço, copiando o banco de dados antes. Se alguém tiver editado
+arquivos direto no servidor, a atualização é recusada e mostra quais são — em
+vez de sobrescrever o trabalho em silêncio.
+
+O botão exige que a instalação seja um clone git, que é o que o `install.sh`
+deixa pronto.
+
 ## O problema
 
 Quem administra um servidor de Minecraft modado vive com três ferramentas que

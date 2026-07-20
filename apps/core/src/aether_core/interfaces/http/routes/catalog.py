@@ -21,11 +21,15 @@ async def detalhe(
 
 
 @router.get("/{game_id}/media/{arquivo}")
-async def media(request: Request, game_id: str, arquivo: str, _: InstancesRead) -> FileResponse:
+async def media(request: Request, game_id: str, arquivo: str) -> FileResponse:
     """Imagens baixadas pelo Core.
 
     Servi-las daqui é o que faz o catálogo funcionar em rede fechada e evita
     que o navegador de cada usuário vá até a CDN da loja.
+
+    Sem autenticação de propósito: uma tag ``<img>`` não manda cabeçalho, e o
+    conteúdo é capa de jogo publicada pela própria loja — exigir token aqui só
+    quebraria a imagem sem proteger nada.
     """
     caminho = request.app.state.catalog.media_path(game_id, arquivo)
     return FileResponse(caminho, media_type="image/jpeg")

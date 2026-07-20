@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Check, Palette, Shapes, UserRound } from "lucide-react";
+import { Activity, BarChart3, Check, Palette, RefreshCw, Shapes, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { CategoryChart, TimeSeries } from "../../components/BarChart";
@@ -17,6 +17,7 @@ import { ICON_PACKS, currentIconPack, setIconPack } from "../../lib/icons";
 import type { ThemeName } from "../../lib/themes";
 import { THEMES, THEME_NAMES, applyTheme, currentTheme } from "../../lib/themes";
 import { ProfileContent } from "../admin/AdminViews";
+import { SystemSection } from "./SystemSection";
 import { FileIcon } from "../files/FileIcon";
 import { IconPreview, ThemePreview } from "./Previews";
 
@@ -38,13 +39,14 @@ const AMOSTRA_ARQUIVOS: { name: string; isDir: boolean }[] = [
   { name: "icon.png", isDir: false },
 ];
 
-type Secao = "tema" | "icones" | "graficos" | "perfil";
+type Secao = "tema" | "icones" | "graficos" | "perfil" | "sistema";
 
 const SECOES: { id: Secao; label: string; icon: ReactNode; grupo: string }[] = [
   { id: "tema", label: "Tema", icon: <Palette size={15} />, grupo: "Aparência" },
   { id: "icones", label: "Ícones", icon: <Shapes size={15} />, grupo: "Aparência" },
   { id: "graficos", label: "Gráficos", icon: <BarChart3 size={15} />, grupo: "Aparência" },
   { id: "perfil", label: "Meu perfil", icon: <UserRound size={15} />, grupo: "Conta" },
+  { id: "sistema", label: "Sistema", icon: <RefreshCw size={15} />, grupo: "Instalação" },
 ];
 
 /** Cartão selecionável com prévia viva do gráfico dentro. */
@@ -342,6 +344,7 @@ export function SettingsView({ initialSection = "tema" }: { initialSection?: Sec
           )}
 
           {secao === "perfil" && <ProfileContent />}
+          {secao === "sistema" && <SystemSection />}
         </div>
       </div>
     </div>

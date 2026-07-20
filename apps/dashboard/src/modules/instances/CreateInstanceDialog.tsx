@@ -18,10 +18,19 @@ type Modo = "adopt" | "create";
  * O formulário de criação é gerado do provision_schema do provider — a
  * interface não conhece nenhum jogo em particular.
  */
-export function CreateInstanceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CreateInstanceDialog({
+  open,
+  onClose,
+  providerId: providerFixo,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Vindo da página do jogo: o jogo já foi escolhido no catálogo. */
+  providerId?: string | null;
+}) {
   const qc = useQueryClient();
   const providers = useProviders();
-  const [providerId, setProviderId] = useState<string | null>(null);
+  const [providerId, setProviderId] = useState<string | null>(providerFixo ?? null);
   const [modo, setModo] = useState<Modo>("adopt");
   const [name, setName] = useState("");
   const [rootDir, setRootDir] = useState("");
@@ -57,8 +66,13 @@ export function CreateInstanceDialog({ open, onClose }: { open: boolean; onClose
   const opcoesDeVersao = versoes.data ?? [];
   const versaoEscolhida = version || opcoesDeVersao.find((v) => v.stable)?.id || "";
 
+  // Reabrir o diálogo a partir de outra página do jogo precisa trocar o jogo.
+  useEffect(() => {
+    if (providerFixo) setProviderId(providerFixo);
+  }, [providerFixo]);
+
   const reset = () => {
-    setProviderId(null);
+    setProviderId(providerFixo ?? null);
     setModo("adopt");
     setName("");
     setRootDir("");
@@ -141,12 +155,14 @@ export function CreateInstanceDialog({ open, onClose }: { open: boolean; onClose
           <div className="flex items-center gap-2 text-xs text-muted">
             <Gamepad2 size={14} className="text-accent" />
             {provider.manifest.name}
-            <button
-              className="cursor-pointer text-accent hover:underline"
-              onClick={() => setProviderId(null)}
-            >
-              trocar
-            </button>
+            {!providerFixo && (
+              <button
+                className="cursor-pointer text-accent hover:underline"
+                onClick={() => setProviderId(null)}
+              >
+                trocar
+              </button>
+            )}
           </div>
 
           {podeCriar && (

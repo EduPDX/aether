@@ -100,6 +100,53 @@ export interface RemocaoRelatorio {
   falhas: string[];
 }
 
+export interface RequisitosDeHardware {
+  cpu: string;
+  ram: string;
+  disco: string;
+  rede: string;
+  observacao: string;
+}
+
+export interface GameCatalogEntry {
+  id: string;
+  provider_id: string;
+  nome: string;
+  tagline: string;
+  descricao: string;
+  genero: string[];
+  desenvolvedora: string;
+  publicadora: string;
+  plataformas_do_cliente: string[];
+  so_do_servidor: string[];
+  logo_url: string;
+  banner_url: string;
+  requisitos_servidor_minimo: RequisitosDeHardware | null;
+  requisitos_servidor_recomendado: RequisitosDeHardware | null;
+  requisitos_cliente_minimo: RequisitosDeHardware | null;
+  requisitos_cliente_recomendado: RequisitosDeHardware | null;
+  ram_por_jogadores: { ate_jogadores: number; ram: string; observacao: string }[];
+  portas: { numero: number; protocolo: string; descricao: string; obrigatoria: boolean }[];
+  observacoes_de_hospedagem: string[];
+  links: { titulo: string; url: string }[];
+  steam_app_id: number | null;
+}
+
+/** Estado da instalação para a autoatualização. */
+export interface UpdateStatus {
+  version: string;
+  gerenciavel: boolean;
+  motivo: string;
+  branch: string;
+  commit: string;
+  commit_curto: string;
+  data_do_commit: string;
+  assunto: string;
+  alteracoes_locais: string[];
+  commits_atras: number;
+  atualizando: boolean;
+}
+
 export interface ImageInfo {
   id: string;
   tags: string[];
@@ -252,6 +299,15 @@ export const api = {
       body: JSON.stringify({ new_password: newPassword }),
     }),
   providers: () => request<ProviderInfo[]>("/api/v1/providers"),
+  catalog: () => request<GameCatalogEntry[]>("/api/v1/catalog"),
+  catalogGame: (id: string, atualizar = false) =>
+    request<GameCatalogEntry>(`/api/v1/catalog/${id}${atualizar ? "?atualizar=true" : ""}`),
+  updateStatus: () => request<UpdateStatus>("/api/v1/system/update"),
+  runUpdate: () =>
+    request<{ commit_curto: string; assunto: string; banco_salvo_em: string }>(
+      "/api/v1/system/update",
+      { method: "POST" },
+    ),
   instances: () => request<Instance[]>("/api/v1/instances"),
   createInstance: (body: {
     name: string;

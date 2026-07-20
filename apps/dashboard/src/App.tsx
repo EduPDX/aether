@@ -24,6 +24,8 @@ import { CreateInstanceDialog } from "./modules/instances/CreateInstanceDialog";
 import { InstanceView } from "./modules/instances/InstanceView";
 import { useDialog } from "./components/Dialog";
 import { AuditView, UsersView } from "./modules/admin/AdminViews";
+import { CatalogView } from "./modules/catalog/CatalogView";
+import { GameView } from "./modules/catalog/GameView";
 import { ImagesView } from "./modules/images/ImagesView";
 import { OverviewView } from "./modules/overview/OverviewView";
 import { SettingsView } from "./modules/settings/SettingsView";
@@ -35,6 +37,8 @@ type View =
   | { kind: "users" }
   | { kind: "audit" }
   | { kind: "images" }
+  | { kind: "catalog" }
+  | { kind: "game"; id: string }
   | { kind: "settings" }
   | { kind: "profile" };
 
@@ -44,6 +48,8 @@ const TITLES: Record<string, string> = {
   users: "Usuários",
   audit: "Auditoria",
   images: "Imagens de container",
+  catalog: "Catálogo de jogos",
+  game: "Catálogo de jogos",
   settings: "Configurações",
   profile: "Meu perfil",
 };
@@ -92,6 +98,8 @@ export default function App() {
   const instancesQuery = useQuery({ queryKey: ["instances"], queryFn: api.instances });
   const [view, setView] = useState<View | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  // O jogo escolhido no catálogo entra direto no assistente.
+  const [providerParaCriar, setProviderParaCriar] = useState<string | null>(null);
 
   const instances = instancesQuery.data ?? [];
 
@@ -203,8 +211,8 @@ export default function App() {
           <NavItem
             icon={<Plus size={17} />}
             label="Nova instância"
-            active={false}
-            onClick={() => setCreateOpen(true)}
+            active={view?.kind === "catalog" || view?.kind === "game"}
+            onClick={() => setView({ kind: "catalog" })}
           />
 
           {(canManageUsers || canSeeAudit) && (
@@ -290,7 +298,9 @@ export default function App() {
           {view?.kind === "overview" && !instancesQuery.isLoading && !instancesQuery.isError && (
             <OverviewView instances={instances} />
           )}
-          {view?.kind !== "overview" &&
+          {!["overview", "catalog", "game", "settings", "profile", "users", "audit", "images"].includes(
+            view?.kind ?? "",
+          ) &&
             !instancesQuery.isLoading &&
             instances.length === 0 &&
             !instancesQuery.isError && (
@@ -299,7 +309,7 @@ export default function App() {
                 <p className="text-sm">Nenhuma instância ainda.</p>
                 <button
                   className="cursor-pointer text-sm text-accent"
-                  onClick={() => setCreateOpen(true)}
+                  onClick={() => setView({ kind: "catalog" })}
                 >
                   Criar a primeira instância →
                 </button>
@@ -314,6 +324,19 @@ export default function App() {
           {view?.kind === "users" && <UsersView />}
           {view?.kind === "audit" && <AuditView />}
           {view?.kind === "images" && <ImagesView />}
+          {view?.kind === "catalog" && (
+            <CatalogView onAbrir={(id) => setView({ kind: "game", id })} />
+          )}
+          {view?.kind === "game" && (
+            <GameView
+              gameId={view.id}
+              onVoltar={() => setView({ kind: "catalog" })}
+              onCriar={(providerId) => {
+                setProviderParaCriar(providerId);
+                setCreateOpen(true);
+              }}
+            />
+          )}
           {view?.kind === "settings" && <SettingsView />}
           {/* O perfil virou uma seção das configurações; o atalho da barra
               lateral apenas abre essa seção direto. */}
@@ -326,7 +349,11 @@ export default function App() {
         </div>
       </main>
 
-      <CreateInstanceDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      <CreateInstanceDialog
+        open={createOpen}
+        providerId={providerParaCriar}
+        onClose={() => setCreateOpen(false)}
+      />
     </div>
   );
 }

@@ -96,18 +96,21 @@ teste que as protege pode parecer errado até você entender o motivo.
 
 ## Deploy
 
-Não há pipeline automático. O deploy é manual e exige acesso ao servidor de
-produção — um LXC no Proxmox, em rede local. Quem tem esse acesso empacota o
-código com `git archive`, envia junto com o `dist/` do dashboard, roda
-`uv sync` e reinicia o serviço `aether-core`.
+Não há pipeline automático. Uma instalação nova sai do `install.sh` descrito na
+[Instalação rápida](README.md#instalação-rápida) do README; ele deixa o servidor
+como um clone git, com o serviço `aether-core` habilitado no boot.
+
+Instalação já existente se atualiza pelo próprio painel, em
+**Configurações → Sistema → Atualizar Aether**: busca a `main`, reinstala
+dependências, recompila o painel e reinicia o serviço, copiando o banco antes.
 
 Se você **não** tem acesso ao servidor, seu trabalho termina no pull request:
 alguém com acesso publica. Se você tem, rode a suíte completa antes — o CI não
 implanta nada, então um teste vermelho passa direto para produção se ninguém
 olhar.
 
-O painel é servido pelo próprio Core em `/app`, então o `dist/` do dashboard
-precisa ir junto no mesmo deploy. Enviar só o Python deixa a interface velha.
+O painel é servido pelo próprio Core em `/app`, e é por isso que a atualização
+recompila o `dist/` do dashboard: publicar só o Python deixa a interface velha.
 
 ## Escopo dos repositórios
 

@@ -7,8 +7,8 @@ from pathlib import Path
 from fastapi import APIRouter, FastAPI
 
 from aether_core import __version__
-from aether_core.application.events import EventBus
 from aether_core.application.catalog import CatalogService
+from aether_core.application.events import EventBus
 from aether_core.application.images import ImageService
 from aether_core.application.install import InstallService
 from aether_core.application.metrics import MetricsService

@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from aether_sdk import (
-    GameCatalogEntry,
     BackupSpec,
     ConfigCodec,
     ConfigSchema,
@@ -11,6 +10,7 @@ from aether_sdk import (
     ContainerSpec,
     ContentAnalyzer,
     ContentType,
+    GameCatalogEntry,
     LaunchContext,
     ProviderManifest,
     QuiescePlan,
