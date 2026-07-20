@@ -6,6 +6,7 @@ import { UploadButton } from "../../components/UploadButton";
 import { Button, Input, Panel, Segmented, Select, Spinner, StatTile } from "../../components/ui";
 import type { ContentItem, Instance } from "../../lib/api";
 import { api, formatBytes } from "../../lib/api";
+import { useProvider } from "../../lib/providers";
 import { ModCard } from "./ModCard";
 import { ModDetails } from "./ModDetails";
 import { ModTable } from "./ModTable";
@@ -60,11 +61,12 @@ export function ContentView({
     onSettled: invalidate,
   });
 
+  const provider = useProvider(instance.provider_id);
+  const tipo = provider?.content_types.find((t) => t.id === contentType);
   const uploadDir =
     instance.content_dirs[contentType] === "."
       ? ""
-      : (instance.content_dirs[contentType] ??
-        (contentType === "mod_client" ? "aether-client/mods" : "mods"));
+      : (instance.content_dirs[contentType] ?? tipo?.default_directory ?? "mods");
   const items = query.data ?? [];
   const loaders = useMemo(
     () => [...new Set(items.map((i) => i.metadata.loader).filter(Boolean))].sort(),
@@ -136,7 +138,8 @@ export function ContentView({
   if (query.isError)
     return <div className="p-6 text-sm text-danger">Erro ao listar: {String(query.error)}</div>;
 
-  const titulo = contentType === "mod_client" ? "Mods do cliente" : "Mods do servidor";
+  // O rótulo vem do provider: cada jogo chama seu conteúdo do próprio jeito.
+  const titulo = tipo?.label ?? "Conteúdo";
 
   return (
     <div className="h-full overflow-y-auto p-4">

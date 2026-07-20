@@ -20,6 +20,7 @@ import { useDialog } from "../../components/Dialog";
 import { Badge, Button } from "../../components/ui";
 import type { Instance, InstanceState } from "../../lib/api";
 import { api, can } from "../../lib/api";
+import { useProvider } from "../../lib/providers";
 import { subscribeTopic } from "../../lib/ws";
 import { useAuth } from "../auth/AuthGate";
 import { BackupsView } from "../backups/BackupsView";
@@ -68,6 +69,12 @@ export function InstanceView({ instance }: { instance: Instance }) {
   const dialog = useDialog();
   const [tab, setTab] = useState<Tab>("content");
   const [errorMsg, setErrorMsg] = useState("");
+  // As abas seguem o que o provider da instância sabe fazer — nada aqui
+  // conhece um jogo específico.
+  const provider = useProvider(instance.provider_id);
+  const caps = provider?.capabilities;
+  const tipoServidor = provider?.content_types.find((t) => t.id === "mod");
+  const temCliente = provider?.content_types.some((t) => t.id === "mod_client") ?? false;
 
   const statusQuery = useQuery({
     queryKey: ["status", instance.id],
@@ -97,6 +104,11 @@ export function InstanceView({ instance }: { instance: Instance }) {
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         <Badge tone={STATE_TONE[state]}>{STATE_LABEL[state]}</Badge>
+        {instance.runtime === "docker" && (
+          <Badge tone="neutral" title="Roda isolado num container Docker">
+            container
+          </Badge>
+        )}
 
         {!online ? (
           <Button variant="primary" disabled={busy} onClick={() => power.mutate("start")}>
@@ -115,7 +127,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
               disabled={power.isPending}
               onClick={async () => {
                 const ok = await dialog.confirm({
-                  title: "Matar o processo",
+                  title: "Matar o servidor",
                   message:
                     "O servidor é encerrado na força, sem salvar. O que não tiver sido gravado no mundo se perde.",
                   confirmText: "Matar mesmo assim",
@@ -136,25 +148,34 @@ export function InstanceView({ instance }: { instance: Instance }) {
       <div className="flex flex-wrap gap-1 border-b border-border px-3 py-1.5">
         {(
           [
-            ["content", "Mods do servidor", <Package size={16} />],
-            ...(can(user, "content.read")
+            ...(tipoServidor
+              ? [["content", tipoServidor.label, <Package size={16} />] as Aba]
+              : []),
+            ...(can(user, "content.read") && temCliente
               ? ([
-                  ["client", "Mods do cliente", <Laptop size={16} />],
+                  [
+                    "client",
+                    provider?.content_types.find((t) => t.id === "mod_client")?.label ??
+                      "Cliente",
+                    <Laptop size={16} />,
+                  ],
                   ["diff", "Servidor × Cliente", <ArrowLeftRight size={16} />],
-                  ["catalog", "Catálogo", <Store size={16} />],
                 ] as Aba[])
+              : []),
+            ...(can(user, "content.read") && caps?.sources
+              ? [["catalog", "Catálogo", <Store size={16} />] as Aba]
               : []),
             ["console", "Console", <TerminalSquare size={16} />],
             ...(can(user, "files.read")
               ? [["files", "Arquivos", <FolderOpen size={16} />] as Aba]
               : []),
-            ...(can(user, "config.read")
+            ...(can(user, "config.read") && caps?.config
               ? [["config", "Config", <SlidersHorizontal size={16} />] as Aba]
               : []),
-            ...(can(user, "sync.read")
+            ...(can(user, "sync.read") && caps?.game_metadata
               ? [["sync", "Sync", <RefreshCcwDot size={16} />] as Aba]
               : []),
-            ...(can(user, "backups.read")
+            ...(can(user, "backups.read") && caps?.backup
               ? [["backups", "Backups", <Archive size={16} />] as Aba]
               : []),
             ...(can(user, "power.use")

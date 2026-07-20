@@ -47,11 +47,27 @@ class SupervisorLike(Protocol):
     def pid_of(self, instance_id: str) -> int | None: ...
 
 
+class ContainerSupervisorLike(Protocol):
+    def container_id_of(self, instance_id: str) -> str | None: ...
+
+
+class ContainerStatsLike(Protocol):
+    async def stats(self, container_id: str): ...
+
+
 class MetricsService:
     """Coleta métricas com histórico curto em memória (para os gráficos)."""
 
-    def __init__(self, supervisor: SupervisorLike, history_size: int = 120) -> None:
+    def __init__(
+        self,
+        supervisor: SupervisorLike,
+        container_supervisor: ContainerSupervisorLike | None = None,
+        container_runtime: ContainerStatsLike | None = None,
+        history_size: int = 120,
+    ) -> None:
         self._supervisor = supervisor
+        self._container_supervisor = container_supervisor
+        self._container_runtime = container_runtime
         self._history: list[dict] = []
         self._history_size = history_size
         # Primeira leitura serve de baseline para o cpu_percent não vir 0.
@@ -130,6 +146,39 @@ class MetricsService:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             self._procs.pop(pid, None)
             return ProcessMetrics(instance_id, pid, 0.0, 0.0, self._nucleos(), 0, False)
+
+    async def instance_metrics(self, instance) -> ProcessMetrics:
+        """Métricas da instância pelo runtime dela.
+
+        Container não tem PID visível do host; o Docker já entrega o delta de
+        CPU entre duas amostras, então o formato final é o mesmo do psutil
+        (100% = um núcleo saturado) e a UI não distingue os dois mundos.
+        """
+        if getattr(instance, "runtime", "process") != "docker":
+            return self.process(instance.id)
+
+        nucleos = self._nucleos()
+        vazio = ProcessMetrics(instance.id, None, 0.0, 0.0, nucleos, 0, False)
+        if not (self._container_supervisor and self._container_runtime):
+            return vazio
+        container_id = self._container_supervisor.container_id_of(instance.id)
+        if not container_id:
+            return vazio
+        try:
+            stats = await self._container_runtime.stats(container_id)
+        except Exception:  # noqa: BLE001 - container pode morrer entre coletas
+            return vazio
+        if stats is None:
+            return vazio
+        return ProcessMetrics(
+            instance_id=instance.id,
+            pid=None,
+            cpu_percent=round(stats.cpu_percent, 1),
+            cpu_percent_total=round(stats.cpu_percent / nucleos, 1),
+            cpu_count=nucleos,
+            mem_bytes=stats.memory_bytes,
+            running=True,
+        )
 
     def sample(self) -> dict:
         """Tira uma amostra e guarda no histórico (para gráficos de linha)."""

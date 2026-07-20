@@ -1,5 +1,11 @@
 [tool.uv.workspace]
-members = ["apps/core", "apps/cli", "packages/sdk", "providers/minecraft"]
+members = [
+    "apps/core",
+    "apps/cli",
+    "packages/sdk",
+    "providers/minecraft",
+    "providers/sevendays",
+]
 
 [dependency-groups]
 dev = [

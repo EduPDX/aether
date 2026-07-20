@@ -29,14 +29,17 @@ class LocalContentFilesystem:
                 st = full.stat()
             except OSError:
                 continue
-            if not full.is_file():
-                continue
-            entries.append(FileEntry(name=name, size=st.st_size, mtime=int(st.st_mtime)))
+            # Diretórios contam: em jogos como 7 Days to Die cada mod é uma
+            # pasta (Mods/<Nome>/ModInfo.xml), não um arquivo único.
+            if full.is_dir():
+                entries.append(FileEntry(name=name, size=0, mtime=int(st.st_mtime)))
+            elif full.is_file():
+                entries.append(FileEntry(name=name, size=st.st_size, mtime=int(st.st_mtime)))
         return entries
 
     def _existing(self, folder: Path, name: str) -> Path:
         full = folder / Path(name).name
-        if not full.is_file():
+        if not full.is_file() and not full.is_dir():
             raise ContentFileNotFoundError(f"file not found: {full.name}")
         return full
 
@@ -62,7 +65,10 @@ class LocalContentFilesystem:
         src = self._existing(src_folder, name)
         if not dst_folder.is_dir():
             raise ContentFolderMissingError(f"destination folder does not exist: {dst_folder}")
-        shutil.copy2(src, dst_folder / src.name)
+        if src.is_dir():
+            shutil.copytree(src, dst_folder / src.name)
+        else:
+            shutil.copy2(src, dst_folder / src.name)
 
 
 class FileIconStore:

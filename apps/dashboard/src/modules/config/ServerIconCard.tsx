@@ -5,18 +5,18 @@ import { useDialog } from "../../components/Dialog";
 import { Button, Panel } from "../../components/ui";
 import type { Instance } from "../../lib/api";
 import { api, can, getAccessToken } from "../../lib/api";
+import { useProvider } from "../../lib/providers";
 import { useAuth } from "../auth/AuthGate";
 
-const LADO = 64;
-
 /**
- * Reduz qualquer imagem ao PNG 64x64 que o Minecraft exige.
+ * Reduz qualquer imagem ao PNG quadrado que o jogo exige (o lado vem do
+ * icon_spec do provider).
  *
  * Feito no navegador de propósito: ele já decodifica e reescala imagem, então
  * o servidor não precisa carregar uma biblioteca de processamento gráfico só
  * para isto. Corta no centro para não distorcer imagem retangular.
  */
-async function paraIcone(arquivo: File): Promise<Blob> {
+async function paraIcone(arquivo: File, LADO: number): Promise<Blob> {
   const bitmap = await createImageBitmap(arquivo);
   const canvas = document.createElement("canvas");
   canvas.width = LADO;
@@ -40,6 +40,9 @@ export function ServerIconCard({ instance }: { instance: Instance }) {
   const dialog = useDialog();
   const { user } = useAuth();
   const podeEditar = can(user, "config.write");
+  const spec = useProvider(instance.provider_id)?.manifest.icon_spec;
+  const lado = spec?.size ?? 64;
+  const nomeArquivo = spec?.file ?? "server-icon.png";
   const entrada = useRef<HTMLInputElement>(null);
   const [erro, setErro] = useState("");
   // Muda a cada gravação para o navegador não servir o ícone antigo do cache.
@@ -58,7 +61,8 @@ export function ServerIconCard({ instance }: { instance: Instance }) {
   });
 
   const enviar = useMutation({
-    mutationFn: async (arquivo: File) => api.uploadIcon(instance.id, await paraIcone(arquivo)),
+    mutationFn: async (arquivo: File) =>
+      api.uploadIcon(instance.id, await paraIcone(arquivo, lado)),
     onSuccess: () => {
       setErro("");
       setVersao((v) => v + 1);
@@ -79,7 +83,7 @@ export function ServerIconCard({ instance }: { instance: Instance }) {
     <Panel
       title="Ícone do servidor"
       icon={<ImageIcon size={15} />}
-      hint="Aparece na lista de servidores do jogo. Envie qualquer imagem — ela é recortada no centro e reduzida para 64×64 automaticamente."
+      hint={`Aparece na lista de servidores do jogo. Envie qualquer imagem — ela é recortada no centro e reduzida para ${lado}×${lado} automaticamente.`}
     >
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2">
@@ -96,7 +100,7 @@ export function ServerIconCard({ instance }: { instance: Instance }) {
 
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium">
-            {url ? "server-icon.png definido" : "Nenhum ícone definido"}
+            {url ? `${nomeArquivo} definido` : "Nenhum ícone definido"}
           </div>
           <p className="mt-0.5 text-xs text-muted">
             {url
@@ -133,7 +137,7 @@ export function ServerIconCard({ instance }: { instance: Instance }) {
                 onClick={async () => {
                   const ok = await dialog.confirm({
                     title: "Remover ícone",
-                    message: "O server-icon.png é apagado e o jogo volta ao ícone padrão.",
+                    message: `O ${nomeArquivo} é apagado e o jogo volta ao ícone padrão.`,
                     confirmText: "Remover",
                     tone: "danger",
                   });

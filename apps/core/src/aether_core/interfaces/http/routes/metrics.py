@@ -22,6 +22,6 @@ async def metrics(request: Request, _: InstancesRead) -> dict:
 
     return {
         "host": asdict(svc.host()),
-        "instances": [asdict(svc.process(i.id)) | {"name": i.name} for i in instances],
+        "instances": [asdict(await svc.instance_metrics(i)) | {"name": i.name} for i in instances],
         "history": svc.history(),
     }

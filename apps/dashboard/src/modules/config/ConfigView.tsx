@@ -1,78 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Eye, EyeOff, Save, Settings2, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, Save, Settings2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Badge, Button, Input, Panel, Select, Spinner, Switch } from "../../components/ui";
+import { Badge, Button, Panel, Spinner } from "../../components/ui";
+import { FieldControl } from "./FieldControl";
 import { ServerIconCard } from "./ServerIconCard";
 import type { ConfigFieldDef, Instance } from "../../lib/api";
 import { api } from "../../lib/api";
-
-function FieldControl({
-  field,
-  value,
-  onChange,
-}: {
-  field: ConfigFieldDef;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  if (field.type === "boolean") {
-    return (
-      <Switch
-        checked={value === "true"}
-        onChange={() => onChange(value === "true" ? "false" : "true")}
-      />
-    );
-  }
-  if (field.type === "enum") {
-    return (
-      <Select value={value} onChange={(e) => onChange(e.target.value)}>
-        {field.options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </Select>
-    );
-  }
-  if (field.type === "password") return <PasswordControl value={value} onChange={onChange} />;
-  return (
-    <Input
-      className="w-56"
-      type={field.type === "integer" ? "number" : "text"}
-      min={field.minimum ?? undefined}
-      max={field.maximum ?? undefined}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
-}
-
-/** Senha começa oculta; sem isso a do RCON ficaria à mostra na tela. */
-function PasswordControl({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [visivel, setVisivel] = useState(false);
-  return (
-    <span className="flex items-center gap-1.5">
-      <Input
-        className="w-56"
-        type={visivel ? "text" : "password"}
-        value={value}
-        placeholder="sem senha definida"
-        onChange={(e) => onChange(e.target.value)}
-      />
-      <button
-        type="button"
-        title={visivel ? "Ocultar" : "Mostrar"}
-        className="cursor-pointer text-muted hover:text-text"
-        onClick={() => setVisivel((v) => !v)}
-      >
-        {visivel ? <EyeOff size={15} /> : <Eye size={15} />}
-      </button>
-    </span>
-  );
-}
+import { useProvider } from "../../lib/providers";
 
 export function ConfigView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
+  const provider = useProvider(instance.provider_id);
   const query = useQuery({
     queryKey: ["config", instance.id],
     queryFn: () => api.configs(instance.id),
@@ -179,7 +117,8 @@ export function ConfigView({ instance }: { instance: Instance }) {
           </div>
         ))}
 
-        <ServerIconCard instance={instance} />
+        {/* Só para jogos que têm a noção de ícone de servidor no disco. */}
+        {provider?.manifest.icon_spec && <ServerIconCard instance={instance} />}
 
         {sections.map(([section, fields]) => {
           const essenciais = fields.filter((f) => !f.advanced);
