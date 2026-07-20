@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from aether_sdk import (
+    GameCatalogEntry,
     BackupSpec,
     ConfigCodec,
     ConfigSchema,
@@ -18,6 +19,7 @@ from aether_sdk import (
     QuiescePlan,
 )
 
+from aether_provider_minecraft.catalog import catalog_entry
 from aether_provider_minecraft.content.jar_analyzer import JarModAnalyzer
 from aether_provider_minecraft.content.modrinth import ModrinthSource
 from aether_provider_minecraft.server.backup import backup_spec, quiesce_plan
@@ -78,6 +80,9 @@ class MinecraftProvider:
             "mod": JarModAnalyzer("mod"),
             "mod_client": JarModAnalyzer("mod_client"),
         }
+
+    def catalog_entry(self) -> GameCatalogEntry:
+        return catalog_entry()
 
     def content_types(self) -> list[ContentType]:
         return list(CONTENT_TYPES)

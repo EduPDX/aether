@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from aether_sdk import (
+    GameCatalogEntry,
     BackupSpec,
     ConfigCodec,
     ConfigSchema,
@@ -16,6 +17,7 @@ from aether_sdk import (
     VersionInfo,
 )
 
+from aether_provider_sevendays.catalog import catalog_entry
 from aether_provider_sevendays.content.modinfo_analyzer import ModInfoAnalyzer
 from aether_provider_sevendays.server.backup import backup_spec, quiesce_plan
 from aether_provider_sevendays.server.console import SevenDaysConsoleCodec
@@ -60,6 +62,9 @@ class SevenDaysProvider:
 
     def __init__(self) -> None:
         self._analyzers: dict[str, ContentAnalyzer] = {"mod": ModInfoAnalyzer("mod")}
+
+    def catalog_entry(self) -> GameCatalogEntry:
+        return catalog_entry()
 
     def content_types(self) -> list[ContentType]:
         return list(CONTENT_TYPES)

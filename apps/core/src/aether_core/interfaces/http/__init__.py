@@ -8,6 +8,7 @@ from fastapi import APIRouter, FastAPI
 
 from aether_core import __version__
 from aether_core.application.events import EventBus
+from aether_core.application.catalog import CatalogService
 from aether_core.application.images import ImageService
 from aether_core.application.install import InstallService
 from aether_core.application.metrics import MetricsService
@@ -30,11 +31,13 @@ from aether_core.infrastructure.security import (
     sign_payload,
 )
 from aether_core.infrastructure.settings import AppSettings
+from aether_core.infrastructure.steam_store import SteamStoreSource
 from aether_core.interfaces.http.errors import register_error_handlers
 from aether_core.interfaces.http.routes import (
     auth,
     backups,
     browse,
+    catalog,
     config,
     content,
     files,
@@ -183,6 +186,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     )
     app.state.catalog_http = CatalogHttp()
     app.state.downloader = HttpDownloader()
+
+    async def _baixar_bytes(url: str) -> bytes:
+        pedacos = [p async for p in app.state.downloader.stream(url)]
+        return b"".join(pedacos)
+
+    app.state.catalog = CatalogService(
+        providers=app.state.providers,
+        cache_dir=settings.catalog_dir,
+        fontes=[SteamStoreSource(app.state.catalog_http.get)],
+        baixar=_baixar_bytes,
+    )
     # Providers que sabem falar com catálogos recebem o transporte aqui: eles
     # não abrem conexão sozinhos, para seguirem testáveis sem rede.
     for provider in app.state.providers.all().values():
@@ -258,6 +272,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(images.router)
     api.include_router(install.router)
     api.include_router(system.router)
+    api.include_router(catalog.router)
     app.include_router(api)
     app.include_router(ws_router)
 

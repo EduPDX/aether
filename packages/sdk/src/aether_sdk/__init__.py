@@ -5,6 +5,14 @@ Lifecycle, console, config schema and sync contracts arrive in later versions.
 """
 
 from aether_sdk.backup import BackupSpec, QuiescePlan, SupportsBackup
+from aether_sdk.catalog import (
+    GameCatalogEntry,
+    LinkUtil,
+    PortaDoJogo,
+    RamPorJogadores,
+    RequisitosDeHardware,
+    SupportsCatalog,
+)
 from aether_sdk.config import (
     ConfigCodec,
     ConfigField,
@@ -68,14 +76,19 @@ __all__ = [
     "ContentDependency",
     "ContentMetadata",
     "ContentType",
+    "GameCatalogEntry",
     "GameProvider",
     "IconSpec",
     "InstallResult",
+    "LinkUtil",
     "LaunchContext",
     "LaunchSpec",
     "PortMapping",
+    "PortaDoJogo",
     "ProviderManifest",
     "QuiescePlan",
+    "RamPorJogadores",
+    "RequisitosDeHardware",
     "SourceDependency",
     "SourceItem",
     "SourceVersion",
@@ -84,6 +97,7 @@ __all__ = [
     "PlayerEntry",
     "PlayerList",
     "PlayerListKind",
+    "SupportsCatalog",
     "SupportsBackup",
     "SupportsPlayers",
     "SupportsConfig",
