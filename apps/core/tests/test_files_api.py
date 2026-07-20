@@ -148,9 +148,7 @@ def test_folder_download_streams_a_valid_zip(client, tmp_path):
 def test_download_token_allows_browser_navigation(client, tmp_path):
     iid, _ = _instancia_com_mundo(client, tmp_path, "com-token")
 
-    res = client.post(
-        f"/api/v1/instances/{iid}/files/download-token", params={"path": "world"}
-    )
+    res = client.post(f"/api/v1/instances/{iid}/files/download-token", params={"path": "world"})
     assert res.status_code == 200
     token = res.json()["token"]
 

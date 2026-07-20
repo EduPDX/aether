@@ -20,7 +20,7 @@ from aether_sdk import LaunchContext, SupportsInstall, VersionInfo
 from aether_core.application.events import EventBus
 from aether_core.application.ports import ContainerRuntime, ProviderRegistry
 from aether_core.domain.backups import BackupKind
-from aether_core.domain.errors import ConflictError, ValidationFailedError
+from aether_core.domain.errors import ConflictError, EmptyBackupError, ValidationFailedError
 from aether_core.domain.instances import Instance, InstanceState
 
 log = logging.getLogger(__name__)
@@ -121,6 +121,22 @@ class InstallService:
 
         self._tarefas[instance.id] = asyncio.create_task(tarefa())
 
+    async def cancelar(self, instance_id: str) -> bool:
+        """Interrompe uma instalação em andamento.
+
+        Necessário na remoção: sem isto o download continuaria gravando numa
+        pasta que está sendo apagada — o SteamCMD recria o diretório e a
+        remoção "bem-sucedida" deixa lixo para trás.
+        """
+        tarefa = self._tarefas.pop(instance_id, None)
+        self._em_andamento.discard(instance_id)
+        if tarefa is None or tarefa.done():
+            return False
+        tarefa.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await tarefa
+        return True
+
     async def shutdown(self) -> None:
         for tarefa in self._tarefas.values():
             tarefa.cancel()
@@ -159,6 +175,15 @@ class InstallService:
                     backup = await backup_service.create(
                         instance, kind=BackupKind.MANUAL, note=f"antes de atualizar ({version})"
                     )
+                    await self._console(instance, f"[aether] backup criado: {backup.file_name}")
+                except EmptyBackupError:
+                    # Instalação anterior incompleta deixa o manifesto do jogo
+                    # sem nenhum dado do usuário. Exigir backup aqui criaria um
+                    # impasse: não instala porque o backup falha, e o backup
+                    # falha porque ainda não há o que salvar.
+                    await self._console(
+                        instance, "[aether] nada a salvar ainda; seguindo sem backup."
+                    )
                 except Exception as exc:  # noqa: BLE001
                     await self._console(
                         instance, f"[aether] backup falhou, atualização cancelada: {exc}", "ERROR"
@@ -167,7 +192,6 @@ class InstallService:
                     raise ValidationFailedError(
                         f"a atualização foi cancelada porque o backup falhou: {exc}"
                     ) from exc
-                await self._console(instance, f"[aether] backup criado: {backup.file_name}")
 
             await self._console(instance, f"[aether] instalando a versão {version}…")
             spec = provider.install_spec(

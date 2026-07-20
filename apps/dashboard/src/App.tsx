@@ -169,14 +169,19 @@ export default function App() {
               onClick={() => setView({ kind: "instance", id: inst.id })}
             >
               <button
-                title="Remover instância (não apaga arquivos)"
+                title="Remover instância"
                 className="hidden shrink-0 cursor-pointer text-muted hover:text-danger group-hover:block"
                 onClick={async (e) => {
                   e.stopPropagation();
+                  // O texto muda com o dono dos arquivos: servidor que o painel
+                  // criou é apagado de verdade; pasta que o usuário apontou não.
+                  const gerenciada = inst.managed_dir;
                   const ok = await dialog.confirm({
                     title: "Remover instância",
-                    message: `“${inst.name}” sai do painel. Os arquivos no disco não são apagados.`,
-                    confirmText: "Remover",
+                    message: gerenciada
+                      ? `“${inst.name}” será apagado do disco: mundo, configuração, backups e o container. Isto não tem volta.`
+                      : `“${inst.name}” sai do painel e o container é removido. A pasta do servidor (${inst.root_dir}) não é apagada.`,
+                    confirmText: gerenciada ? "Apagar tudo" : "Remover do painel",
                     tone: "danger",
                   });
                   if (ok) {

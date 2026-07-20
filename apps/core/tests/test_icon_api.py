@@ -8,6 +8,7 @@ from conftest import create_instance
 
 def _png(largura: int, altura: int) -> bytes:
     """PNG mínimo válido com as dimensões pedidas."""
+
     def chunk(tipo: bytes, dados: bytes) -> bytes:
         return (
             struct.pack(">I", len(dados))

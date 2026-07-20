@@ -61,6 +61,49 @@ def test_criar_instancia_sevendays_guarda_escolhas_para_apos_instalar(client):
     assert (root / "UserData").is_dir()
 
 
+def test_remover_instancia_criada_pelo_painel_apaga_os_arquivos(client):
+    """O Core criou a pasta, então o Core a remove. Deixá-la para trás foi o
+    que encheu o disco de produção com instâncias que ninguém mais via."""
+    res = client.post(
+        "/api/v1/instances",
+        json={
+            "name": "descartável",
+            "provider_id": "minecraft",
+            "runtime": "docker",
+            "provision_values": {"eula": "true"},
+        },
+    )
+    iid = res.json()["id"]
+    root = Path(res.json()["root_dir"])
+    (root / "mundo.dat").write_bytes(b"x" * 4096)
+    assert root.is_dir()
+
+    relatorio = client.delete(f"/api/v1/instances/{iid}").json()
+
+    assert not root.exists()
+    assert relatorio["pasta_removida"] == str(root)
+    assert relatorio["bytes_liberados"] >= 4096
+    assert relatorio["falhas"] == []
+
+
+def test_remover_com_keep_files_mantem_a_pasta(client):
+    res = client.post(
+        "/api/v1/instances",
+        json={
+            "name": "guardar",
+            "provider_id": "minecraft",
+            "runtime": "docker",
+            "provision_values": {"eula": "true"},
+        },
+    )
+    iid = res.json()["id"]
+    root = Path(res.json()["root_dir"])
+
+    client.delete(f"/api/v1/instances/{iid}?keep_files=true")
+
+    assert root.is_dir()
+
+
 def test_runtime_desconhecido_e_recusado(client, tmp_path):
     res = client.post(
         "/api/v1/instances",

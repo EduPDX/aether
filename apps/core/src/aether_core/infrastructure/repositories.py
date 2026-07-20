@@ -80,6 +80,24 @@ class SqlInstanceRepository:
         await self._session.commit()
         return result.rowcount > 0
 
+    async def delete_related(self, instance_id: str) -> dict[str, int]:
+        """Apaga o que pendurava na instância: backups, política, tarefas e
+        perfis de sync.
+
+        O SQLite aqui não tem chave estrangeira com cascata, então sem isto as
+        linhas ficavam órfãs para sempre — invisíveis na interface e
+        ressuscitando se um id fosse reaproveitado.
+        """
+        removidos: dict[str, int] = {}
+        for tabela in (BackupRow, BackupPolicyRow, ScheduledTaskRow, SyncProfileRow):
+            resultado = await self._session.execute(
+                delete(tabela).where(tabela.instance_id == instance_id)
+            )
+            if resultado.rowcount:
+                removidos[tabela.__tablename__] = resultado.rowcount
+        await self._session.commit()
+        return removidos
+
 
 class SqlContentCache:
     def __init__(self, session: AsyncSession) -> None:
