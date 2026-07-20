@@ -18,6 +18,12 @@ class AppSettings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8600
     static_dir: Path | None = None
+    repo_dir: Path | None = None
+    """Raiz do clone git da aplicação, usada pela autoatualização.
+
+    Descoberto a partir do próprio código quando não definido; instalações que
+    não são clone simplesmente não oferecem o botão de atualizar.
+    """
     """Built dashboard directory; when set, the Core serves it at ``/``."""
 
     @property
@@ -44,6 +50,21 @@ class AppSettings(BaseSettings):
     def instances_dir(self) -> Path:
         """Raízes de instâncias criadas do zero pelo Core (provision)."""
         return self.data_dir / "instances"
+
+    @property
+    def catalog_dir(self) -> Path:
+        """Cache do catálogo de jogos (metadados e imagens baixadas)."""
+        return self.data_dir / "catalog"
+
+    def resolved_repo_dir(self) -> Path:
+        """Onde o código da aplicação vive.
+
+        Sobe do arquivo de settings até a raiz do repositório
+        (``apps/core/src/aether_core/infrastructure`` → cinco níveis).
+        """
+        if self.repo_dir is not None:
+            return self.repo_dir
+        return Path(__file__).resolve().parents[5]
 
     def ensure_dirs(self) -> None:
         for d in (

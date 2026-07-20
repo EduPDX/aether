@@ -14,6 +14,7 @@ from aether_core.application.metrics import MetricsService
 from aether_core.application.power import SupervisorHub
 from aether_core.application.removal import InstanceRemover
 from aether_core.application.scheduler import BackupScheduler
+from aether_core.application.updates import UpdateService
 from aether_core.domain.instances import InstanceRuntime
 from aether_core.infrastructure.containers import AiodockerRuntime, DockerContainerSupervisor
 from aether_core.infrastructure.db import make_engine, make_session_factory, run_migrations
@@ -47,6 +48,7 @@ from aether_core.interfaces.http.routes import (
     public,
     sources,
     sync,
+    system,
     tasks,
     trash,
     users,
@@ -174,6 +176,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         docker_supervisor=app.state.docker_supervisor,
         installs=app.state.installs,
     )
+    app.state.updates = UpdateService(
+        repo_dir=settings.resolved_repo_dir(),
+        data_dir=settings.data_dir,
+        bus=app.state.bus,
+    )
     app.state.catalog_http = CatalogHttp()
     app.state.downloader = HttpDownloader()
     # Providers que sabem falar com catálogos recebem o transporte aqui: eles
@@ -250,6 +257,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(metrics.router)
     api.include_router(images.router)
     api.include_router(install.router)
+    api.include_router(system.router)
     app.include_router(api)
     app.include_router(ws_router)
 
