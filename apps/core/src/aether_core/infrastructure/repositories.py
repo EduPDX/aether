@@ -321,9 +321,7 @@ class SqlBackupRepository:
         return _row_to_backup(row) if row else None
 
     async def delete(self, backup_id: str) -> bool:
-        result = await self._session.execute(
-            delete(BackupRow).where(BackupRow.id == backup_id)
-        )
+        result = await self._session.execute(delete(BackupRow).where(BackupRow.id == backup_id))
         await self._session.commit()
         return result.rowcount > 0
 

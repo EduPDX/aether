@@ -53,6 +53,7 @@ class _StreamSink:
         self._buf.clear()
         return pedaco
 
+
 MAX_TEXT_BYTES = 2 * 1024 * 1024  # 2 MB
 MAX_UPLOAD_BYTES = 512 * 1024 * 1024  # 512 MB por arquivo
 

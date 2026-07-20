@@ -108,9 +108,7 @@ def test_delete_removes_entry_and_file(client, tmp_path):
 
     assert client.delete(f"/api/v1/instances/{iid}/backups/{backup['id']}").status_code == 204
     assert client.get(f"/api/v1/instances/{iid}/backups").json()["backups"] == []
-    assert (
-        client.get(f"/api/v1/instances/{iid}/backups/{backup['id']}/download").status_code == 404
-    )
+    assert client.get(f"/api/v1/instances/{iid}/backups/{backup['id']}/download").status_code == 404
 
 
 def test_backup_of_another_instance_is_not_reachable(client, tmp_path):
