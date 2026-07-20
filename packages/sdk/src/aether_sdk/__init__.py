@@ -13,6 +13,13 @@ from aether_sdk.config import (
     ConfigWarning,
     SupportsConfig,
 )
+from aether_sdk.container import (
+    ContainerSpec,
+    PortMapping,
+    SupportsContainer,
+    SupportsProvision,
+    VolumeMount,
+)
 from aether_sdk.content import (
     ContentAnalyzer,
     ContentDependency,
@@ -27,7 +34,7 @@ from aether_sdk.launch import (
     SupportsGameMetadata,
     SupportsLaunch,
 )
-from aether_sdk.manifest import SDK_VERSION, ProviderManifest
+from aether_sdk.manifest import SDK_VERSION, IconSpec, ProviderManifest
 from aether_sdk.provider import GameProvider
 from aether_sdk.source import (
     ContentSource,
@@ -46,14 +53,17 @@ __all__ = [
     "ConfigWarning",
     "ConsoleCodec",
     "ConsoleLine",
+    "ContainerSpec",
     "ContentAnalyzer",
     "ContentSource",
     "ContentDependency",
     "ContentMetadata",
     "ContentType",
     "GameProvider",
+    "IconSpec",
     "LaunchContext",
     "LaunchSpec",
+    "PortMapping",
     "ProviderManifest",
     "QuiescePlan",
     "SourceDependency",
@@ -61,6 +71,9 @@ __all__ = [
     "SourceVersion",
     "SupportsBackup",
     "SupportsConfig",
+    "SupportsContainer",
     "SupportsGameMetadata",
     "SupportsLaunch",
+    "SupportsProvision",
+    "VolumeMount",
 ]

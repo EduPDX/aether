@@ -9,6 +9,17 @@ SDK_VERSION = "0.1.0.dev0"
 _SLUG = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 
 
+class IconSpec(BaseModel):
+    """Ícone de servidor que o jogo lê do disco, quando o jogo tem essa noção.
+
+    Declarado no manifest para a regra (nome do arquivo, dimensão exata do
+    PNG) morar no provider — o Core só valida o que o jogo de fato exige.
+    """
+
+    file: str
+    size: int
+
+
 class ProviderManifest(BaseModel):
     """Static identity of a provider package.
 
@@ -22,6 +33,7 @@ class ProviderManifest(BaseModel):
     version: str
     sdk_version: str = SDK_VERSION
     games: list[str] = []
+    icon_spec: IconSpec | None = None
 
     @field_validator("id")
     @classmethod
