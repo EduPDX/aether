@@ -19,6 +19,7 @@ from aether_core.infrastructure.db import (
     BackupRow,
     ContentCacheRow,
     InstanceRow,
+    ProviderVersionsRow,
     ScheduledTaskRow,
     SyncProfileRow,
     TrashItemRow,
@@ -512,3 +513,37 @@ class SqlTrashRepository:
         result = await self._session.execute(delete(TrashItemRow).where(TrashItemRow.id == item_id))
         await self._session.commit()
         return result.rowcount > 0
+
+
+class SqlProviderVersionsRepository:
+    """Cache das versões oferecidas pela origem do jogo.
+
+    Fica no banco, e não em memória, porque reiniciar o Core não pode custar
+    outra rodada de containers falando com a Steam — e porque assim a lista
+    sobrevive à origem estar fora do ar.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(self, provider_id: str) -> tuple[list[dict], datetime] | None:
+        row = await self._session.get(ProviderVersionsRow, provider_id)
+        if row is None:
+            return None
+        try:
+            return json.loads(row.payload), datetime.fromisoformat(row.fetched_at)
+        except (ValueError, json.JSONDecodeError):
+            return None
+
+    async def put(self, provider_id: str, versoes: list[dict]) -> None:
+        stmt = sqlite_insert(ProviderVersionsRow).values(
+            provider_id=provider_id,
+            payload=json.dumps(versoes, ensure_ascii=False),
+            fetched_at=datetime.now(UTC).isoformat(),
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[ProviderVersionsRow.provider_id],
+            set_={"payload": stmt.excluded.payload, "fetched_at": stmt.excluded.fetched_at},
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()

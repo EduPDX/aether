@@ -73,6 +73,27 @@ class SupportsInstall(Protocol):
         ...
 
 
+@runtime_checkable
+class SupportsInstallSize(Protocol):
+    """Capacidade opcional: o provider sabe quanto disco a instalação exige.
+
+    Fica num contrato separado de propósito. Acrescentar o método ao
+    ``SupportsInstall`` quebraria todo provider já escrito — ``isinstance``
+    contra um Protocol exige todos os membros —, e saber o tamanho é
+    genuinamente opcional.
+
+    Vale implementar sempre que der: o instalador do 7DTD baixa ~17,5 GB numa
+    pasta de trabalho e só depois grava os arquivos finais, chegando a ocupar o
+    dobro. Sem essa conta o usuário espera quarenta minutos de download para
+    falhar em 99% e ficar com um servidor que não inicia — foi o que aconteceu
+    no primeiro servidor real criado pelo painel.
+    """
+
+    def install_disk_bytes(self, version: str) -> int:
+        """Espaço **livre** necessário para instalar, em bytes. ``0`` = não sei."""
+        ...
+
+
 class InstallResult(BaseModel):
     """Resultado de uma instalação, para a interface contar o que houve."""
 

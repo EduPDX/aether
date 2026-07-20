@@ -4,11 +4,13 @@ O projeto não usa pytest-asyncio; os casos assíncronos rodam via asyncio.run.
 """
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from aether_core.application.events import EventBus
-from aether_core.application.install import InstallService
+from aether_core.application.install import TTL_VERSOES_SEGUNDOS, InstallService
 from aether_core.domain.errors import ConflictError, EmptyBackupError, ValidationFailedError
 from aether_core.domain.instances import Instance, InstanceState
 from aether_sdk import ContainerSpec, VersionInfo
@@ -280,5 +282,143 @@ def test_origem_fora_do_ar_devolve_lista_vazia():
             RuntimeQuebrado(chamadas), FakeRegistry(provider), FakeSupervisor(), EventBus()
         )
         assert await svc.versions("sevendays") == []
+
+    asyncio.run(caso())
+
+
+# ------------------------------------------------------------------ cache de versões
+class RepoDeVersoes:
+    """Cache em memória com o mesmo contrato do repositório do banco."""
+
+    def __init__(self, guardado=None) -> None:
+        self.guardado = guardado
+        self.gravacoes = 0
+
+    async def ler(self, provider_id: str):
+        return self.guardado
+
+    async def gravar(self, provider_id: str, versoes: list[dict]) -> None:
+        self.gravacoes += 1
+        self.guardado = (versoes, datetime.now(UTC))
+
+
+def _com_cache(chamadas, repo, runtime=None):
+    return InstallService(
+        runtime or FakeRuntime(chamadas),
+        FakeRegistry(FakeProvider(chamadas)),
+        FakeSupervisor(),
+        EventBus(),
+        ler_versoes=repo.ler,
+        guardar_versoes=repo.gravar,
+    )
+
+
+def test_versoes_recentes_saem_do_banco_sem_consultar_a_origem():
+    """Consultar a origem custa um container efêmero e segundos de espera. Dentro
+    do TTL a tela de criação tem de abrir na hora."""
+
+    async def caso():
+        chamadas: list[str] = []
+        repo = RepoDeVersoes(([{"id": "public", "label": "Guardada"}], datetime.now(UTC)))
+        svc = _com_cache(chamadas, repo)
+
+        versoes = await svc.versions("sevendays")
+
+        assert [v.label for v in versoes] == ["Guardada"]
+        assert chamadas == []  # nenhum container subiu
+
+    asyncio.run(caso())
+
+
+def test_cache_vencido_consulta_de_novo_e_regrava():
+    async def caso():
+        chamadas: list[str] = []
+        velho = datetime.now(UTC) - timedelta(seconds=TTL_VERSOES_SEGUNDOS + 1)
+        repo = RepoDeVersoes(([{"id": "public", "label": "Guardada"}], velho))
+        svc = _com_cache(chamadas, repo)
+
+        versoes = await svc.versions("sevendays")
+
+        assert chamadas == ["run_once"]
+        assert [v.label for v in versoes] == ["Mais recente (estável)"]
+        assert repo.gravacoes == 1
+
+    asyncio.run(caso())
+
+
+def test_origem_fora_do_ar_cai_para_o_cache_vencido():
+    """Lista velha é melhor que lista vazia: sem isto a Steam fora do ar apaga
+    as versões de quem já tinha consultado."""
+
+    async def caso():
+        chamadas: list[str] = []
+        velho = datetime.now(UTC) - timedelta(days=2)
+        repo = RepoDeVersoes(([{"id": "public", "label": "Guardada"}], velho))
+
+        class RuntimeQuebrado(FakeRuntime):
+            async def run_once(self, spec, root_dir, on_line=None):
+                raise OSError("sem rede")
+
+        svc = _com_cache(chamadas, repo, runtime=RuntimeQuebrado(chamadas))
+
+        assert [v.label for v in await svc.versions("sevendays")] == ["Guardada"]
+
+    asyncio.run(caso())
+
+
+# ------------------------------------------------------------------ espaço em disco
+class ProviderComTamanho(FakeProvider):
+    def install_disk_bytes(self, version: str) -> int:
+        return 36 * 1024**3
+
+
+def test_disco_insuficiente_recusa_antes_de_baixar(tmp_path, monkeypatch):
+    """Sem esta checagem o usuário espera 40 minutos de download para o
+    instalador abortar em 99% e deixar um servidor que não inicia."""
+
+    async def caso():
+        chamadas: list[str] = []
+        svc = InstallService(
+            FakeRuntime(chamadas),
+            FakeRegistry(ProviderComTamanho(chamadas)),
+            FakeSupervisor(),
+            EventBus(),
+        )
+        monkeypatch.setattr(
+            "aether_core.application.install.shutil.disk_usage",
+            lambda _: SimpleNamespace(total=0, used=0, free=18 * 1024**3),
+        )
+
+        with pytest.raises(ValidationFailedError, match="espaço em disco"):
+            await svc.start(_instancia(tmp_path), "public")
+
+        assert chamadas == []
+
+    asyncio.run(caso())
+
+
+def test_falha_de_instalacao_fica_registrada_na_instancia(tmp_path):
+    """A falha não pode morrer no log: é ela que explica, dias depois, por que
+    o servidor não inicia."""
+
+    async def caso():
+        chamadas: list[str] = []
+        guardados: list[dict] = []
+
+        async def persistir(_id: str, resultado: dict) -> None:
+            guardados.append(resultado)
+
+        svc = InstallService(
+            FakeRuntime(chamadas, exit_code=8),
+            FakeRegistry(FakeProvider(chamadas)),
+            FakeSupervisor(),
+            EventBus(),
+            persistir=persistir,
+        )
+
+        await svc.start(_instancia(tmp_path), "public")
+        await asyncio.sleep(0.05)
+
+        assert guardados and "código 8" in guardados[0]["install"]["error"]
 
     asyncio.run(caso())

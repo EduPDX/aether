@@ -43,6 +43,7 @@ from aether_core.interfaces.http.routes import (
     files,
     images,
     install,
+    instance_ports,
     instances,
     meta,
     metrics,
@@ -165,12 +166,26 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
             await svc.merge_provider_data(instance_id, resultado)
 
+    async def _ler_versoes(provider_id: str):
+        from aether_core.infrastructure.repositories import SqlProviderVersionsRepository
+
+        async with app.state.session_factory() as session:
+            return await SqlProviderVersionsRepository(session).get(provider_id)
+
+    async def _guardar_versoes(provider_id: str, versoes: list[dict]) -> None:
+        from aether_core.infrastructure.repositories import SqlProviderVersionsRepository
+
+        async with app.state.session_factory() as session:
+            await SqlProviderVersionsRepository(session).put(provider_id, versoes)
+
     app.state.installs = InstallService(
         app.state.container_runtime,
         app.state.providers,
         app.state.supervisor,
         app.state.bus,
         persistir=_guardar_resultado,
+        ler_versoes=_ler_versoes,
+        guardar_versoes=_guardar_versoes,
     )
     app.state.remover = InstanceRemover(
         instances_dir=settings.instances_dir,
@@ -270,6 +285,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(browse.router)
     api.include_router(metrics.router)
     api.include_router(images.router)
+    api.include_router(instance_ports.router)
     api.include_router(install.router)
     api.include_router(system.router)
     api.include_router(catalog.router)

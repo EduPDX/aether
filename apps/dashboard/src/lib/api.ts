@@ -556,8 +556,17 @@ export const api = {
       { method: "POST" },
     ),
   // ------------------------------------------------------ versão do servidor
-  providerVersions: (providerId: string) =>
-    request<VersionInfo[]>(`/api/v1/providers/${providerId}/versions`),
+  providerVersions: (providerId: string, atualizar = false) =>
+    request<VersionInfo[]>(
+      `/api/v1/providers/${providerId}/versions${atualizar ? "?atualizar=true" : ""}`,
+    ),
+  // ------------------------------------------------------------------ portas
+  instancePorts: (id: string) => request<InstancePorts>(`/api/v1/instances/${id}/ports`),
+  saveInstancePorts: (id: string, ports: Omit<InstancePort, "from_provider">[]) =>
+    request<InstancePorts>(`/api/v1/instances/${id}/ports`, {
+      method: "PUT",
+      body: JSON.stringify({ ports }),
+    }),
   instanceVersion: (id: string) =>
     request<InstanceVersion>(`/api/v1/instances/${id}/version`),
   installVersion: (id: string, version: string, skipBackup = false) =>
@@ -872,6 +881,26 @@ export interface InstanceVersion {
   installed: string;
   requested: string;
   installing: boolean;
+  /** Motivo da última instalação que falhou; vazio quando correu bem. */
+  error: string;
+  disk_free: number;
+  /** 0 quando o provider não sabe declarar o tamanho da instalação. */
+  disk_required: number;
+}
+
+export interface InstancePort {
+  container_port: number;
+  protocol: string;
+  host_port: number;
+  description: string;
+  /** Porta que o jogo exige: a interna não é editável e a linha não some. */
+  from_provider: boolean;
+}
+
+export interface InstancePorts {
+  runtime: string;
+  ports: InstancePort[];
+  restart_required: boolean;
 }
 
 /** Resultado de instalar/atualizar a versão do servidor (não confundir com

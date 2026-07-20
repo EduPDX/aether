@@ -37,6 +37,16 @@ class ContentCacheRow(Base):
     updated_at: Mapped[str] = mapped_column(String(40))
 
 
+class ProviderVersionsRow(Base):
+    """Versões que a origem do jogo oferece, com a hora da última consulta."""
+
+    __tablename__ = "provider_versions"
+
+    provider_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    payload: Mapped[str] = mapped_column(Text)
+    fetched_at: Mapped[str] = mapped_column(String(40))
+
+
 class UserRow(Base):
     __tablename__ = "users"
 

@@ -1,11 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpCircle, HardDriveDownload, Info, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpCircle,
+  HardDriveDownload,
+  Info,
+  ShieldCheck,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import { Badge, Button, Panel, Select, Spinner } from "../../components/ui";
 import type { Instance } from "../../lib/api";
 import { api } from "../../lib/api";
 import { subscribeTopic } from "../../lib/ws";
+
+const gb = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 
 /**
  * Versão do servidor: o que está instalado e como trocar.
@@ -66,6 +74,9 @@ export function VersionView({ instance }: { instance: Instance }) {
   const opcoes = disponiveis.data ?? [];
   const escolhida = alvo || opcoes.find((v) => v.stable)?.id || "";
   const primeira = !instalada;
+  const falhaAnterior = versao.data?.error ?? "";
+  const livre = versao.data?.disk_free ?? 0;
+  const precisa = versao.data?.disk_required ?? 0;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 overflow-y-auto p-4">
@@ -143,6 +154,31 @@ export function VersionView({ instance }: { instance: Instance }) {
         </div>
         {erro && <p className="mt-2 text-xs text-danger">{erro}</p>}
       </Panel>
+
+      {/* Instalação que falhou não pode ficar só no log: sem isto o usuário só
+          descobre ao dar play, com um erro que não explica nada. */}
+      {!rodando && falhaAnterior && (
+        <div className="flex items-start gap-3 rounded-xl border border-danger/40 bg-danger/10 p-4 text-[13px]">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-danger" />
+          <div className="space-y-1">
+            <p className="font-medium text-danger">A última instalação não terminou.</p>
+            <p className="text-muted">{falhaAnterior}</p>
+            <p className="text-muted">
+              O servidor não vai iniciar enquanto os arquivos do jogo não estiverem completos.
+              Resolva o motivo acima e instale de novo.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {precisa > 0 && (
+        <p className="text-[12px] leading-relaxed text-muted">
+          Espaço em disco:{" "}
+          <b className={livre < precisa ? "text-danger" : "text-text"}>{gb(livre)} livres</b> — esta
+          instalação precisa de {gb(precisa)}. O instalador baixa os arquivos numa pasta de trabalho
+          antes de gravar os definitivos, então chega a ocupar o dobro do tamanho final.
+        </p>
+      )}
 
       <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-2 p-4 text-[13px] text-muted">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-accent" />

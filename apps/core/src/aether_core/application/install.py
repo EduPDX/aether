@@ -13,9 +13,11 @@ atualização. Melhor não atualizar do que atualizar sem rede de segurança.
 import asyncio
 import contextlib
 import logging
+import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 
-from aether_sdk import LaunchContext, SupportsInstall, VersionInfo
+from aether_sdk import LaunchContext, SupportsInstall, SupportsInstallSize, VersionInfo
 
 from aether_core.application.events import EventBus
 from aether_core.application.ports import ContainerRuntime, ProviderRegistry
@@ -24,6 +26,20 @@ from aether_core.domain.errors import ConflictError, EmptyBackupError, Validatio
 from aether_core.domain.instances import Instance, InstanceState
 
 log = logging.getLogger(__name__)
+
+TTL_VERSOES_SEGUNDOS = 10 * 60
+"""Dez minutos: curto o bastante para um lançamento aparecer quase na hora,
+longo o bastante para uma sessão inteira de configuração não repetir a consulta."""
+
+
+def _idade(quando: datetime) -> float:
+    if quando.tzinfo is None:
+        quando = quando.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - quando).total_seconds()
+
+
+def _gb(bytes_: int) -> str:
+    return f"{bytes_ / 1024**3:.1f} GB"
 
 
 class InstallService:
@@ -34,6 +50,8 @@ class InstallService:
         supervisor,
         bus: EventBus,
         persistir=None,
+        ler_versoes=None,
+        guardar_versoes=None,
     ) -> None:
         self._runtime = runtime
         self._providers = providers
@@ -42,6 +60,8 @@ class InstallService:
         # Guardar o resultado precisa de uma sessão própria: a tarefa de fundo
         # sobrevive à request que a disparou.
         self._persistir = persistir
+        self._ler_versoes = ler_versoes
+        self._guardar_versoes = guardar_versoes
         self._em_andamento: set[str] = set()
         self._tarefas: dict[str, asyncio.Task] = {}
 
@@ -55,26 +75,85 @@ class InstallService:
     def rodando(self, instance_id: str) -> bool:
         return instance_id in self._em_andamento
 
-    async def versions(self, provider_id: str) -> list[VersionInfo]:
-        """Versões oferecidas pela origem do jogo.
+    async def versions(self, provider_id: str, *, atualizar: bool = False) -> list[VersionInfo]:
+        """Versões oferecidas pela origem do jogo, com cache no banco.
 
-        Erro de rede devolve lista vazia em vez de quebrar: a tela de criação
-        precisa abrir mesmo com a Steam fora do ar.
+        Perguntar à origem custa um container efêmero e segundos de espera; a
+        resposta muda poucas vezes por semana. Dentro do TTL a tela abre na
+        hora, e fora dele um erro de rede cai para o que já se sabia — origem
+        fora do ar não pode esvaziar a lista de quem já tinha uma.
         """
         provider = self._provider(provider_id)
         spec = provider.versions_spec()
         if spec is None:
             return provider.parse_versions("")
+
+        anterior = await self._cache_versoes(provider_id)
+        if anterior is not None:
+            versoes, quando = anterior
+            if not atualizar and _idade(quando) < TTL_VERSOES_SEGUNDOS:
+                return versoes
         try:
             _, saida = await self._runtime.run_once(spec, Path("/tmp"))
-            return provider.parse_versions(saida)
+            versoes = provider.parse_versions(saida)
         except Exception as exc:  # noqa: BLE001 - origem fora do ar não é erro nosso
             log.warning("não foi possível listar versões de %s: %s", provider_id, exc)
-            return []
+            return anterior[0] if anterior else []
+
+        if versoes and self._guardar_versoes is not None:
+            with contextlib.suppress(Exception):
+                await self._guardar_versoes(provider_id, [v.model_dump() for v in versoes])
+        return versoes
+
+    async def _cache_versoes(self, provider_id: str) -> tuple[list[VersionInfo], datetime] | None:
+        if self._ler_versoes is None:
+            return None
+        try:
+            guardado = await self._ler_versoes(provider_id)
+        except Exception:  # noqa: BLE001 - cache é atalho, não fonte da verdade
+            log.exception("falha ao ler o cache de versões de %s", provider_id)
+            return None
+        if not guardado:
+            return None
+        bruto, quando = guardado
+        return [VersionInfo.model_validate(v) for v in bruto], quando
 
     def installed_version(self, instance: Instance) -> str:
         provider = self._provider(instance.provider_id)
         return provider.installed_version(Path(instance.root_dir))
+
+    def espaco(self, instance: Instance, version: str = "") -> tuple[int, int]:
+        """(livre, necessário) em bytes. Necessário ``0`` quando ninguém sabe."""
+        provider = self._providers.get(instance.provider_id)
+        preciso = 0
+        if isinstance(provider, SupportsInstallSize):
+            preciso = int(provider.install_disk_bytes(version) or 0)
+        alvo = Path(instance.root_dir)
+        # A pasta da instância pode ainda não existir; o que importa é o
+        # sistema de arquivos onde ela vai morar.
+        while not alvo.exists() and alvo != alvo.parent:
+            alvo = alvo.parent
+        try:
+            livre = shutil.disk_usage(alvo).free
+        except OSError:
+            livre = 0
+        return livre, preciso
+
+    def checar_disco(self, instance: Instance, version: str = "") -> None:
+        """Recusa a instalação quando o disco não comporta.
+
+        Esta checagem existe porque a falha sem ela é cruel: o download vai até
+        99%, o instalador aborta no meio da gravação, e o que sobra é uma pasta
+        de 17 GB com um servidor que não inicia e nenhuma pista do motivo.
+        """
+        livre, preciso = self.espaco(instance, version)
+        if preciso and livre < preciso:
+            raise ValidationFailedError(
+                f"espaço em disco insuficiente: a instalação precisa de "
+                f"{_gb(preciso)} livres e há {_gb(livre)}. O instalador baixa os "
+                f"arquivos numa pasta de trabalho antes de gravar os definitivos, "
+                f"então chega a ocupar o dobro do tamanho final do jogo."
+            )
 
     # --------------------------------------------------------------- instalação
     async def start(
@@ -96,6 +175,7 @@ class InstallService:
             raise ConflictError("pare o servidor antes de instalar ou atualizar")
         if instance.id in self._em_andamento:
             raise ConflictError("já existe uma instalação em andamento")
+        self.checar_disco(instance, version)
         provider.install_spec(
             LaunchContext(root_dir=Path(instance.root_dir), provider_data=instance.provider_data),
             version,
@@ -114,8 +194,17 @@ class InstallService:
                 )
                 if self._persistir is not None:
                     await self._persistir(instance.id, resultado)
-            except Exception as exc:  # noqa: BLE001 - já reportado no console/evento
+            except Exception as exc:  # noqa: BLE001 - vira estado, não desaparece
                 log.warning("instalação de %s falhou: %s", instance.id, exc)
+                # Guardar o motivo é o que separa "não iniciou porque a
+                # instalação falhou por falta de disco" de um erro opaco na
+                # hora de dar play, dias depois, sem nada no console.
+                if self._persistir is not None:
+                    with contextlib.suppress(Exception):
+                        await self._persistir(
+                            instance.id,
+                            {"install": {"error": str(exc), "version": version}},
+                        )
             finally:
                 self._em_andamento.discard(instance.id)
 

@@ -20,8 +20,11 @@ class InstallRequest(BaseModel):
 
 
 @router.get("/providers/{provider_id}/versions")
-async def provider_versions(request: Request, provider_id: str, _: InstancesRead) -> list[dict]:
-    versoes = await request.app.state.installs.versions(provider_id)
+async def provider_versions(
+    request: Request, provider_id: str, _: InstancesRead, atualizar: bool = False
+) -> list[dict]:
+    """Cacheada por 10 minutos no banco; ``atualizar=true`` força a consulta."""
+    versoes = await request.app.state.installs.versions(provider_id, atualizar=atualizar)
     return [v.model_dump() for v in versoes]
 
 
@@ -31,10 +34,17 @@ async def instance_version(
 ) -> dict:
     instance = await svc.get(instance_id)
     installs = request.app.state.installs
+    info = instance.provider_data.get("install") or {}
+    livre, preciso = installs.espaco(instance)
     return {
         "installed": installs.installed_version(instance),
-        "requested": (instance.provider_data.get("install") or {}).get("version", ""),
+        "requested": info.get("version", ""),
         "installing": installs.rodando(instance_id),
+        # Uma instalação que falhou não pode ficar só no log: sem isto o
+        # usuário só descobre no play, com um erro que não explica nada.
+        "error": info.get("error", ""),
+        "disk_free": livre,
+        "disk_required": preciso,
     }
 
 

@@ -22,6 +22,15 @@ STEAM_APP_ID = 294420
 BRANCH_PADRAO = "public"
 HOME_STEAM = "/home/steam"
 
+TAMANHO_DO_JOGO = 18 * 1024**3
+"""~17,5 GB medidos no app 294420 em 2026-07 (a Steam informa 17.546.210.919 B)."""
+
+DISCO_NECESSARIO = 2 * TAMANHO_DO_JOGO
+"""O SteamCMD baixa tudo em ``steamapps/downloading`` e só depois grava os
+arquivos finais, então em algum momento as duas cópias coexistem. Pedir menos
+que o dobro é convidar a falha do fim: num LXC com 35 GB livres a instalação
+morreu em 99,6% com ``state is 0x602`` e deixou um servidor que não inicia."""
+
 _STEAMCMD = "/home/steam/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux"
 
 # O dump do `app_info_print` é um VDF aninhado. Só o bloco "branches" interessa,
@@ -49,6 +58,10 @@ def install_spec(ctx: LaunchContext, version: str) -> ContainerSpec:
         volumes=[VolumeMount(container_path="/data", subdir=".")],
         run_as=RUN_AS,
     )
+
+
+def install_disk_bytes(version: str) -> int:
+    return DISCO_NECESSARIO
 
 
 def versions_spec() -> ContainerSpec:

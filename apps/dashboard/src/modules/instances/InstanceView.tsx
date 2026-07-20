@@ -5,6 +5,7 @@ import {
   FolderOpen,
   HardDriveDownload,
   Laptop,
+  Network,
   Package,
   Play,
   CalendarClock,
@@ -36,6 +37,7 @@ import { ServerClientDiff } from "../content/ServerClientDiff";
 import { CatalogView } from "../sources/CatalogView";
 import { TasksView } from "../tasks/TasksView";
 import { FilesView } from "../files/FilesView";
+import { PortsView } from "./PortsView";
 import { VersionView } from "./VersionView";
 import { SyncView } from "../sync/SyncView";
 
@@ -70,6 +72,7 @@ type Tab =
   | "sync"
   | "backups"
   | "version"
+  | "ports"
   | "tasks";
 
 export function InstanceView({ instance }: { instance: Instance }) {
@@ -198,6 +201,11 @@ export function InstanceView({ instance }: { instance: Instance }) {
             ...(can(user, "power.use")
               ? [["tasks", "Agendamentos", <CalendarClock size={16} />] as Aba]
               : []),
+            // Só em container: em processo local quem publica porta é o
+            // próprio jogo, pela configuração dele.
+            ...(can(user, "instances.write") && instance.runtime === "docker"
+              ? [["ports", "Portas", <Network size={16} />] as Aba]
+              : []),
             // Só para jogos cujo servidor o painel instala e atualiza.
             ...(can(user, "instances.write") && caps?.install
               ? [["version", "Versão", <HardDriveDownload size={16} />] as Aba]
@@ -235,6 +243,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
         {tab === "backups" && <BackupsView instance={instance} />}
         {tab === "tasks" && <TasksView instance={instance} />}
         {tab === "version" && <VersionView instance={instance} />}
+        {tab === "ports" && <PortsView instance={instance} />}
       </div>
     </div>
   );

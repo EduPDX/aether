@@ -9,9 +9,16 @@ mais um supervisor — nada aqui muda.
 from pathlib import Path
 from typing import Any, Protocol
 
-from aether_sdk import ConsoleCodec, LaunchContext, SupportsContainer, SupportsLaunch
+from aether_sdk import (
+    ConsoleCodec,
+    LaunchContext,
+    SupportsContainer,
+    SupportsInstall,
+    SupportsLaunch,
+)
 
 from aether_core.application.ports import ContainerLaunch, ProviderRegistry
+from aether_core.application.ports_config import aplicar_portas
 from aether_core.domain.errors import ValidationFailedError
 from aether_core.domain.instances import Instance, InstanceRuntime, InstanceState
 
@@ -103,9 +110,8 @@ class PowerService:
                 )
             container = provider.container_spec(ctx)
             if container is None:
-                raise ValidationFailedError(
-                    "provider could not build a container for this instance"
-                )
+                raise ValidationFailedError(self._porque_sem_container(instance, provider))
+            container = aplicar_portas(container, instance.provider_data)
             return (
                 ContainerLaunch(spec=container, root_dir=Path(instance.root_dir)),
                 provider.console_codec(),
@@ -122,6 +128,29 @@ class PowerService:
                 "(expected run script, server jar or provider_data.command)"
             )
         return spec, provider.console_codec()
+
+    @staticmethod
+    def _porque_sem_container(instance: Instance, provider: Any) -> str:
+        """O provider devolveu ``None``; a interface precisa de um porquê.
+
+        O caso comum de longe é servidor sem os arquivos do jogo — instalação
+        que nunca rodou, foi interrompida ou falhou. Dizer 'não consegui montar
+        o container' manda o usuário procurar defeito no lugar errado.
+        """
+        if isinstance(provider, SupportsInstall) and not provider.installed_version(
+            Path(instance.root_dir)
+        ):
+            erro = (instance.provider_data.get("install") or {}).get("error")
+            if erro:
+                return f"os arquivos do servidor não foram instalados: {erro}"
+            return (
+                "os arquivos do servidor ainda não foram instalados. "
+                "Instale a versão do servidor antes de iniciar."
+            )
+        return (
+            f"o provider {instance.provider_id!r} não conseguiu montar um container "
+            f"para esta instância"
+        )
 
     async def start(self, instance: Instance) -> InstanceState:
         spec, codec = self._launch(instance)

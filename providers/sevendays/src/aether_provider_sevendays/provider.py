@@ -27,6 +27,7 @@ from aether_provider_sevendays.server.container import (
     provision_schema,
 )
 from aether_provider_sevendays.server.install import (
+    install_disk_bytes,
     install_spec,
     installed_version,
     parse_versions,
@@ -91,6 +92,9 @@ class SevenDaysProvider:
     # -------------------------------------------------------------- instalação --
     def install_spec(self, ctx: LaunchContext, version: str) -> ContainerSpec:
         return install_spec(ctx, version)
+
+    def install_disk_bytes(self, version: str) -> int:
+        return install_disk_bytes(version)
 
     def versions_spec(self) -> ContainerSpec:
         return versions_spec()
