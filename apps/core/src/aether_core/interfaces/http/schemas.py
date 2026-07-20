@@ -18,6 +18,8 @@ class CreateInstanceRequest(BaseModel):
     provider_data: dict[str, Any] = Field(default_factory=dict)
     provision_values: dict[str, Any] | None = None
     """Presente = criar servidor do zero (o Core gera o root_dir)."""
+    version: str = ""
+    """Versão do servidor a instalar, para providers que gerenciam versão."""
 
 
 class InstanceOut(BaseModel):

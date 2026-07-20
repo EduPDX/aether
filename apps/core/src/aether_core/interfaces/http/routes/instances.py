@@ -1,8 +1,10 @@
 """Instance CRUD routes."""
 
+from contextlib import suppress
+
 from fastapi import APIRouter, Request
 
-from aether_core.domain.errors import ConflictError
+from aether_core.domain.errors import ConflictError, ValidationFailedError
 from aether_core.domain.instances import InstanceState
 from aether_core.interfaces.http.deps import InstanceServiceDep, InstancesRead, InstancesWrite
 from aether_core.interfaces.http.schemas import CreateInstanceRequest, InstanceOut
@@ -34,6 +36,14 @@ async def create_instance(
         provider_data=body.provider_data,
         provision_values=body.provision_values,
     )
+
+    # Instância criada do zero já entra instalando: é o que o usuário pediu ao
+    # escolher a versão, e o download é longo demais para esperar um clique.
+    installs = request.app.state.installs
+    if body.provision_values is not None and body.version is not None:
+        with suppress(ValidationFailedError, ConflictError):
+            await installs.start(instance, body.version or "public")
+
     return _out(request, instance)
 
 

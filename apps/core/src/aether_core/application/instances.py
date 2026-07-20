@@ -76,6 +76,15 @@ class InstanceService:
         await self._bus.publish("instance.created", {"instance_id": instance.id, "name": name})
         return instance
 
+    async def merge_provider_data(self, instance_id: str, mudancas: dict) -> Instance:
+        """Mescla mudanças no provider_data (o que a instalação descobriu, por
+        exemplo). Merge raso de propósito: o provider é dono das suas chaves e
+        substitui o bloco inteiro quando quer."""
+        instance = await self.get(instance_id)
+        novo = {**instance.provider_data, **mudancas}
+        await self._repo.update_provider_data(instance_id, novo)
+        return await self.get(instance_id)
+
     async def get(self, instance_id: str) -> Instance:
         instance = await self._repo.get(instance_id)
         if instance is None:

@@ -5,6 +5,7 @@ from aether_sdk import (
     SupportsConfig,
     SupportsContainer,
     SupportsGameMetadata,
+    SupportsInstall,
     SupportsLaunch,
     SupportsProvision,
 )
@@ -30,6 +31,7 @@ def _capabilities(p) -> dict:
         "provision": isinstance(p, SupportsProvision),
         "config": isinstance(p, SupportsConfig),
         "backup": isinstance(p, SupportsBackup),
+        "install": isinstance(p, SupportsInstall),
         "sources": bool(getattr(p, "content_sources", None) and p.content_sources()),
         "game_metadata": isinstance(p, SupportsGameMetadata),
     }

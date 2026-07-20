@@ -39,7 +39,10 @@ def test_eula_recusada_barra_a_criacao(client):
     assert "EULA" in res.json()["detail"]
 
 
-def test_criar_instancia_sevendays_do_zero(client):
+def test_criar_instancia_sevendays_guarda_escolhas_para_apos_instalar(client):
+    """O serverconfig.xml precisa ser cópia do arquivo da versão instalada, e
+    na criação o jogo ainda não existe em disco. As respostas ficam pendentes
+    até o after_install — nunca geramos o arquivo do zero."""
     res = client.post(
         "/api/v1/instances",
         json={
@@ -50,9 +53,12 @@ def test_criar_instancia_sevendays_do_zero(client):
         },
     )
     assert res.status_code == 201, res.text
-    root = Path(res.json()["root_dir"])
-    assert (root / "serverconfig.xml").is_file()
-    assert "Meu 7DTD" in (root / "serverconfig.xml").read_text()
+    body = res.json()
+    root = Path(body["root_dir"])
+
+    assert not (root / "serverconfig.xml").exists()
+    assert body["provider_data"]["pending_config"]["ServerName"] == "Meu 7DTD"
+    assert (root / "UserData").is_dir()
 
 
 def test_runtime_desconhecido_e_recusado(client, tmp_path):

@@ -66,6 +66,13 @@ class SqlInstanceRepository:
         rows = await self._session.scalars(select(InstanceRow).order_by(InstanceRow.created_at))
         return [_row_to_instance(r) for r in rows]
 
+    async def update_provider_data(self, instance_id: str, provider_data: dict) -> None:
+        row = await self._session.get(InstanceRow, instance_id)
+        if row is None:
+            return
+        row.provider_data = json.dumps(provider_data)
+        await self._session.commit()
+
     async def delete(self, instance_id: str) -> bool:
         result = await self._session.execute(
             delete(InstanceRow).where(InstanceRow.id == instance_id)

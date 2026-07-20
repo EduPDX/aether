@@ -18,6 +18,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import uuid
 from collections import deque
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -38,6 +39,7 @@ from aether_core.domain.instances import InstanceState
 log = logging.getLogger(__name__)
 
 INSTANCE_LABEL = "aether.instance"
+JOB_LABEL = "aether.job"
 HISTORY_LINES = 1000
 STOP_GRACE_SECONDS = 30
 
@@ -133,6 +135,39 @@ class AiodockerRuntime:
     async def start(self, container_id: str) -> None:
         docker = await self._client()
         await (await docker.containers.get(container_id)).start()
+
+    async def run_once(self, spec: ContainerSpec, root_dir: Path, on_line=None) -> tuple[int, str]:
+        """Roda um container até o fim e devolve ``(exit_code, saída)``.
+
+        É o motor das tarefas que não são "o servidor": instalar, atualizar,
+        perguntar versões. Nome aleatório e remoção ao final porque nada disso
+        precisa sobreviver — o que interessa fica no volume.
+
+        ``on_line`` recebe cada linha enquanto sai, para o usuário acompanhar
+        um download de 17 GB em vez de olhar uma tela parada.
+        """
+        await self.ensure_available()
+        nome = f"aether-job-{uuid.uuid4().hex[:12]}"
+        container_id = await self.create(nome, {JOB_LABEL: "1"}, spec, root_dir)
+        linhas: list[str] = []
+        try:
+            await self.start(container_id)
+            async for chunk in self.stream_logs(container_id):
+                linha = chunk.rstrip("\r\n")
+                if not linha:
+                    continue
+                linhas.append(linha)
+                if on_line is not None:
+                    await on_line(linha)
+            code = await self.wait(container_id)
+        finally:
+            with contextlib.suppress(Exception):
+                await self.remove(container_id)
+        return code, "\n".join(linhas)
+
+    async def remove(self, container_id: str) -> None:
+        docker = await self._client()
+        await (await docker.containers.get(container_id)).delete(force=True)
 
     async def stop(self, container_id: str, timeout: int) -> None:
         docker = await self._client()

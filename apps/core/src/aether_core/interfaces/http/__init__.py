@@ -8,6 +8,7 @@ from fastapi import APIRouter, FastAPI
 from aether_core import __version__
 from aether_core.application.events import EventBus
 from aether_core.application.images import ImageService
+from aether_core.application.install import InstallService
 from aether_core.application.metrics import MetricsService
 from aether_core.application.power import SupervisorHub
 from aether_core.application.scheduler import BackupScheduler
@@ -34,6 +35,7 @@ from aether_core.interfaces.http.routes import (
     content,
     files,
     images,
+    install,
     instances,
     meta,
     metrics,
@@ -71,6 +73,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         await app.state.backup_scheduler.stop()
         await app.state.catalog_http.close()
         await app.state.images.shutdown()
+        await app.state.installs.shutdown()
         await app.state.supervisor.shutdown()
         await app.state.container_runtime.close()
 
@@ -124,6 +127,30 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         container_runtime=app.state.container_runtime,
     )
     app.state.images = ImageService(app.state.container_runtime, app.state.providers, app.state.bus)
+
+    async def _guardar_resultado(instance_id: str, resultado: dict) -> None:
+        """Sessão própria: a instalação roda em segundo plano e termina muito
+        depois de a request que a disparou ter fechado a dela."""
+        from aether_core.application.instances import InstanceService
+        from aether_core.infrastructure.repositories import SqlInstanceRepository
+
+        async with app.state.session_factory() as session:
+            svc = InstanceService(
+                repo=SqlInstanceRepository(session),
+                providers=app.state.providers,
+                fs=app.state.fs,
+                bus=app.state.bus,
+                instances_dir=settings.instances_dir,
+            )
+            await svc.merge_provider_data(instance_id, resultado)
+
+    app.state.installs = InstallService(
+        app.state.container_runtime,
+        app.state.providers,
+        app.state.supervisor,
+        app.state.bus,
+        persistir=_guardar_resultado,
+    )
     app.state.catalog_http = CatalogHttp()
     app.state.downloader = HttpDownloader()
     # Providers que sabem falar com catálogos recebem o transporte aqui: eles
@@ -197,6 +224,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(browse.router)
     api.include_router(metrics.router)
     api.include_router(images.router)
+    api.include_router(install.router)
     app.include_router(api)
     app.include_router(ws_router)
 
