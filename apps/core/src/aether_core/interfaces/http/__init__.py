@@ -7,8 +7,12 @@ from fastapi import APIRouter, FastAPI
 
 from aether_core import __version__
 from aether_core.application.events import EventBus
+from aether_core.application.images import ImageService
 from aether_core.application.metrics import MetricsService
+from aether_core.application.power import SupervisorHub
 from aether_core.application.scheduler import BackupScheduler
+from aether_core.domain.instances import InstanceRuntime
+from aether_core.infrastructure.containers import AiodockerRuntime, DockerContainerSupervisor
 from aether_core.infrastructure.db import make_engine, make_session_factory, run_migrations
 from aether_core.infrastructure.filesystem import FileIconStore, LocalContentFilesystem
 from aether_core.infrastructure.http_client import CatalogHttp, HttpDownloader
@@ -29,6 +33,7 @@ from aether_core.interfaces.http.routes import (
     config,
     content,
     files,
+    images,
     instances,
     meta,
     metrics,
@@ -61,10 +66,32 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.backup_scheduler.start()
+        await _reconcile_containers(app)
         yield
         await app.state.backup_scheduler.stop()
         await app.state.catalog_http.close()
+        await app.state.images.shutdown()
         await app.state.supervisor.shutdown()
+        await app.state.container_runtime.close()
+
+    async def _reconcile_containers(app: FastAPI) -> None:
+        """Readota containers de instância que ficaram rodando entre restarts."""
+        from aether_sdk import SupportsContainer
+
+        from aether_core.infrastructure.repositories import SqlInstanceRepository
+
+        async with app.state.session_factory() as session:
+            instances = await SqlInstanceRepository(session).list_all()
+        codecs = {}
+        for inst in instances:
+            if inst.runtime != InstanceRuntime.DOCKER:
+                continue
+            provider = app.state.providers.all().get(inst.provider_id)
+            codecs[inst.id] = (
+                provider.console_codec() if isinstance(provider, SupportsContainer) else None
+            )
+        if codecs:
+            await app.state.docker_supervisor.reconcile(codecs)
 
     app = FastAPI(
         title="Aether Core",
@@ -79,8 +106,24 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     app.state.providers = EntryPointProviderRegistry()
     app.state.fs = LocalContentFilesystem()
     app.state.icons = FileIconStore(settings.icons_dir)
-    app.state.supervisor = LocalProcessSupervisor(app.state.bus)
-    app.state.metrics = MetricsService(app.state.supervisor)
+    process_supervisor = LocalProcessSupervisor(app.state.bus)
+    app.state.container_runtime = AiodockerRuntime()
+    app.state.docker_supervisor = DockerContainerSupervisor(
+        app.state.container_runtime, app.state.bus
+    )
+    # `supervisors` (por runtime) alimenta o PowerService; `supervisor` é o
+    # hub para quem só conhece o instance_id (backups, tasks, rotas de leitura).
+    app.state.supervisors = {
+        InstanceRuntime.PROCESS.value: process_supervisor,
+        InstanceRuntime.DOCKER.value: app.state.docker_supervisor,
+    }
+    app.state.supervisor = SupervisorHub(process_supervisor, app.state.docker_supervisor)
+    app.state.metrics = MetricsService(
+        app.state.supervisor,
+        container_supervisor=app.state.docker_supervisor,
+        container_runtime=app.state.container_runtime,
+    )
+    app.state.images = ImageService(app.state.container_runtime, app.state.providers, app.state.bus)
     app.state.catalog_http = CatalogHttp()
     app.state.downloader = HttpDownloader()
     # Providers que sabem falar com catálogos recebem o transporte aqui: eles
@@ -118,7 +161,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return TaskService(
             repo=SqlScheduledTaskRepository(session),
             supervisor=app.state.supervisor,
-            power=PowerService(providers=app.state.providers, supervisor=app.state.supervisor),
+            power=PowerService(providers=app.state.providers, supervisors=app.state.supervisors),
             bus=app.state.bus,
         )
 
@@ -153,6 +196,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(public.router)
     api.include_router(browse.router)
     api.include_router(metrics.router)
+    api.include_router(images.router)
     app.include_router(api)
     app.include_router(ws_router)
 

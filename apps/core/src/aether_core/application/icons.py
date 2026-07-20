@@ -9,14 +9,13 @@ import asyncio
 import struct
 from pathlib import Path
 
+from aether_sdk import IconSpec
+
 from aether_core.application.events import EventBus
+from aether_core.application.ports import ProviderRegistry
 from aether_core.domain.errors import NotFoundError, ValidationFailedError
 from aether_core.domain.instances import Instance
 
-# O Minecraft exige exatamente isto; qualquer outra coisa e o servidor ignora
-# o arquivo silenciosamente.
-ICON_FILE = "server-icon.png"
-ICON_SIZE = 64
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 _TAMANHO_MAX = 512 * 1024
 
@@ -36,11 +35,21 @@ def png_dimensions(data: bytes) -> tuple[int, int]:
 
 
 class ServerIconService:
-    def __init__(self, bus: EventBus) -> None:
+    """A regra do ícone (nome do arquivo, dimensão) vem do manifest do
+    provider — cada jogo declara a sua; o Core só valida e grava."""
+
+    def __init__(self, bus: EventBus, providers: ProviderRegistry) -> None:
         self._bus = bus
+        self._providers = providers
+
+    def _spec(self, instance: Instance) -> IconSpec:
+        spec = self._providers.get(instance.provider_id).manifest.icon_spec
+        if spec is None:
+            raise ValidationFailedError("este jogo não usa ícone de servidor")
+        return spec
 
     def _path(self, instance: Instance) -> Path:
-        return Path(instance.root_dir) / ICON_FILE
+        return Path(instance.root_dir) / self._spec(instance).file
 
     def exists(self, instance: Instance) -> bool:
         return self._path(instance).is_file()
@@ -52,12 +61,13 @@ class ServerIconService:
         return caminho
 
     async def save(self, instance: Instance, data: bytes) -> dict:
+        spec = self._spec(instance)
         if len(data) > _TAMANHO_MAX:
             raise ValidationFailedError("o ícone passa de 512 KB")
         largura, altura = png_dimensions(data)
-        if (largura, altura) != (ICON_SIZE, ICON_SIZE):
+        if (largura, altura) != (spec.size, spec.size):
             raise ValidationFailedError(
-                f"o ícone precisa ser {ICON_SIZE}x{ICON_SIZE}; este é {largura}x{altura}"
+                f"o ícone precisa ser {spec.size}x{spec.size}; este é {largura}x{altura}"
             )
         raiz = Path(instance.root_dir)
         if not raiz.is_dir():
@@ -75,7 +85,7 @@ class ServerIconService:
             raise
 
         await self._bus.publish("instance.icon_changed", {"instance_id": instance.id})
-        return {"file": ICON_FILE, "size": len(data)}
+        return {"file": spec.file, "size": len(data)}
 
     async def delete(self, instance: Instance) -> None:
         caminho = self._path(instance)

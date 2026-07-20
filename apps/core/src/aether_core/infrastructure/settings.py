@@ -40,6 +40,17 @@ class AppSettings(BaseSettings):
     def trash_dir(self) -> Path:
         return self.data_dir / "trash"
 
+    @property
+    def instances_dir(self) -> Path:
+        """Raízes de instâncias criadas do zero pelo Core (provision)."""
+        return self.data_dir / "instances"
+
     def ensure_dirs(self) -> None:
-        for d in (self.data_dir, self.icons_dir, self.trash_dir, self.backups_dir):
+        for d in (
+            self.data_dir,
+            self.icons_dir,
+            self.trash_dir,
+            self.backups_dir,
+            self.instances_dir,
+        ):
             d.mkdir(parents=True, exist_ok=True)
