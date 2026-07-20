@@ -17,6 +17,7 @@ from aether_core.application.power import PowerService
 from aether_core.application.sources import SourceService
 from aether_core.application.sync import SyncService
 from aether_core.application.tasks import TaskService
+from aether_core.application.trash import TrashService
 from aether_core.domain.errors import AuthenticationError, ForbiddenError
 from aether_core.domain.users import User
 from aether_core.infrastructure import security
@@ -26,6 +27,7 @@ from aether_core.infrastructure.repositories import (
     SqlInstanceRepository,
     SqlScheduledTaskRepository,
     SqlSyncProfileRepository,
+    SqlTrashRepository,
     SqlUserRepository,
 )
 
@@ -139,6 +141,15 @@ def get_instance_service(request: Request, session: SessionDep) -> InstanceServi
     )
 
 
+def get_trash_service(request: Request, session: SessionDep) -> TrashService:
+    state = request.app.state
+    return TrashService(
+        trash_root=state.settings.trash_dir,
+        repo=SqlTrashRepository(session),
+        bus=state.bus,
+    )
+
+
 def get_content_service(request: Request, session: SessionDep) -> ContentService:
     state = request.app.state
     return ContentService(
@@ -146,7 +157,7 @@ def get_content_service(request: Request, session: SessionDep) -> ContentService
         fs=state.fs,
         cache=SqlContentCache(session),
         icons=state.icons,
-        trash_root=state.settings.trash_dir,
+        trash=get_trash_service(request, session),
         bus=state.bus,
     )
 
@@ -156,9 +167,9 @@ def get_power_service(request: Request) -> PowerService:
     return PowerService(providers=state.providers, supervisor=state.supervisor)
 
 
-def get_files_service(request: Request) -> FilesService:
+def get_files_service(request: Request, session: SessionDep) -> FilesService:
     state = request.app.state
-    return FilesService(trash_root=state.settings.trash_dir, bus=state.bus)
+    return FilesService(trash=get_trash_service(request, session), bus=state.bus)
 
 
 def get_backup_service(request: Request, session: SessionDep) -> BackupService:
@@ -193,11 +204,11 @@ def get_source_service(request: Request, session: SessionDep) -> SourceService:
 SourceServiceDep = Annotated[SourceService, Depends(get_source_service)]
 
 
-def get_config_service(request: Request) -> ConfigService:
+def get_config_service(request: Request, session: SessionDep) -> ConfigService:
     state = request.app.state
     return ConfigService(
         providers=state.providers,
-        files=get_files_service(request),
+        files=get_files_service(request, session),
         bus=state.bus,
     )
 
@@ -238,3 +249,4 @@ PowerServiceDep = Annotated[PowerService, Depends(get_power_service)]
 FilesServiceDep = Annotated[FilesService, Depends(get_files_service)]
 ConfigServiceDep = Annotated[ConfigService, Depends(get_config_service)]
 SyncServiceDep = Annotated[SyncService, Depends(get_sync_service)]
+TrashServiceDep = Annotated[TrashService, Depends(get_trash_service)]

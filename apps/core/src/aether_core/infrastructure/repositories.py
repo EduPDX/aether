@@ -11,6 +11,7 @@ from aether_core.application.ports import CachedContent
 from aether_core.domain.backups import Backup, BackupKind, BackupPolicy, BackupSchedule
 from aether_core.domain.instances import Instance
 from aether_core.domain.tasks import ScheduledTask, TaskKind, TaskSchedule
+from aether_core.domain.trash import TrashItem, TrashOrigin
 from aether_core.domain.users import Role, User
 from aether_core.infrastructure.db import (
     AuditLogRow,
@@ -20,6 +21,7 @@ from aether_core.infrastructure.db import (
     InstanceRow,
     ScheduledTaskRow,
     SyncProfileRow,
+    TrashItemRow,
     UserRow,
 )
 
@@ -430,6 +432,60 @@ class SqlScheduledTaskRepository:
     async def delete(self, task_id: str) -> bool:
         result = await self._session.execute(
             delete(ScheduledTaskRow).where(ScheduledTaskRow.id == task_id)
+        )
+        await self._session.commit()
+        return result.rowcount > 0
+
+
+def _row_to_trash(row: TrashItemRow) -> TrashItem:
+    return TrashItem(
+        id=row.id,
+        instance_id=row.instance_id,
+        original_path=row.original_path,
+        stored_name=row.stored_name,
+        is_dir=bool(row.is_dir),
+        size_bytes=row.size_bytes,
+        origin=TrashOrigin(row.origin),
+        content_type=row.content_type,
+        trashed_at=datetime.fromisoformat(row.trashed_at),
+    )
+
+
+class SqlTrashRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, item: TrashItem) -> None:
+        self._session.add(
+            TrashItemRow(
+                id=item.id,
+                instance_id=item.instance_id,
+                original_path=item.original_path,
+                stored_name=item.stored_name,
+                is_dir=item.is_dir,
+                size_bytes=item.size_bytes,
+                origin=str(item.origin),
+                content_type=item.content_type,
+                trashed_at=item.trashed_at.isoformat(),
+            )
+        )
+        await self._session.commit()
+
+    async def list_for(self, instance_id: str) -> list[TrashItem]:
+        rows = await self._session.scalars(
+            select(TrashItemRow)
+            .where(TrashItemRow.instance_id == instance_id)
+            .order_by(TrashItemRow.trashed_at.desc())
+        )
+        return [_row_to_trash(r) for r in rows]
+
+    async def get(self, item_id: str) -> TrashItem | None:
+        row = await self._session.get(TrashItemRow, item_id)
+        return _row_to_trash(row) if row else None
+
+    async def delete(self, item_id: str) -> bool:
+        result = await self._session.execute(
+            delete(TrashItemRow).where(TrashItemRow.id == item_id)
         )
         await self._session.commit()
         return result.rowcount > 0

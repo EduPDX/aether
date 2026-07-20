@@ -21,6 +21,7 @@ from aether_core.application.ports import (
     IconStore,
     ProviderRegistry,
 )
+from aether_core.application.trash import TrashService
 from aether_core.domain.content import ContentItem, is_enabled, mark_duplicates, toggled_name
 from aether_core.domain.errors import (
     ContentFolderMissingError,
@@ -28,6 +29,7 @@ from aether_core.domain.errors import (
     ValidationFailedError,
 )
 from aether_core.domain.instances import Instance
+from aether_core.domain.trash import TrashOrigin
 
 
 @dataclass
@@ -49,14 +51,14 @@ class ContentService:
         fs: ContentFilesystem,
         cache: ContentCache,
         icons: IconStore,
-        trash_root: Path,
+        trash: TrashService,
         bus: EventBus,
     ) -> None:
         self._providers = providers
         self._fs = fs
         self._cache = cache
         self._icons = icons
-        self._trash_root = trash_root
+        self._trash = trash
         self._bus = bus
 
     # ------------------------------------------------------------- helpers --
@@ -149,10 +151,23 @@ class ContentService:
         ct = self._content_type(instance, ctype_id)
         folder = self._folder(instance, ct)
         file_name = Path(file_name).name
-        trash_dir = self._trash_root / instance.id
-        moved_to = await asyncio.to_thread(self._fs.move_to_trash, folder, file_name, trash_dir)
+
+        # O caminho é guardado relativo à raiz da instância, e não à pasta do
+        # tipo de conteúdo: assim restaurar não depende de o `content_dir`
+        # continuar apontando para o mesmo lugar depois.
+        root = Path(instance.root_dir).resolve()
+        origem = (folder / file_name).resolve()
+        rel = origem.relative_to(root).as_posix()
+
+        item = await self._trash.store(
+            instance,
+            origem,
+            rel,
+            origin=TrashOrigin.CONTENT,
+            content_type=ctype_id,
+        )
         await self._bus.publish("content.trashed", {"instance_id": instance.id, "file": file_name})
-        return moved_to
+        return item.id
 
     async def copy(
         self,

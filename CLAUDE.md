@@ -25,7 +25,10 @@ uv run ruff format
 pnpm install
 pnpm --dir apps/dashboard dev       # dev server na 5173, proxy /api → 127.0.0.1:8600
 pnpm --dir apps/dashboard build
-cd apps/dashboard && npx tsc --noEmit   # typecheck (o build não checa tipos sozinho)
+# Typecheck. Tem de ser `tsc -b`: o tsconfig.json da raiz é só um mapa de
+# referências (`"files": []`), então `tsc --noEmit` passa sempre — sem checar
+# arquivo nenhum. Use `--force` para não confiar no cache incremental.
+cd apps/dashboard && npx tsc -b --force
 
 # Core local
 AETHER_DATA_DIR=/tmp/aether-dev uv run uvicorn \
