@@ -1,6 +1,5 @@
 """Content API tests: list, toggle, trash, copy, compare, icons."""
 
-
 from conftest import create_instance, make_mod_jar
 
 

@@ -103,9 +103,7 @@ def select_for_pruning(
     """
     vencidos = {i.id for i in items if now - i.trashed_at > timedelta(days=dias)}
 
-    restantes = sorted(
-        (i for i in items if i.id not in vencidos), key=lambda i: i.trashed_at
-    )
+    restantes = sorted((i for i in items if i.id not in vencidos), key=lambda i: i.trashed_at)
     total = sum(i.size_bytes for i in restantes)
     excedentes: set[str] = set()
     for item in restantes:

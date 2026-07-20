@@ -484,8 +484,6 @@ class SqlTrashRepository:
         return _row_to_trash(row) if row else None
 
     async def delete(self, item_id: str) -> bool:
-        result = await self._session.execute(
-            delete(TrashItemRow).where(TrashItemRow.id == item_id)
-        )
+        result = await self._session.execute(delete(TrashItemRow).where(TrashItemRow.id == item_id))
         await self._session.commit()
         return result.rowcount > 0
