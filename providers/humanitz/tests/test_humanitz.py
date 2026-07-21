@@ -76,11 +76,28 @@ def test_provider_data_ajusta_portas_e_nome(tmp_path):
     assert spec.env["AETHER_STEAM_NAME"] == "Do Dario"
 
 
-def test_install_spec_baixa_o_app_do_servidor():
-    script = provider.install_spec(
-        LaunchContext(root_dir=Path("."), provider_data={}), "public"
-    ).command[-1]
+def test_install_padrao_usa_a_branch_linux():
+    """A public do HumanitZ só tem binários de Windows; o servidor Linux está
+    na linuxbranch. Sem versão escolhida, é ela que deve ser baixada."""
+    script = provider.install_spec(LaunchContext(root_dir=Path("."), provider_data={}), "").command[
+        -1
+    ]
     assert "app_update 2728330" in script
+    assert "-beta linuxbranch" in script
+
+
+def test_versoes_escondem_branches_de_windows():
+    dump = (
+        '"branches"\n{\n'
+        '\t\t\t"public"\n\t\t\t{\n\t\t\t\t"buildid"\t\t"1"\n\t\t\t}\n'
+        '\t\t\t"linuxbranch"\n\t\t\t{\n\t\t\t\t"buildid"\t\t"2"\n\t\t\t}\n'
+        '\t\t\t"windowsbranch"\n\t\t\t{\n\t\t\t\t"buildid"\t\t"3"\n\t\t\t}\n'
+        "}\n"
+    )
+    ids = {v.id for v in provider.parse_versions(dump)}
+    assert ids == {"linuxbranch"}
+    linux = provider.parse_versions(dump)[0]
+    assert linux.stable is True and "Linux" in linux.label
 
 
 # ------------------------------------------------------------------------ codec
