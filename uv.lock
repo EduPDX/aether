@@ -9,7 +9,9 @@ resolution-markers = [
 [manifest]
 members = [
     "aether-core",
+    "aether-provider-humanitz",
     "aether-provider-minecraft",
+    "aether-provider-satisfactory",
     "aether-provider-sevendays",
     "aether-sdk",
     "aether-sync",
@@ -74,9 +76,31 @@ dev = [
 ]
 
 [[package]]
+name = "aether-provider-humanitz"
+version = "0.1.0.dev0"
+source = { editable = "providers/humanitz" }
+dependencies = [
+    { name = "aether-sdk" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "aether-sdk", editable = "packages/sdk" }]
+
+[[package]]
 name = "aether-provider-minecraft"
 version = "0.1.0.dev0"
 source = { editable = "providers/minecraft" }
+dependencies = [
+    { name = "aether-sdk" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "aether-sdk", editable = "packages/sdk" }]
+
+[[package]]
+name = "aether-provider-satisfactory"
+version = "0.1.0.dev0"
+source = { editable = "providers/satisfactory" }
 dependencies = [
     { name = "aether-sdk" },
 ]

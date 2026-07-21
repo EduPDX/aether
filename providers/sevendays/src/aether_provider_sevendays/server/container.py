@@ -15,18 +15,11 @@ configuração a partir do que o jogo distribui e atualizar sob controle.
 from pathlib import Path
 
 from aether_sdk import ContainerSpec, LaunchContext, PortMapping, VolumeMount
+from aether_sdk.steamcmd import IMAGE, INSTALL_DIR, RUN_AS
 
 from aether_provider_sevendays.server.serverconfig import CONFIG_FILE, SERVERCONFIG_SCHEMA
 
-IMAGE = "cm2network/steamcmd:root"
 DEFAULT_PORT = 26900
-
-# O SteamCMD recusa rodar como root ("Missing file permissions") — a imagem
-# traz o usuário `steam` justamente para isso. O servidor herda o mesmo usuário
-# para conseguir escrever nos arquivos que o instalador criou.
-RUN_AS = "1000:1000"
-
-INSTALL_DIR = "/data/server"
 BINARIO = "7DaysToDieServer.x86_64"
 
 # -logfile é omitido de propósito: com ele o Unity silencia o stdout e o

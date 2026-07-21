@@ -5,6 +5,8 @@ members = [
     "packages/sdk",
     "providers/minecraft",
     "providers/sevendays",
+    "providers/satisfactory",
+    "providers/humanitz",
 ]
 
 [dependency-groups]
