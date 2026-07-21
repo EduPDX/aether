@@ -125,8 +125,37 @@ def player_command(action: PlayerAction, name: str, reason: str = "") -> str | N
     }.get(action)
 
 
+def player_live_plan(root: Path, action: PlayerAction) -> str | None:
+    """Com o servidor NO AR, diz se a ação deve ir pelo arquivo em vez do console.
+
+    O motivo é um gotcha real do Minecraft: em ``online-mode=false``, os comandos
+    que CRIAM entrada — ``whitelist add``, ``op``, ``ban`` — resolvem o nome
+    consultando a Mojang e gravam o UUID da conta real. Só que o cliente offline
+    entra com um UUID calculado do nome, que é outro. O jogador fica na lista e
+    mesmo assim é barrado. A gravação por arquivo (``apply_player_action``) usa o
+    UUID offline correto, então nesse caso ela vence o console.
+
+    Retorno:
+
+    - ``None``  — o console é seguro; use o comando normal.
+    - ``""``    — grave pelo arquivo; não há recarga ao vivo (vale no próximo boot).
+    - ``"cmd"`` — grave pelo arquivo e mande ``cmd`` para aplicar sem reiniciar.
+    """
+    # Só ADD/BAN criam entrada com UUID. Remover, desbanir, deop e kick operam
+    # por nome — o console acerta.
+    if action not in (PlayerAction.ALLOW_ADD, PlayerAction.ADMIN_ADD, PlayerAction.BAN):
+        return None
+    # Em online-mode o console resolve o UUID real da Mojang, que é exatamente o
+    # que o cliente online usa. Nada a corrigir.
+    if _propriedade(root, "online-mode", "true").lower() == "true":
+        return None
+    # Offline: pelo arquivo. Só a whitelist tem recarga ao vivo no vanilla; ops e
+    # banidos são relidos no próximo start.
+    return "whitelist reload" if action is PlayerAction.ALLOW_ADD else ""
+
+
 def apply_player_action(root: Path, action: PlayerAction, name: str, reason: str = "") -> None:
-    """Aplica direto nos arquivos — só com o servidor parado."""
+    """Aplica direto nos arquivos (servidor parado, ou offline com recarga)."""
     if action is PlayerAction.KICK:
         raise ValueError("kick exige o servidor rodando")
 

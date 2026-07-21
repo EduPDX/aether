@@ -56,11 +56,11 @@ export function PlayersView({ instance }: { instance: Instance }) {
       api.playerAction(instance.id, v.action, v.name, v.reason ?? ""),
     onSuccess: (res) => {
       setErro("");
-      // A diferença importa: por console vale agora; por arquivo, no próximo boot.
+      // "console" e "recarga" já valem agora; "arquivo" só no próximo boot.
       setAviso(
-        res.applied_via === "console"
-          ? "Aplicado no servidor — já vale."
-          : "Gravado no arquivo — vale quando o servidor iniciar.",
+        res.applied_via === "arquivo"
+          ? "Gravado no arquivo — vale quando o servidor iniciar."
+          : "Aplicado no servidor — já vale.",
       );
       setTimeout(() => setAviso(""), 4000);
       qc.invalidateQueries({ queryKey: ["players", instance.id] });

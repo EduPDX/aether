@@ -8,7 +8,7 @@ from aether_core.application.players import PlayerService
 from aether_core.domain.errors import ValidationFailedError
 from aether_core.domain.instances import Instance, InstanceState
 from aether_provider_minecraft.provider import MinecraftProvider
-from aether_provider_minecraft.server.players import offline_uuid
+from aether_provider_minecraft.server.players import offline_uuid, player_live_plan
 from aether_sdk import PlayerAction, PlayerListKind
 
 
@@ -200,10 +200,28 @@ def servico(root, estado):
     return svc, inst, power
 
 
-def test_com_servidor_rodando_usa_console_e_nao_toca_no_arquivo(tmp_path):
-    """O ponto central: o servidor mantém as listas em memória e reescreve os
-    arquivos. Gravar por baixo dele faria a alteração sumir sem aviso."""
-    root = montar(tmp_path)
+def test_offline_rodando_grava_arquivo_com_uuid_correto_e_recarrega(tmp_path):
+    """Regressão do bug que barrava o dono do próprio servidor.
+
+    Num servidor offline no ar, `whitelist add` resolveria o UUID pela Mojang —
+    diferente do UUID offline com que o cliente entra. Então grava pelo arquivo
+    (UUID offline certo) e manda `whitelist reload`, sem `whitelist add`.
+    """
+    root = montar(tmp_path, online_mode="false")
+    svc, inst, power = servico(root, InstanceState.RUNNING)
+
+    via = asyncio.run(svc.apply(inst, PlayerAction.ALLOW_ADD, "Fulano"))
+
+    assert via == "recarga"
+    assert power.comandos == ["whitelist reload"]  # e NÃO "whitelist add Fulano"
+    entradas = {e["name"]: e["uuid"] for e in ler(root, "whitelist.json")}
+    assert entradas["Fulano"] == offline_uuid("Fulano")
+
+
+def test_online_rodando_usa_console(tmp_path):
+    """Em online-mode o console resolve o UUID real da Mojang — que é o certo
+    para o cliente online. Aí o caminho é o console, sem tocar no arquivo."""
+    root = montar(tmp_path, online_mode="true")
     svc, inst, power = servico(root, InstanceState.RUNNING)
 
     via = asyncio.run(svc.apply(inst, PlayerAction.ALLOW_ADD, "Fulano"))
@@ -243,3 +261,39 @@ def test_nome_vazio_e_recusado(tmp_path):
     svc, inst, _ = servico(root, InstanceState.RUNNING)
     with pytest.raises(ValidationFailedError):
         asyncio.run(svc.apply(inst, PlayerAction.ALLOW_ADD, "   "))
+
+
+# -------------------------------------------- plano com o servidor no ar --
+
+
+def test_live_plan_offline_whitelist_recarrega(tmp_path):
+    root = montar(tmp_path, online_mode="false")
+    assert player_live_plan(root, PlayerAction.ALLOW_ADD) == "whitelist reload"
+
+
+def test_live_plan_offline_op_e_ban_gravam_sem_recarga(tmp_path):
+    """ops.json e banned-players.json não têm recarga ao vivo no vanilla: o
+    arquivo fica certo, aplica no próximo start."""
+    root = montar(tmp_path, online_mode="false")
+    assert player_live_plan(root, PlayerAction.ADMIN_ADD) == ""
+    assert player_live_plan(root, PlayerAction.BAN) == ""
+
+
+def test_live_plan_online_usa_console(tmp_path):
+    root = montar(tmp_path, online_mode="true")
+    assert player_live_plan(root, PlayerAction.ALLOW_ADD) is None
+    assert player_live_plan(root, PlayerAction.ADMIN_ADD) is None
+    assert player_live_plan(root, PlayerAction.BAN) is None
+
+
+def test_live_plan_remocoes_sempre_pelo_console(tmp_path):
+    """Remover/desbanir/deop/kick operam por nome — o console acerta nos dois
+    modos, então nunca desviam para o arquivo."""
+    root = montar(tmp_path, online_mode="false")
+    for acao in (
+        PlayerAction.ALLOW_REMOVE,
+        PlayerAction.ADMIN_REMOVE,
+        PlayerAction.UNBAN,
+        PlayerAction.KICK,
+    ):
+        assert player_live_plan(root, acao) is None

@@ -6,8 +6,10 @@ quer, então gravar por baixo dele faz a alteração desaparecer sem erro nenhum
 o usuário adiciona um amigo à whitelist, vê a tela confirmar, e o amigo não
 entra.
 
-Por isso a decisão é tomada aqui e não no provider: rodando manda comando de
-console; parado escreve o arquivo.
+Por isso a decisão é tomada aqui: parado, escreve o arquivo; rodando, manda
+comando de console. Com uma exceção que o provider aponta — no Minecraft
+offline, criar entrada pelo console grava o UUID errado (resolvido pela Mojang),
+então nesses casos escreve o arquivo e recarrega a lista sem reiniciar.
 """
 
 from pathlib import Path
@@ -55,14 +57,30 @@ class PlayerService:
         if not rodando and action in LIVE_ONLY:
             raise ValidationFailedError("esta ação só funciona com o servidor rodando")
 
+        root = Path(instance.root_dir)
         if rodando:
-            comando = provider.player_command(action, name, reason)
-            if comando is None:
-                raise ValidationFailedError(f"ação não suportada: {action}")
-            await self._power.send_command(instance, comando)
-            via = "console"
+            # Alguns providers precisam do arquivo mesmo com o servidor no ar:
+            # no Minecraft offline, `whitelist add` resolveria o UUID errado pela
+            # Mojang e o jogador ficaria na lista sem conseguir entrar. O provider
+            # devolve o comando de recarga (ou "" quando não há um), ou None se o
+            # console é seguro.
+            decidir = getattr(provider, "player_live_plan", None)
+            recarga = decidir(root, action) if callable(decidir) else None
+            if recarga is not None:
+                provider.apply_player_action(root, action, name, reason)
+                if recarga:
+                    await self._power.send_command(instance, recarga)
+                    via = "recarga"
+                else:
+                    via = "arquivo"
+            else:
+                comando = provider.player_command(action, name, reason)
+                if comando is None:
+                    raise ValidationFailedError(f"ação não suportada: {action}")
+                await self._power.send_command(instance, comando)
+                via = "console"
         else:
-            provider.apply_player_action(Path(instance.root_dir), action, name, reason)
+            provider.apply_player_action(root, action, name, reason)
             via = "arquivo"
 
         await self._bus.publish(

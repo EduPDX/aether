@@ -465,7 +465,7 @@ export const api = {
   /** Conteúdo da lixeira. Não confundir com `trash`, que *manda* um mod para lá. */
   players: (id: string) => request<{ lists: PlayerList[] }>(`/api/v1/instances/${id}/players`),
   playerAction: (id: string, action: PlayerAction, name: string, reason = "") =>
-    request<{ applied_via: "console" | "arquivo" }>(
+    request<{ applied_via: "console" | "arquivo" | "recarga" }>(
       `/api/v1/instances/${id}/players/action`,
       { method: "POST", body: JSON.stringify({ action, name, reason }) },
     ),

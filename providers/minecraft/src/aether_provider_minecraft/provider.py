@@ -35,6 +35,7 @@ from aether_provider_minecraft.server.players import (
     apply_player_action,
     player_command,
     player_lists,
+    player_live_plan,
 )
 from aether_provider_minecraft.server.properties import (
     SERVER_PROPERTIES_SCHEMA,
@@ -155,3 +156,7 @@ class MinecraftProvider:
 
     def apply_player_action(self, root: Path, action, name: str, reason: str = "") -> None:
         apply_player_action(root, action, name, reason)
+
+    def player_live_plan(self, root: Path, action) -> str | None:
+        """Servidor no ar: aplicar pelo arquivo? Veja `player_live_plan`."""
+        return player_live_plan(root, action)
