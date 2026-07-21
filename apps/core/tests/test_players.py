@@ -117,6 +117,22 @@ def test_adicionar_grava_com_o_uuid_certo(tmp_path):
     assert entradas["Fulano"] == offline_uuid("Fulano")
 
 
+def test_adicionar_preserva_a_caixa_do_nome(tmp_path):
+    """A grafia digitada tem de ser gravada como está.
+
+    O UUID offline é calculado do nome exato, e o cliente entra com a caixa que
+    o launcher usa. Se a interface mudasse 'edu' para 'Edu', o UUID mudaria e o
+    jogador seria barrado. O `whitelist add` antigo fazia isso (a Mojang devolve
+    a grafia canônica da conta); o caminho de arquivo não.
+    """
+    root = montar(tmp_path)
+    MinecraftProvider().apply_player_action(root, PlayerAction.ALLOW_ADD, "minusculo")
+
+    entradas = {e["name"]: e["uuid"] for e in ler(root, "whitelist.json")}
+    assert "minusculo" in entradas  # e não "Minusculo"
+    assert entradas["minusculo"] == offline_uuid("minusculo")
+
+
 def test_adicionar_duas_vezes_nao_duplica(tmp_path):
     root = montar(tmp_path)
     p = MinecraftProvider()
