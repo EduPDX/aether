@@ -5,16 +5,20 @@ hospedagem — portas, RAM por jogadores, avisos — e nenhuma loja de jogos sab
 disso. A fonte externa só preenche buracos: descrição, gênero, desenvolvedora,
 requisitos do cliente e imagens.
 
-Duas decisões que evitam surpresa em produção:
+Três decisões que evitam surpresa em produção:
 
+- **imagem local vence.** Se o provider traz `logo.*`/`banner.*` na sua pasta
+  `assets/`, é ela que aparece — sem tocar na rede. É como fixar a capa de um
+  jogo no próprio código.
 - **cache em disco.** A tela do catálogo abre sem rede e não bate na Steam a
   cada visita.
-- **imagens baixadas.** O navegador do usuário nunca fala com a CDN externa, e
-  um servidor sem internet continua mostrando as capas que já baixou.
+- **imagens baixadas.** Sem imagem local, a da loja é baixada uma vez e servida
+  pelo Core; o navegador do usuário nunca fala com a CDN externa.
 """
 
 import asyncio
 import hashlib
+import importlib.resources as resources
 import json
 import logging
 import time
@@ -33,6 +37,23 @@ TTL_SEGUNDOS = 7 * 24 * 3600
 IMAGENS = ("banner_url", "logo_url")
 PREFIXO_MEDIA = "/api/v1/catalog/"
 
+ASSET_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif")
+"""Formatos aceitos para uma imagem local; o arquivo tem de se chamar
+exatamente ``logo.<ext>`` ou ``banner.<ext>``."""
+
+
+def _assets_do_pacote(provider):
+    """Pasta ``assets/`` do pacote do provider, onde ele pode deixar as imagens.
+
+    Resolvido por ``importlib.resources`` (e não por ``__file__``) para funcionar
+    tanto com o provider instalado do código-fonte quanto empacotado num wheel.
+    """
+    pacote = type(provider).__module__.split(".")[0]
+    try:
+        return resources.files(pacote) / "assets"
+    except (ModuleNotFoundError, TypeError):
+        return None
+
 
 class CatalogService:
     def __init__(
@@ -41,11 +62,14 @@ class CatalogService:
         cache_dir: Path,
         fontes: list | None = None,
         baixar=None,
+        assets_dir=_assets_do_pacote,
     ) -> None:
         self._providers = providers
         self._dir = Path(cache_dir)
         self._fontes = fontes or []
         self._baixar = baixar
+        # Como achar a pasta de imagens de um provider; injetável para teste.
+        self._assets_dir = assets_dir
 
     @property
     def media_dir(self) -> Path:
@@ -72,7 +96,11 @@ class CatalogService:
         """
         saida = []
         for entrada in self._curados().values():
-            saida.append(self._aplicar(entrada, self._ler_cache(entrada.id) or {}).model_dump())
+            dados = self._ler_cache(entrada.id) or {}
+            # Imagem local é de graça e não depende de rede, então entra já na
+            # grade — não só na página do jogo.
+            dados = self._localizar_assets(entrada, dados)
+            saida.append(self._aplicar(entrada, dados).model_dump())
         return saida
 
     async def get(self, game_id: str, *, atualizar: bool = False) -> dict:
@@ -85,11 +113,15 @@ class CatalogService:
         if extra is None:
             extra = await self._buscar_nas_fontes(entrada)
 
-        # As imagens são localizadas depois da fusão, e não dentro da busca, por
-        # dois motivos: o provider também declara imagens (o Minecraft não tem
-        # fonte externa e mesmo assim tem logo e banner), e um cache gravado antes
-        # de a imagem existir travaria a URL externa até o TTL vencer — numa
-        # instalação já rodando, para sempre na prática.
+        # Imagem local do provider vem primeiro e vence a da loja: se você deixou
+        # logo/banner na pasta assets/ do jogo, é ela que aparece, sem rede.
+        # Roda mesmo com cache quente para refletir na hora a troca da imagem.
+        extra = self._localizar_assets(entrada, extra or {})
+
+        # O que sobrar apontando para a internet é baixado e servido pelo Core.
+        # Sem isso a página dependeria de uma CDN de terceiro a cada visita, e um
+        # cache gravado antes de a imagem existir travaria a URL externa até o TTL
+        # vencer — numa instalação já rodando, para sempre na prática.
         final = self._aplicar(entrada, extra)
         if self._falta_localizar(final):
             extra = await self._localizar_imagens(final, extra)
@@ -138,6 +170,48 @@ class CatalogService:
         return reunido
 
     # ------------------------------------------------------------------ mídia
+    def _ler_asset(self, entrada: GameCatalogEntry, base: str) -> tuple[str, bytes] | None:
+        """Lê ``logo.*``/``banner.*`` da pasta ``assets/`` do provider, se houver.
+
+        Devolve (nome do arquivo, conteúdo) ou ``None`` — o que faz o download
+        da internet continuar valendo para quem não deixou imagem local.
+        """
+        provider = self._providers.get(entrada.provider_id)
+        pasta = self._assets_dir(provider) if provider is not None else None
+        if pasta is None:
+            return None
+        try:
+            if not pasta.is_dir():
+                return None
+            for arq in pasta.iterdir():
+                nome = arq.name.lower()
+                if arq.is_file() and nome.rsplit(".", 1)[0] == base and nome.endswith(ASSET_EXTS):
+                    return arq.name, arq.read_bytes()
+        except (FileNotFoundError, NotADirectoryError, OSError):
+            return None
+        return None
+
+    def _localizar_assets(self, entrada: GameCatalogEntry, extra: dict) -> dict:
+        """Copia as imagens locais do provider para a pasta de mídia e aponta as
+        URLs para elas. Sem imagem local, não mexe em nada."""
+        dados = dict(extra or {})
+        for campo, base in (("banner_url", "banner"), ("logo_url", "logo")):
+            achado = self._ler_asset(entrada, base)
+            if achado is None:
+                continue
+            arqnome, conteudo = achado
+            ext = "." + arqnome.rsplit(".", 1)[-1].lower()
+            nome = f"{entrada.id}-{base}-{hashlib.sha1(conteudo).hexdigest()[:10]}{ext}"
+            destino = self.media_dir / nome
+            try:
+                if not destino.is_file():
+                    self.media_dir.mkdir(parents=True, exist_ok=True)
+                    destino.write_bytes(conteudo)
+                dados[campo] = f"{PREFIXO_MEDIA}{entrada.id}/media/{nome}"
+            except OSError as exc:
+                log.info("não foi possível gravar o asset %s de %s: %s", base, entrada.id, exc)
+        return dados
+
     async def _localizar_imagens(self, final: GameCatalogEntry, extra: dict) -> dict:
         """Traz banner e logo para o disco e troca a URL pela nossa.
 

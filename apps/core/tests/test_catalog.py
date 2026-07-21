@@ -269,3 +269,117 @@ def test_cache_gravado_sem_imagem_nao_trava_a_url_externa(tmp_path):
         assert ficha["logo_url"].startswith(PREFIXO_MEDIA)
 
     asyncio.run(caso())
+
+
+# ------------------------------------------------------ imagem local do provider
+def test_imagem_local_do_provider_vence_a_fonte(tmp_path):
+    """Deixar logo/banner na pasta assets/ do jogo fixa a capa no código: ela
+    ganha da imagem da loja e o Core nem vai à rede buscar."""
+
+    async def caso():
+        assets = tmp_path / "assets"
+        assets.mkdir()
+        (assets / "banner.png").write_bytes(b"png-local")
+
+        baixados: list[str] = []
+
+        async def baixar(url: str) -> bytes:
+            baixados.append(url)
+            return b"da-internet"
+
+        fonte = FonteFake({"banner_url": "https://cdn.exemplo/banner.jpg", "descricao": "da loja"})
+        svc = CatalogService(
+            Registry(jogo=ProviderComCatalogo(_entrada())),
+            tmp_path / "cache",
+            [fonte],
+            baixar=baixar,
+            assets_dir=lambda _p: assets,
+        )
+
+        ficha = await svc.get("jogo")
+
+        assert ficha["banner_url"].startswith(PREFIXO_MEDIA)
+        assert "cdn.exemplo" not in baixados  # a imagem da loja não foi baixada
+        assert ficha["descricao"] == "da loja"  # outros metadados da fonte seguem valendo
+        arquivo = ficha["banner_url"].rsplit("/", 1)[-1]
+        caminho, tipo = svc.media_path("jogo", arquivo)
+        assert caminho.read_bytes() == b"png-local"
+        assert tipo == "image/png"
+
+    asyncio.run(caso())
+
+
+def test_sem_imagem_local_cai_para_a_fonte(tmp_path):
+    """Jogo sem imagem local continua usando a da loja, como antes."""
+
+    async def caso():
+        assets = tmp_path / "assets"
+        assets.mkdir()  # vazio
+
+        baixados: list[str] = []
+
+        async def baixar(url: str) -> bytes:
+            baixados.append(url)
+            return b"jpg"
+
+        fonte = FonteFake({"banner_url": "https://cdn.exemplo/banner.jpg"})
+        svc = CatalogService(
+            Registry(jogo=ProviderComCatalogo(_entrada())),
+            tmp_path / "cache",
+            [fonte],
+            baixar=baixar,
+            assets_dir=lambda _p: assets,
+        )
+
+        ficha = await svc.get("jogo")
+
+        assert baixados == ["https://cdn.exemplo/banner.jpg"]
+        assert ficha["banner_url"].startswith(PREFIXO_MEDIA)
+
+    asyncio.run(caso())
+
+
+def test_a_grade_do_catalogo_usa_a_imagem_local(tmp_path):
+    """A imagem local é de graça e sem rede, então já aparece na grade (list),
+    não só na página do jogo."""
+
+    async def caso():
+        assets = tmp_path / "assets"
+        assets.mkdir()
+        (assets / "logo.svg").write_bytes(b"<svg/>")
+
+        svc = CatalogService(
+            Registry(jogo=ProviderComCatalogo(_entrada())),
+            tmp_path / "cache",
+            [],
+            assets_dir=lambda _p: assets,
+        )
+
+        grade = await svc.list()
+
+        assert grade[0]["logo_url"].startswith(PREFIXO_MEDIA)
+        assert grade[0]["logo_url"].endswith(".svg")
+
+    asyncio.run(caso())
+
+
+def test_arquivo_com_nome_fora_da_convencao_e_ignorado(tmp_path):
+    """Só logo.* e banner.* contam; um screenshot solto na pasta não vira capa."""
+
+    async def caso():
+        assets = tmp_path / "assets"
+        assets.mkdir()
+        (assets / "screenshot1.png").write_bytes(b"nao")
+
+        svc = CatalogService(
+            Registry(jogo=ProviderComCatalogo(_entrada())),
+            tmp_path / "cache",
+            [],
+            assets_dir=lambda _p: assets,
+        )
+
+        ficha = await svc.get("jogo")
+        assert ficha["banner_url"] == ""
+        assert ficha["logo_url"] == ""
+
+    asyncio.run(caso())
