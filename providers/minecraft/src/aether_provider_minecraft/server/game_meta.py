@@ -20,6 +20,12 @@ def detect_game_metadata(root: Path, provider_data: dict) -> dict | None:
     if isinstance(explicit, dict) and explicit.get("minecraft"):
         return explicit
 
+    # A versão-alvo (instância provisionada) desempata quando o volume tem sobra
+    # de outra versão: trocar de versão deixa a instalação antiga no disco, e
+    # pegar a "maior por nome" apontaria para a errada — ex.: um 1.20.1 que virou
+    # 26.2 e voltou continuaria detectando 26.2.
+    alvo = (provider_data.get("container") or {}).get("version") or ""
+
     for loader, maven_path in (
         ("forge", "libraries/net/minecraftforge/forge"),
         ("neoforge", "libraries/net/neoforged/neoforge"),
@@ -27,7 +33,11 @@ def detect_game_metadata(root: Path, provider_data: dict) -> dict | None:
         base = root / maven_path
         if not base.is_dir():
             continue
-        for child in sorted(base.iterdir(), reverse=True):
+        filhos = sorted(base.iterdir(), reverse=True)
+        # O da versão-alvo primeiro; sem alvo (ou pasta adotada), o mais novo.
+        if alvo:
+            filhos.sort(key=lambda c: not c.name.startswith(f"{alvo}-"))
+        for child in filhos:
             m = _FORGE_DIR.match(child.name)
             if m:
                 if loader == "neoforge":
