@@ -37,6 +37,14 @@ INSTALL_DIR = "/data/server"
 
 DEFAULT_BRANCH = "public"
 
+MAX_TENTATIVAS = 6
+"""O SteamCMD falha a primeira (às vezes as primeiras) tentativa de um servidor
+dedicado com "Missing configuration" — a config do app só carrega depois de já
+ter pedido o app uma vez, e uma sessão só não resolve. Repetir o **processo
+inteiro** resolve, normalmente na 2ª ou 3ª. O teto evita loop infinito num erro
+real (disco cheio); o Core já checa espaço antes, então chegar ao teto é
+sintoma de outra coisa."""
+
 _STEAMCMD = f"{HOME_STEAM}/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux"
 
 # O dump do `app_info_print` é um VDF aninhado. Só o bloco "branches" interessa,
@@ -54,15 +62,21 @@ def install_spec(app_id: int, version: str, *, install_dir: str = INSTALL_DIR) -
     """
     branch = (version or DEFAULT_BRANCH).strip()
     beta = "" if branch == DEFAULT_BRANCH else f" -beta {branch}"
-    # O app_update roda duas vezes de propósito. Instalar de uma branch beta
-    # falha na primeira com "Missing configuration": o SteamCMD só carrega a
-    # config da branch depois de já ter pedido o app uma vez. A segunda chamada
-    # então instala. Para a branch padrão a segunda é um validate sem trabalho,
-    # então repetir não custa nada e evita um caso especial por jogo.
-    update = f"+app_update {app_id}{beta} validate"
+    sessao = (
+        f"{_STEAMCMD} +force_install_dir {install_dir} "
+        f"+login anonymous +app_update {app_id}{beta} validate +quit"
+    )
+    # Repete o processo inteiro até instalar (ver MAX_TENTATIVAS). O SteamCMD
+    # sai com código != 0 no "Missing configuration", então o ``until`` pega o
+    # caso e uma tentativa seguinte costuma passar. Uma retomada reaproveita o
+    # que já baixou; não recomeça do zero.
     comando = (
-        f"set -e; {_STEAMCMD} +force_install_dir {install_dir} "
-        f"+login anonymous {update} {update} +quit"
+        f"n=0; until {sessao}; do "
+        f"n=$((n+1)); "
+        f'[ "$n" -ge {MAX_TENTATIVAS} ] && '
+        f'echo "[aether] SteamCMD falhou apos $n tentativas" && exit 1; '
+        f'echo "[aether] SteamCMD: nova tentativa ($n)..."; sleep 3; '
+        f"done"
     )
     return ContainerSpec(
         image=IMAGE,

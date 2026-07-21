@@ -7,8 +7,9 @@ jogo quando termina de subir.
 
 from aether_sdk.console_ue import UnrealConsoleCodec
 
-# Linha real do log ao terminar de subir; refinada contra o console real.
-READY = r"Game state.*ready|Server.*is ready|InitGame|LogNet: AddClientConnection"
+# Capturada do console real: o servidor dedicado anuncia a API escutando na
+# porta assim que termina de subir.
+READY = r"Server API listening on"
 
 
 def SatisfactoryConsoleCodec() -> UnrealConsoleCodec:
