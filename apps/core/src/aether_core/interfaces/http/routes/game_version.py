@@ -51,7 +51,7 @@ async def game_version(
     disponiveis = await provider.game_versions()
     return {
         "current": provider.current_game_version(instance.provider_data),
-        "modded": provider.game_version_is_modded(instance.provider_data),
+        "modded": provider.game_version_is_modded(instance.root_dir),
         "running": power.state(instance) is not InstanceState.STOPPED,
         "available": [v.model_dump() for v in disponiveis],
     }

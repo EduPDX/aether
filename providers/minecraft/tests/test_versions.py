@@ -53,12 +53,30 @@ def test_current_version_le_do_container():
     assert current_version({}) == ""
 
 
-def test_is_modded_reconhece_loaders():
-    assert is_modded({"container": {"type": "FORGE"}}) is True
-    assert is_modded({"container": {"type": "FABRIC"}}) is True
-    assert is_modded({"container": {"type": "VANILLA"}}) is False
-    assert is_modded({"container": {"type": "PAPER"}}) is False
-    assert is_modded({}) is False
+def test_is_modded_conta_arquivos_nao_o_loader(tmp_path):
+    """O aviso é sobre ter mod, não sobre o tipo do servidor: um Forge sem mod
+    atualiza sem quebrar nada."""
+    # servidor sem pasta de mods: não modado
+    assert is_modded(tmp_path) is False
+
+    # pasta de mods vazia: ainda não modado
+    (tmp_path / "mods").mkdir()
+    assert is_modded(tmp_path) is False
+
+    # só um mod desabilitado: não carrega, não conta
+    (tmp_path / "mods" / "algum.jar.disabled").write_text("x")
+    assert is_modded(tmp_path) is False
+
+    # um mod habilitado: modado
+    (tmp_path / "mods" / "create.jar").write_text("x")
+    assert is_modded(tmp_path) is True
+
+
+def test_is_modded_pega_mods_do_cliente(tmp_path):
+    """Mod só no perfil do cliente também conta — quebra ao trocar a versão."""
+    (tmp_path / "aether-client" / "mods").mkdir(parents=True)
+    (tmp_path / "aether-client" / "mods" / "sodium.jar").write_text("x")
+    assert is_modded(tmp_path) is True
 
 
 def test_pin_version_troca_so_a_versao_preservando_o_resto():

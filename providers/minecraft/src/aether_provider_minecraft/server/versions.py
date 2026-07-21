@@ -9,6 +9,7 @@ e sim esta capacidade própria, mais leve.
 A lista de versões vem do manifesto oficial da Mojang, então nunca envelhece.
 """
 
+from pathlib import Path
 from typing import Any
 
 from aether_sdk import VersionInfo
@@ -59,15 +60,26 @@ def current_version(provider_data: dict) -> str:
     return str(container.get("version") or "")
 
 
-def is_modded(provider_data: dict) -> bool:
-    """A instância roda um loader de mods? (Forge/Fabric/NeoForge/Quilt).
+# Mods do servidor e o perfil do cliente — os dois lugares onde um .jar preso à
+# versão pode existir.
+_PASTAS_MOD = ("mods", "aether-client/mods")
 
-    Importa para o aviso: trocar a versão de um servidor com mods quebra todos
-    eles, que são presos à versão. Vanilla e Paper não têm esse problema.
+
+def is_modded(root: Path) -> bool:
+    """A instância tem mods de verdade instalados?
+
+    O aviso da troca de versão é sobre isto: mod é preso à versão e quebra ao
+    atualizar. Mas o que importa é haver mod, não o tipo do servidor — um Forge
+    sem nenhum mod atualiza sem problema. Por isso conta arquivos, não o loader.
+
+    Só conta ``.jar`` habilitados: um ``.jar.disabled`` não carrega, então não
+    quebra o boot.
     """
-    container = (provider_data or {}).get("container") or {}
-    tipo = str(container.get("type") or "VANILLA").upper()
-    return tipo in {"FORGE", "FABRIC", "NEOFORGE", "QUILT"}
+    for sub in _PASTAS_MOD:
+        pasta = root / sub
+        if pasta.is_dir() and any(p.is_file() and p.suffix == ".jar" for p in pasta.iterdir()):
+            return True
+    return False
 
 
 def pin_version(provider_data: dict, version: str) -> dict:

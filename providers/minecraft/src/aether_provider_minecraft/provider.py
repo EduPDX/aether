@@ -193,8 +193,8 @@ class MinecraftProvider:
     def current_game_version(self, provider_data: dict) -> str:
         return current_version(provider_data)
 
-    def game_version_is_modded(self, provider_data: dict) -> bool:
-        return is_modded(provider_data)
+    def game_version_is_modded(self, root_dir) -> bool:
+        return is_modded(Path(root_dir))
 
     def pin_game_version(self, provider_data: dict, version: str) -> dict:
         return pin_version(provider_data, version)

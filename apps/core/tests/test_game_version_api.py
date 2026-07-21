@@ -43,21 +43,34 @@ def _criar(client, *, tipo="FORGE", versao="1.20.1"):
     return res.json()["id"]
 
 
+def _root(client, iid):
+    from pathlib import Path
+
+    return Path(client.get(f"/api/v1/instances/{iid}").json()["root_dir"])
+
+
 def test_estado_da_versao_forge(client):
     iid = _criar(client, tipo="FORGE", versao="1.20.1")
     dados = client.get(f"/api/v1/instances/{iid}/game-version").json()
 
     assert dados["current"] == "1.20.1"
-    assert dados["modded"] is True  # Forge tem mods presos à versão
     assert dados["running"] is False
     ids = [v["id"] for v in dados["available"]]
     assert ids == ["1.21.1", "1.20.1", "24w33a"]
 
 
-def test_vanilla_nao_e_modado(client):
-    iid = _criar(client, tipo="VANILLA", versao="1.20.4")
-    dados = client.get(f"/api/v1/instances/{iid}/game-version").json()
-    assert dados["modded"] is False
+def test_modded_segue_os_mods_nao_o_loader(client):
+    """Forge sem mods: não modado. Depois de instalar um mod: modado."""
+    iid = _criar(client, tipo="FORGE", versao="1.20.1")
+    root = _root(client, iid)
+
+    # recém-criado, sem mods: não modado (Forge vazio atualiza sem quebrar)
+    assert client.get(f"/api/v1/instances/{iid}/game-version").json()["modded"] is False
+
+    # com um mod: modado
+    (root / "mods").mkdir(parents=True, exist_ok=True)
+    (root / "mods" / "create.jar").write_text("x")
+    assert client.get(f"/api/v1/instances/{iid}/game-version").json()["modded"] is True
 
 
 def test_trocar_versao_atualiza_o_provider_data(client):
