@@ -38,6 +38,7 @@ import { CatalogView } from "../sources/CatalogView";
 import { TasksView } from "../tasks/TasksView";
 import { FilesView } from "../files/FilesView";
 import { PortsView } from "./PortsView";
+import { MinecraftVersionView } from "./MinecraftVersionView";
 import { VersionView } from "./VersionView";
 import { SyncView } from "../sync/SyncView";
 
@@ -72,6 +73,7 @@ type Tab =
   | "sync"
   | "backups"
   | "version"
+  | "mc-version"
   | "ports"
   | "tasks";
 
@@ -210,6 +212,10 @@ export function InstanceView({ instance }: { instance: Instance }) {
             ...(can(user, "instances.write") && caps?.install
               ? [["version", "Versão", <HardDriveDownload size={16} />] as Aba]
               : []),
+            // Jogos que trocam de versão sem instalador (Minecraft via itzg).
+            ...(can(user, "instances.write") && caps?.set_version
+              ? [["mc-version", "Versão", <HardDriveDownload size={16} />] as Aba]
+              : []),
           ] as Aba[]
         ).map(([key, label, icone]) => (
           <button
@@ -243,6 +249,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
         {tab === "backups" && <BackupsView instance={instance} />}
         {tab === "tasks" && <TasksView instance={instance} />}
         {tab === "version" && <VersionView instance={instance} />}
+        {tab === "mc-version" && <MinecraftVersionView instance={instance} />}
         {tab === "ports" && <PortsView instance={instance} />}
       </div>
     </div>

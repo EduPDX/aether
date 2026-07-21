@@ -1,0 +1,84 @@
+"""Troca de versão do Minecraft.
+
+Diferente do 7DTD, o Minecraft não roda um instalador: a versão é a variável
+``VERSION`` do container ``itzg``. Trocar de versão é editar o ``provider_data``
+e recriar o container — o itzg baixa a versão nova no próximo boot. Por isso o
+Minecraft não implementa ``SupportsInstall`` (feito para jogos com instalador),
+e sim esta capacidade própria, mais leve.
+
+A lista de versões vem do manifesto oficial da Mojang, então nunca envelhece.
+"""
+
+from typing import Any
+
+from aether_sdk import VersionInfo
+
+# Manifesto oficial: todas as versões lançadas, com a marca de release/snapshot.
+MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
+
+# O itzg entende o id da versão direto (release "1.20.1", snapshot "23w31a"),
+# então o id do manifesto é o que vai para a variável VERSION sem tradução.
+
+
+async def fetch_versions(http_get) -> list[VersionInfo]:
+    """Lê o manifesto da Mojang e devolve as versões instaláveis.
+
+    Degrada para lista vazia em vez de levantar: origem fora do ar não pode
+    quebrar a tela de versão.
+    """
+    if http_get is None:
+        return []
+    try:
+        corpo: Any = await http_get(MANIFEST_URL)
+    except Exception:  # noqa: BLE001 - origem fora do ar não é erro nosso
+        return []
+    if not isinstance(corpo, dict):
+        return []
+
+    out: list[VersionInfo] = []
+    for v in corpo.get("versions") or []:
+        vid = str(v.get("id") or "")
+        if not vid:
+            continue
+        tipo = str(v.get("type") or "")
+        estavel = tipo == "release"
+        out.append(
+            VersionInfo(
+                id=vid,
+                label=vid,
+                description="" if estavel else tipo,  # snapshot, old_beta, old_alpha
+                stable=estavel,
+            )
+        )
+    return out
+
+
+def current_version(provider_data: dict) -> str:
+    """Versão fixada hoje na instância (o que está no bloco container)."""
+    container = (provider_data or {}).get("container") or {}
+    return str(container.get("version") or "")
+
+
+def is_modded(provider_data: dict) -> bool:
+    """A instância roda um loader de mods? (Forge/Fabric/NeoForge/Quilt).
+
+    Importa para o aviso: trocar a versão de um servidor com mods quebra todos
+    eles, que são presos à versão. Vanilla e Paper não têm esse problema.
+    """
+    container = (provider_data or {}).get("container") or {}
+    tipo = str(container.get("type") or "VANILLA").upper()
+    return tipo in {"FORGE", "FABRIC", "NEOFORGE", "QUILT"}
+
+
+def pin_version(provider_data: dict, version: str) -> dict:
+    """Mudanças a mesclar no provider_data para fixar `version`.
+
+    Não recria o container aqui: o Core faz o backup e reinicia. Na próxima
+    subida, o container_spec lê esta versão e o itzg baixa o que faltar.
+    """
+    version = version.strip()
+    if not version:
+        raise ValueError("informe a versão")
+    container = dict((provider_data or {}).get("container") or {})
+    container["version"] = version
+    return {"container": container}

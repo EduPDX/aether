@@ -36,6 +36,9 @@ def _capabilities(p) -> dict:
         "players": isinstance(p, SupportsPlayers),
         "sources": bool(getattr(p, "content_sources", None) and p.content_sources()),
         "game_metadata": isinstance(p, SupportsGameMetadata),
+        # Troca de versão sem instalador (o Minecraft via itzg: edita a env e
+        # recria o container). Distinta de `install`, que roda um instalador.
+        "set_version": callable(getattr(p, "pin_game_version", None)),
     }
 
 

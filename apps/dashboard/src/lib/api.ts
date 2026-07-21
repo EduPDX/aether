@@ -74,6 +74,8 @@ export interface ProviderCapabilities {
   /** O painel instala e atualiza a versão do servidor deste jogo. */
   install: boolean;
   players: boolean;
+  /** Troca de versão sem instalador (Minecraft via itzg): edita e recria. */
+  set_version: boolean;
 }
 
 export interface ProviderInfo {
@@ -574,6 +576,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ version, skip_backup: skipBackup }),
     }),
+  // ----------- troca de versão sem instalador (Minecraft via itzg) -----------
+  gameVersion: (id: string) =>
+    request<GameVersionState>(`/api/v1/instances/${id}/game-version`),
+  setGameVersion: (id: string, version: string, skipBackup = false) =>
+    request<{ version: string; backed_up: boolean }>(
+      `/api/v1/instances/${id}/game-version`,
+      { method: "POST", body: JSON.stringify({ version, skip_backup: skipBackup }) },
+    ),
   updateConfig: (id: string, schemaId: string, values: Record<string, string>) =>
     request<void>(`/api/v1/instances/${id}/config`, {
       method: "PUT",
@@ -875,6 +885,14 @@ export interface VersionInfo {
   description: string;
   build: string;
   stable: boolean;
+}
+
+export interface GameVersionState {
+  current: string;
+  /** Instância com loader de mods: trocar a versão quebra os mods. */
+  modded: boolean;
+  running: boolean;
+  available: VersionInfo[];
 }
 
 export interface InstanceVersion {

@@ -41,6 +41,7 @@ from aether_core.interfaces.http.routes import (
     config,
     content,
     files,
+    game_version,
     images,
     install,
     instance_ports,
@@ -287,6 +288,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(images.router)
     api.include_router(instance_ports.router)
     api.include_router(install.router)
+    api.include_router(game_version.router)
     api.include_router(system.router)
     api.include_router(catalog.router)
     app.include_router(api)

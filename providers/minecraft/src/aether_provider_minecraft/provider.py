@@ -42,6 +42,12 @@ from aether_provider_minecraft.server.properties import (
     PropertiesCodec,
     config_warnings,
 )
+from aether_provider_minecraft.server.versions import (
+    current_version,
+    fetch_versions,
+    is_modded,
+    pin_version,
+)
 
 MANIFEST = ProviderManifest(
     id="minecraft",
@@ -77,6 +83,7 @@ class MinecraftProvider:
     def __init__(self) -> None:
         self._http = None
         self._http_post = None
+        self._versoes_cache: tuple[list, float] | None = None
         self._analyzers: dict[str, ContentAnalyzer] = {
             "mod": JarModAnalyzer("mod"),
             "mod_client": JarModAnalyzer("mod_client"),
@@ -160,3 +167,34 @@ class MinecraftProvider:
     def player_live_plan(self, root: Path, action) -> str | None:
         """Servidor no ar: aplicar pelo arquivo? Veja `player_live_plan`."""
         return player_live_plan(root, action)
+
+    # -------------------------------------------------------------- versões --
+    # Capacidade própria (não SupportsInstall): a versão é a env VERSION do
+    # container itzg, trocada editando o provider_data e recriando o container.
+    async def game_versions(self) -> list:
+        """Versões do Minecraft, do manifesto oficial da Mojang.
+
+        Cacheado em memória: o manifesto muda poucas vezes por semana e a
+        consulta custa uma ida à rede — sem cache, cada abertura da aba Versão
+        esperaria por ela.
+        """
+        import time
+
+        agora = time.monotonic()
+        if self._versoes_cache is not None:
+            versoes, quando = self._versoes_cache
+            if agora - quando < 1800:  # 30 min
+                return versoes
+        versoes = await fetch_versions(self._http)
+        if versoes:  # não cacheia falha de rede: da próxima tenta de novo
+            self._versoes_cache = (versoes, agora)
+        return versoes
+
+    def current_game_version(self, provider_data: dict) -> str:
+        return current_version(provider_data)
+
+    def game_version_is_modded(self, provider_data: dict) -> bool:
+        return is_modded(provider_data)
+
+    def pin_game_version(self, provider_data: dict, version: str) -> dict:
+        return pin_version(provider_data, version)
