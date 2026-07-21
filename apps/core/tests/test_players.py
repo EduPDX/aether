@@ -247,6 +247,22 @@ def test_online_rodando_usa_console(tmp_path):
     assert [e["name"] for e in ler(root, "whitelist.json")] == ["edu"]  # intacto
 
 
+def test_offline_rodando_remove_pelo_arquivo_e_recarrega(tmp_path):
+    """Regressão do 'não consigo remover ninguém'.
+
+    Offline no ar, remover pelo console `whitelist remove` falhava quando o
+    servidor não tinha a entrada em memória. Agora remove do arquivo e recarrega.
+    """
+    root = montar(tmp_path, online_mode="false")  # já tem 'edu' na whitelist
+    svc, inst, power = servico(root, InstanceState.RUNNING)
+
+    via = asyncio.run(svc.apply(inst, PlayerAction.ALLOW_REMOVE, "edu"))
+
+    assert via == "recarga"
+    assert power.comandos == ["whitelist reload"]  # e NÃO "whitelist remove edu"
+    assert [e["name"] for e in ler(root, "whitelist.json")] == []  # saiu do arquivo
+
+
 def test_com_servidor_parado_grava_o_arquivo(tmp_path):
     root = montar(tmp_path)
     svc, inst, power = servico(root, InstanceState.STOPPED)
@@ -282,34 +298,44 @@ def test_nome_vazio_e_recusado(tmp_path):
 # -------------------------------------------- plano com o servidor no ar --
 
 
-def test_live_plan_offline_whitelist_recarrega(tmp_path):
+def test_live_plan_offline_whitelist_add_e_remove_recarregam(tmp_path):
+    """Offline: adicionar E remover na whitelist vão pelo arquivo + reload.
+
+    Remover pelo console `whitelist remove` não removia nada quando o servidor
+    não tinha a entrada em memória — a origem do 'não consigo remover ninguém'.
+    """
     root = montar(tmp_path, online_mode="false")
     assert player_live_plan(root, PlayerAction.ALLOW_ADD) == "whitelist reload"
+    assert player_live_plan(root, PlayerAction.ALLOW_REMOVE) == "whitelist reload"
 
 
-def test_live_plan_offline_op_e_ban_gravam_sem_recarga(tmp_path):
-    """ops.json e banned-players.json não têm recarga ao vivo no vanilla: o
-    arquivo fica certo, aplica no próximo start."""
-    root = montar(tmp_path, online_mode="false")
-    assert player_live_plan(root, PlayerAction.ADMIN_ADD) == ""
-    assert player_live_plan(root, PlayerAction.BAN) == ""
-
-
-def test_live_plan_online_usa_console(tmp_path):
-    root = montar(tmp_path, online_mode="true")
-    assert player_live_plan(root, PlayerAction.ALLOW_ADD) is None
-    assert player_live_plan(root, PlayerAction.ADMIN_ADD) is None
-    assert player_live_plan(root, PlayerAction.BAN) is None
-
-
-def test_live_plan_remocoes_sempre_pelo_console(tmp_path):
-    """Remover/desbanir/deop/kick operam por nome — o console acerta nos dois
-    modos, então nunca desviam para o arquivo."""
+def test_live_plan_offline_ops_e_bans_pelo_arquivo_sem_recarga(tmp_path):
+    """ops.json e banned-players.json não têm recarga ao vivo no vanilla: vão
+    pelo arquivo (correto) e aplicam no próximo start."""
     root = montar(tmp_path, online_mode="false")
     for acao in (
-        PlayerAction.ALLOW_REMOVE,
+        PlayerAction.ADMIN_ADD,
         PlayerAction.ADMIN_REMOVE,
+        PlayerAction.BAN,
         PlayerAction.UNBAN,
-        PlayerAction.KICK,
+    ):
+        assert player_live_plan(root, acao) == ""
+
+
+def test_live_plan_online_sempre_console(tmp_path):
+    """Online: o console resolve o UUID real e mantém arquivo e memória juntos."""
+    root = montar(tmp_path, online_mode="true")
+    for acao in (
+        PlayerAction.ALLOW_ADD,
+        PlayerAction.ALLOW_REMOVE,
+        PlayerAction.ADMIN_ADD,
+        PlayerAction.BAN,
     ):
         assert player_live_plan(root, acao) is None
+
+
+def test_live_plan_kick_sempre_console(tmp_path):
+    """Expulsar é sobre um jogador conectado — só faz sentido pelo console."""
+    for modo in ("false", "true"):
+        root = montar(tmp_path / modo, online_mode=modo)
+        assert player_live_plan(root, PlayerAction.KICK) is None
