@@ -83,3 +83,11 @@ def test_console_ue_marca_pronto_pelo_padrao():
     codec = UnrealConsoleCodec(ready_pattern=r"is ready")
     assert codec.parse("[..][ 0]LogServer: World is ready").ready is True
     assert codec.parse("[..][ 0]LogServer: still loading").ready is False
+
+
+def test_install_repete_o_app_update_para_branches_beta():
+    """Instalar de uma branch beta falha na primeira com 'Missing configuration';
+    o SteamCMD só carrega a config da branch depois de já ter pedido o app uma
+    vez. Repetir o app_update na mesma sessão é o que faz a segunda instalar."""
+    script = steamcmd.install_spec(2728330, "linuxbranch").command[-1]
+    assert script.count("app_update 2728330 -beta linuxbranch validate") == 2

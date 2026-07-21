@@ -54,9 +54,15 @@ def install_spec(app_id: int, version: str, *, install_dir: str = INSTALL_DIR) -
     """
     branch = (version or DEFAULT_BRANCH).strip()
     beta = "" if branch == DEFAULT_BRANCH else f" -beta {branch}"
+    # O app_update roda duas vezes de propósito. Instalar de uma branch beta
+    # falha na primeira com "Missing configuration": o SteamCMD só carrega a
+    # config da branch depois de já ter pedido o app uma vez. A segunda chamada
+    # então instala. Para a branch padrão a segunda é um validate sem trabalho,
+    # então repetir não custa nada e evita um caso especial por jogo.
+    update = f"+app_update {app_id}{beta} validate"
     comando = (
         f"set -e; {_STEAMCMD} +force_install_dir {install_dir} "
-        f"+login anonymous +app_update {app_id}{beta} validate +quit"
+        f"+login anonymous {update} {update} +quit"
     )
     return ContainerSpec(
         image=IMAGE,

@@ -6,8 +6,9 @@ O parsing do formato da UE é comum e mora no SDK; aqui fica só o marcador de
 
 from aether_sdk.console_ue import UnrealConsoleCodec
 
-# Linha real do log ao terminar de subir; refinada contra o console real.
-READY = r"Server.*started|LogNet: .*listen|is now open for connections|BeginPlay"
+# Capturada do console real: o servidor registra a sessão EOS (fica visível e
+# aceita conexões) logo depois de carregar o mundo.
+READY = r"Creating (EOS )?Session with"
 
 
 def HumanitZConsoleCodec() -> UnrealConsoleCodec:
