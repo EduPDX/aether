@@ -148,6 +148,16 @@ class MinecraftProvider:
     def config_warnings(self, root: Path, values: dict) -> list:
         return config_warnings(root, values)
 
+    def live_status(self, host: str, port: int) -> dict | None:
+        """Status ao vivo via Server List Ping: jogadores online, MOTD, latência.
+
+        Capability opcional consumida pelo Core (status público e painel). É
+        bloqueante (socket) — o Core chama fora do event loop.
+        """
+        from aether_provider_minecraft.server.status import query_status
+
+        return query_status(host, port)
+
     def backup_spec(self, root: Path) -> BackupSpec:
         return backup_spec(root)
 

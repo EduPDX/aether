@@ -2,6 +2,7 @@
 
 from aether_sdk import PlayerAction
 from fastapi import APIRouter, Request
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from aether_core.interfaces.http.deps import (
@@ -53,6 +54,27 @@ async def list_players(
             for le in listas
         ]
     }
+
+
+@router.get("/instances/{instance_id}/players/online")
+async def online_players(
+    instance_id: str,
+    request: Request,
+    instances: InstanceServiceDep,
+    _: InstancesRead,
+) -> dict:
+    """Jogadores online agora (Server List Ping via provider). ``None`` se o
+    servidor está parado ou não expõe status."""
+    from aether_core.application.live_status import game_port, live_players
+
+    instance = await instances.get(instance_id)
+    state = request.app.state.supervisor.state(instance.id)
+    if getattr(state, "value", str(state)) != "running":
+        return {"players": None}
+    provider = request.app.state.providers.get(instance.provider_id)
+    port = game_port(provider, instance)
+    players = await run_in_threadpool(live_players, provider, port)
+    return {"players": players}
 
 
 @router.post("/instances/{instance_id}/players/action")

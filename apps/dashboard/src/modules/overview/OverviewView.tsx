@@ -32,6 +32,20 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
     refetchInterval: 15000,
   });
 
+  // Jogadores online por instância (Server List Ping via Core). Uma query por
+  // servidor; parados devolvem null e não pesam.
+  const playerQueries = useQueries({
+    queries: instances.map((i) => ({
+      queryKey: ["players-online", i.id],
+      queryFn: () => api.playersOnline(i.id),
+      refetchInterval: 10000,
+      retry: false,
+    })),
+  });
+  const playersById = new Map<string, { online: number; max: number } | null>();
+  instances.forEach((i, idx) => playersById.set(i.id, playerQueries[idx]?.data?.players ?? null));
+  const totalOnline = [...playersById.values()].reduce((s, p) => s + (p?.online ?? 0), 0);
+
   // Cada instância tem DOIS conjuntos: mods do servidor e do cliente.
   // Contar só um deles subestimava o total (bug relatado no uso real).
   const TIPOS = ["mod", "mod_client"] as const;
@@ -178,7 +192,7 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
             icon={<Server size={14} />}
             label="Instâncias"
             value={String(instances.length)}
-            sub={`${live} online agora`}
+            sub={`${live} online · ${totalOnline} jogador${totalOnline === 1 ? "" : "es"}`}
           />
           <StatTile
             icon={<Package size={14} />}
@@ -231,6 +245,14 @@ export function OverviewView({ instances }: { instances: Instance[] }) {
                 <Badge tone={i.state === "running" ? "green" : i.state === "crashed" ? "red" : "neutral"}>
                   {STATE_LABEL[i.state] ?? i.state}
                 </Badge>
+                {(() => {
+                  const p = playersById.get(i.id);
+                  return p ? (
+                    <Badge tone="neutral">
+                      {p.online}/{p.max} jogadores
+                    </Badge>
+                  ) : null;
+                })()}
                 <span className="ml-auto truncate font-mono text-[11px] text-muted">
                   {i.root_dir}
                 </span>

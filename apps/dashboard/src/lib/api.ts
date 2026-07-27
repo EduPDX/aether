@@ -312,6 +312,10 @@ export const api = {
       { method: "POST" },
     ),
   instances: () => request<Instance[]>("/api/v1/instances"),
+  playersOnline: (id: string) =>
+    request<{ players: { online: number; max: number } | null }>(
+      `/api/v1/instances/${id}/players/online`,
+    ),
   createInstance: (body: {
     name: string;
     provider_id: string;
