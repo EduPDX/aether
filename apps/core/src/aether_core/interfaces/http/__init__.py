@@ -51,6 +51,7 @@ from aether_core.interfaces.http.routes import (
     players,
     power,
     public,
+    skins,
     sources,
     sync,
     system,
@@ -283,6 +284,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(tasks.router)
     api.include_router(sync.router)
     api.include_router(public.router)
+    api.include_router(skins.router)
     api.include_router(browse.router)
     api.include_router(metrics.router)
     api.include_router(images.router)
