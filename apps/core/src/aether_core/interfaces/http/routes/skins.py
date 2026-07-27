@@ -32,21 +32,26 @@ def _skins_dir(request: Request) -> Path:
     return d
 
 
+# Skins mudam quando o jogador troca; não podem ficar presas em cache de borda
+# (Cloudflare cacheia .png por padrão). no-store garante que sempre venha fresca.
+_NOCACHE = {"Cache-Control": "no-store, max-age=0"}
+
+
 @router.get("/skins/{username}.png")
 async def get_skin(username: str, request: Request) -> FileResponse:
     if not _NAME_RE.match(username):
-        raise HTTPException(status_code=404, detail="not found")
+        raise HTTPException(status_code=404, detail="not found", headers=_NOCACHE)
     # Normaliza para minúsculo: o mod pode pedir o nome com outra caixa.
     path = _skins_dir(request) / f"{username.lower()}.png"
     if not path.is_file():
-        raise HTTPException(status_code=404, detail="sem skin")
-    return FileResponse(path, media_type="image/png")
+        raise HTTPException(status_code=404, detail="sem skin", headers=_NOCACHE)
+    return FileResponse(path, media_type="image/png", headers=_NOCACHE)
 
 
 @router.get("/capes/{username}.png")
 async def get_cape(username: str) -> FileResponse:
     # Capas ainda não são suportadas; 404 faz o mod simplesmente ignorar.
-    raise HTTPException(status_code=404, detail="sem capa")
+    raise HTTPException(status_code=404, detail="sem capa", headers=_NOCACHE)
 
 
 @router.post("/skins/{username}")
