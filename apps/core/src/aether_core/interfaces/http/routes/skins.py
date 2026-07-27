@@ -36,7 +36,8 @@ def _skins_dir(request: Request) -> Path:
 async def get_skin(username: str, request: Request) -> FileResponse:
     if not _NAME_RE.match(username):
         raise HTTPException(status_code=404, detail="not found")
-    path = _skins_dir(request) / f"{username}.png"
+    # Normaliza para minúsculo: o mod pode pedir o nome com outra caixa.
+    path = _skins_dir(request) / f"{username.lower()}.png"
     if not path.is_file():
         raise HTTPException(status_code=404, detail="sem skin")
     return FileResponse(path, media_type="image/png")
@@ -57,7 +58,7 @@ async def upload_skin(username: str, request: Request, sync: SyncServiceDep) -> 
     body = await request.body()
     if not body.startswith(_PNG_MAGIC) or len(body) > _MAX_SKIN:
         raise HTTPException(status_code=400, detail="envie um PNG de skin válido")
-    dest = _skins_dir(request) / f"{username}.png"
+    dest = _skins_dir(request) / f"{username.lower()}.png"
     tmp = dest.with_name(dest.name + ".part")
     tmp.write_bytes(body)
     tmp.replace(dest)
