@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Plus, Trash2, UploadCloud } from "lucide-react";
-import { useState } from "react";
+import { Copy, Pencil, Plus, Trash2, UploadCloud } from "lucide-react";
+import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import { Badge, Button, Input, Modal, Select, Spinner } from "../../components/ui";
 import type { Instance, SyncProfileOut, SyncRule, SyncRules } from "../../lib/api";
@@ -44,6 +44,7 @@ export function SyncView({ instance }: { instance: Instance }) {
   const qc = useQueryClient();
   const dialog = useDialog();
   const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<SyncProfileOut | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
 
@@ -125,6 +126,13 @@ export function SyncView({ instance }: { instance: Instance }) {
                       ? "Republicar"
                       : "Publicar"}
                 </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setEditing(p)}
+                  title="Editar as regras mantendo o mesmo código do perfil"
+                >
+                  <Pencil size={13} /> Editar regras
+                </Button>
                 {p.published_at && (
                   <Button
                     variant="ghost"
@@ -182,6 +190,14 @@ export function SyncView({ instance }: { instance: Instance }) {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />
+      {editing && (
+        <EditRulesDialog
+          instance={instance}
+          profile={editing}
+          open={!!editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }
@@ -210,13 +226,6 @@ function CreateProfileDialog({
     },
     onError: (e) => setError(String(e)),
   });
-
-  function setRule(i: number, patch: Partial<SyncRule>) {
-    setRules((prev) => ({
-      ...prev,
-      rules: prev.rules.map((r, idx) => (idx === i ? { ...r, ...patch } : r)),
-    }));
-  }
 
   return (
     <Modal open={open} onClose={onClose} title="Novo perfil de sincronização" size="lg">
@@ -250,98 +259,7 @@ function CreateProfileDialog({
             <code>mods</code> do jogador — é o que o launcher deve usar.
           </p>
         </div>
-        <div>
-          <label className="mb-1 block text-xs text-muted">
-            Regras <span className="text-muted/70">(origem no servidor → destino no cliente)</span>
-          </label>
-          <div className="space-y-1.5">
-            {rules.rules.map((rule, i) => (
-              <div
-                key={i}
-                className="rounded-md border border-border bg-surface-2 p-2"
-              >
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    className="min-w-0 flex-1 text-xs"
-                    value={rule.dir}
-                    onChange={(e) => setRule(i, { dir: e.target.value })}
-                    placeholder="pasta no servidor"
-                    title="Pasta de origem, dentro da instância"
-                  />
-                  <span className="shrink-0 text-muted">→</span>
-                  <Input
-                    className="min-w-0 flex-1 text-xs"
-                    value={rule.target ?? ""}
-                    onChange={(e) => setRule(i, { target: e.target.value || null })}
-                    placeholder="pasta no cliente"
-                    title="Onde cai no PC do jogador"
-                  />
-                  <button
-                    className="shrink-0 cursor-pointer p-1 text-muted hover:text-danger"
-                    title="Remover regra"
-                    onClick={() =>
-                      setRules((prev) => ({
-                        ...prev,
-                        rules: prev.rules.filter((_, idx) => idx !== i),
-                      }))
-                    }
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <Input
-                    className="min-w-0 flex-1 text-xs"
-                    value={rule.patterns.join(", ")}
-                    onChange={(e) =>
-                      setRule(i, {
-                        patterns: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                      })
-                    }
-                    placeholder="*.jar"
-                    title="Padrões de arquivo"
-                  />
-                  <Select
-                    className="shrink-0 text-xs"
-                    value={rule.action}
-                    onChange={(e) => setRule(i, { action: e.target.value as SyncRule["action"] })}
-                  >
-                    <option value="require">obrigatório</option>
-                    <option value="optional">opcional</option>
-                  </Select>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            className="mt-1.5 cursor-pointer text-xs text-accent"
-            onClick={() =>
-              setRules((prev) => ({
-                ...prev,
-                rules: [
-                  ...prev.rules,
-                  { dir: "", target: "", patterns: ["*"], recursive: true, action: "require" },
-                ],
-              }))
-            }
-          >
-            + adicionar regra
-          </button>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs text-muted">Excluir (padrões, vírgula)</label>
-          <Input
-            className="w-full"
-            value={rules.exclude.join(", ")}
-            onChange={(e) =>
-              setRules((prev) => ({
-                ...prev,
-                exclude: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-              }))
-            }
-          />
-        </div>
+        <RulesEditor rules={rules} setRules={setRules} />
 
         {error && <p className="text-xs text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
@@ -354,6 +272,180 @@ function CreateProfileDialog({
             onClick={() => create.mutate()}
           >
             Criar
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** Editor de regras (origem → destino), reusado por criar e editar perfil. */
+function RulesEditor({
+  rules,
+  setRules,
+}: {
+  rules: SyncRules;
+  setRules: Dispatch<SetStateAction<SyncRules>>;
+}) {
+  function setRule(i: number, patch: Partial<SyncRule>) {
+    setRules((prev) => ({
+      ...prev,
+      rules: prev.rules.map((r, idx) => (idx === i ? { ...r, ...patch } : r)),
+    }));
+  }
+
+  return (
+    <>
+      <div>
+        <label className="mb-1 block text-xs text-muted">
+          Regras <span className="text-muted/70">(origem no servidor → destino no cliente)</span>
+        </label>
+        <div className="space-y-1.5">
+          {rules.rules.map((rule, i) => (
+            <div key={i} className="rounded-md border border-border bg-surface-2 p-2">
+              <div className="flex items-center gap-1.5">
+                <Input
+                  className="min-w-0 flex-1 text-xs"
+                  value={rule.dir}
+                  onChange={(e) => setRule(i, { dir: e.target.value })}
+                  placeholder="pasta no servidor"
+                  title="Pasta de origem, dentro da instância"
+                />
+                <span className="shrink-0 text-muted">→</span>
+                <Input
+                  className="min-w-0 flex-1 text-xs"
+                  value={rule.target ?? ""}
+                  onChange={(e) => setRule(i, { target: e.target.value || null })}
+                  placeholder="pasta no cliente"
+                  title="Onde cai no PC do jogador"
+                />
+                <button
+                  className="shrink-0 cursor-pointer p-1 text-muted hover:text-danger"
+                  title="Remover regra"
+                  onClick={() =>
+                    setRules((prev) => ({
+                      ...prev,
+                      rules: prev.rules.filter((_, idx) => idx !== i),
+                    }))
+                  }
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <Input
+                  className="min-w-0 flex-1 text-xs"
+                  value={rule.patterns.join(", ")}
+                  onChange={(e) =>
+                    setRule(i, {
+                      patterns: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+                    })
+                  }
+                  placeholder="*.jar"
+                  title="Padrões de arquivo"
+                />
+                <Select
+                  className="shrink-0 text-xs"
+                  value={rule.action}
+                  onChange={(e) => setRule(i, { action: e.target.value as SyncRule["action"] })}
+                >
+                  <option value="require">obrigatório</option>
+                  <option value="optional">opcional</option>
+                </Select>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          className="mt-1.5 cursor-pointer text-xs text-accent"
+          onClick={() =>
+            setRules((prev) => ({
+              ...prev,
+              rules: [
+                ...prev.rules,
+                { dir: "", target: "", patterns: ["*"], recursive: true, action: "require" },
+              ],
+            }))
+          }
+        >
+          + adicionar regra
+        </button>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs text-muted">Excluir (padrões, vírgula)</label>
+        <Input
+          className="w-full"
+          value={rules.exclude.join(", ")}
+          onChange={(e) =>
+            setRules((prev) => ({
+              ...prev,
+              exclude: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+            }))
+          }
+        />
+      </div>
+    </>
+  );
+}
+
+/** Edita as regras de um perfil existente — mantém o mesmo código. */
+function EditRulesDialog({
+  instance,
+  profile,
+  open,
+  onClose,
+}: {
+  instance: Instance;
+  profile: SyncProfileOut;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [rules, setRules] = useState<SyncRules>(profile.rules);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setRules(profile.rules);
+      setError("");
+    }
+  }, [open, profile]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      await api.updateSyncRules(instance.id, profile.id, rules);
+      // Republica para os clientes receberem as novas regras (mesmo código).
+      if (profile.published_at) await api.publishSyncProfile(instance.id, profile.id);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sync", instance.id] });
+      onClose();
+    },
+    onError: (e) => setError(String(e)),
+  });
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Editar regras — ${profile.name}`} size="lg">
+      <div className="space-y-3">
+        <p className="text-xs text-muted">
+          Edita as regras mantendo o <b>mesmo código</b> do perfil — ninguém precisa reconfigurar
+          nada.
+          {profile.published_at &&
+            " Ao salvar, o perfil é republicado automaticamente para os jogadores."}
+        </p>
+        <RulesEditor rules={rules} setRules={setRules} />
+        {error && <p className="text-xs text-danger">{error}</p>}
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            disabled={rules.rules.length === 0 || save.isPending}
+            onClick={() => save.mutate()}
+          >
+            {save.isPending ? "Salvando…" : profile.published_at ? "Salvar e republicar" : "Salvar"}
           </Button>
         </div>
       </div>
