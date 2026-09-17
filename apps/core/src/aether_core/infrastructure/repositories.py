@@ -19,6 +19,7 @@ from aether_core.infrastructure.db import (
     BackupRow,
     ContentCacheRow,
     InstanceRow,
+    LauncherSettingsRow,
     ProviderVersionsRow,
     ScheduledTaskRow,
     SyncProfileRow,
@@ -92,7 +93,13 @@ class SqlInstanceRepository:
         ressuscitando se um id fosse reaproveitado.
         """
         removidos: dict[str, int] = {}
-        for tabela in (BackupRow, BackupPolicyRow, ScheduledTaskRow, SyncProfileRow):
+        for tabela in (
+            BackupRow,
+            BackupPolicyRow,
+            ScheduledTaskRow,
+            SyncProfileRow,
+            LauncherSettingsRow,
+        ):
             resultado = await self._session.execute(
                 delete(tabela).where(tabela.instance_id == instance_id)
             )

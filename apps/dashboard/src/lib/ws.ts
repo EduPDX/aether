@@ -13,7 +13,27 @@ let socket: WebSocket | null = null;
 let reconnectTimer: number | undefined;
 const listeners = new Map<string, Set<Listener>>();
 
-import { getAccessToken } from "./api";
+import { clearTokens, getAccessToken, tryRefresh } from "./api";
+
+function disconnect() {
+  clearTimeout(reconnectTimer);
+  if (socket) {
+    socket.onclose = null;
+    socket.onmessage = null;
+    socket.onopen = null;
+    socket.close();
+    socket = null;
+  }
+}
+
+window.addEventListener("aether:logout", () => {
+  disconnect();
+  listeners.clear();
+});
+window.addEventListener("aether:token", () => {
+  disconnect();
+  if (listeners.size) connect();
+});
 
 function url(): string {
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -21,6 +41,7 @@ function url(): string {
 }
 
 function connect() {
+  if (!getAccessToken() || listeners.size === 0) return;
   if (socket && socket.readyState !== WebSocket.CLOSED) return;
   socket = new WebSocket(url());
 
@@ -35,7 +56,13 @@ function connect() {
       if (msg.topic.startsWith(topic)) for (const fn of set) fn(msg);
     }
   };
-  socket.onclose = () => {
+  socket.onclose = async (event) => {
+    socket = null;
+    if (event.code === 4403 || event.code === 4400) return;
+    if (event.code === 4401) {
+      if (!await tryRefresh()) clearTokens();
+      return;
+    }
     if (listeners.size > 0) {
       clearTimeout(reconnectTimer);
       reconnectTimer = window.setTimeout(connect, 2000);
@@ -64,6 +91,7 @@ export function subscribeTopic(topic: string, fn: Listener): () => void {
       if (socket?.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ op: "unsubscribe", topic }));
       }
+      if (listeners.size === 0) disconnect();
     }
   };
 }

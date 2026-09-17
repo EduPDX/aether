@@ -19,6 +19,7 @@ import asyncio
 import logging
 import os
 import shutil
+import sqlite3
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -135,7 +136,7 @@ class UpdateService:
 
     # ------------------------------------------------------------- atualização
     async def update(self) -> dict:
-        status = self.status()
+        status = await asyncio.to_thread(self.status)
         if not status.gerenciavel:
             raise ValidationFailedError(status.motivo)
         if self._rodando:
@@ -169,7 +170,7 @@ class UpdateService:
                 await self._rodar("corepack", "pnpm", "install", "--silent")
                 await self._rodar("corepack", "pnpm", "--dir", "apps/dashboard", "build")
 
-            novo = self.status(buscar_remoto=False)
+            novo = await asyncio.to_thread(self.status, buscar_remoto=False)
             await self._passo("Reiniciando o serviço", "restart")
             # As migrações rodam sozinhas no start do Core (run_migrations no
             # create_app), então não há passo separado para elas.
@@ -198,10 +199,18 @@ class UpdateService:
         banco = self._data_dir / "aether.db"
         if not banco.is_file():
             return None
-        destino = self._data_dir / "updates" / datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+        destino = self._data_dir / "updates" / datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
         destino.mkdir(parents=True, exist_ok=True)
         alvo = destino / "aether.db"
-        shutil.copy2(banco, alvo)
+        origem = sqlite3.connect(f"{banco.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            copia = sqlite3.connect(alvo)
+            try:
+                origem.backup(copia)
+            finally:
+                copia.close()
+        finally:
+            origem.close()
         return alvo
 
     @staticmethod
@@ -234,19 +243,23 @@ class UpdateService:
         )
         assert proc.stdout is not None
         linhas: list[str] = []
-        while True:
-            bruto = await proc.stdout.readline()
-            if not bruto:
-                break
-            linha = bruto.decode("utf-8", "replace").rstrip()
-            if linha:
-                linhas.append(linha)
-                await self._log(linha)
         try:
-            code = await asyncio.wait_for(proc.wait(), TIMEOUT_COMANDO)
+            async with asyncio.timeout(TIMEOUT_COMANDO):
+                while True:
+                    bruto = await proc.stdout.readline()
+                    if not bruto:
+                        break
+                    linha = bruto.decode("utf-8", "replace").rstrip()
+                    if linha:
+                        linhas[:] = [linha]
+                        await self._log(linha)
+                code = await proc.wait()
         except TimeoutError as exc:
-            proc.kill()
             raise ValidationFailedError(f"{comando[0]} demorou demais e foi interrompido") from exc
+        finally:
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
         if code != 0:
             raise ValidationFailedError(
                 f"'{' '.join(comando)}' falhou (código {code}): {linhas[-1] if linhas else ''}"

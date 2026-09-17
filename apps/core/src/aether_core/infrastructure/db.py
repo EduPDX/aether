@@ -28,6 +28,13 @@ class InstanceRow(Base):
     created_at: Mapped[str] = mapped_column(String(40))
 
 
+class LauncherSettingsRow(Base):
+    __tablename__ = "launcher_settings"
+
+    instance_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    payload: Mapped[str] = mapped_column(Text, default="{}")
+
+
 class ContentCacheRow(Base):
     __tablename__ = "content_cache"
 

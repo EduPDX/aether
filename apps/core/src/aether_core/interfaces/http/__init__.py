@@ -282,6 +282,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(players.router)
     api.include_router(sources.router)
     api.include_router(tasks.router)
+    from aether_core.interfaces.http.routes import launcher
+
+    api.include_router(launcher.router)
     api.include_router(sync.router)
     api.include_router(public.router)
     api.include_router(skins.router)

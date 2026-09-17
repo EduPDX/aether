@@ -4,9 +4,9 @@ import {
   focusManager,
   onlineManager,
 } from "@tanstack/react-query";
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
+const App = lazy(() => import("./App.tsx"));
 import { DialogProvider } from "./components/Dialog.tsx";
 import { applyTheme, currentTheme } from "./lib/themes.ts";
 import { AuthGate } from "./modules/auth/AuthGate.tsx";
@@ -29,13 +29,20 @@ const queryClient = new QueryClient({
   },
 });
 
+window.addEventListener("aether:logout", () => {
+  void queryClient.cancelQueries();
+  queryClient.clear();
+});
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       {/* Fora do AuthGate: a tela de login também pode precisar avisar algo. */}
       <DialogProvider>
         <AuthGate>
-          <App />
+          <Suspense fallback={<p role="status">Carregando painel…</p>}>
+            <App />
+          </Suspense>
         </AuthGate>
       </DialogProvider>
     </QueryClientProvider>

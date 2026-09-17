@@ -213,11 +213,13 @@ class FilesService:
         # allowZip64: mundos passam de 4 GB e do limite de 65.535 arquivos.
         with zipfile.ZipFile(sink, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
             for path in sorted(folder.rglob("*")):
-                if not path.is_file():
+                if path.is_symlink() or not path.is_file():
+                    continue
+                if not path.resolve().is_relative_to(folder.resolve()):
                     continue
                 arc = path.relative_to(folder).as_posix()
                 try:
-                    with zf.open(arc, "w") as destino, open(path, "rb") as origem:
+                    with zf.open(arc, "w", force_zip64=True) as destino, open(path, "rb") as origem:
                         while pedaco := origem.read(1 << 20):
                             destino.write(pedaco)
                             if sink.pending >= (1 << 18):

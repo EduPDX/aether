@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from aether_core.application.events import EventBus
 from aether_core.application.ports import ProviderRegistry
@@ -45,6 +45,21 @@ class SyncRule(BaseModel):
     patterns: list[str] = Field(default_factory=lambda: ["*"])
     recursive: bool = True
     action: Literal["require", "optional"] = "require"
+
+    @field_validator("dir", "target")
+    @classmethod
+    def relative_directory(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if (
+            value.startswith("/")
+            or "\\" in value
+            or ":" in value
+            or "\x00" in value
+            or ".." in value.split("/")
+        ):
+            raise ValueError("a pasta precisa ser relativa e não pode sair da raiz")
+        return value
 
     @property
     def client_dir(self) -> str:

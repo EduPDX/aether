@@ -5,6 +5,7 @@ deixar o disco consistente (ver ``aether_sdk.backup``).
 """
 
 import asyncio
+import contextlib
 import shutil
 import uuid
 import zipfile
@@ -12,6 +13,7 @@ from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Protocol
+from weakref import WeakKeyDictionary
 
 from aether_sdk import BackupSpec, QuiescePlan, SupportsBackup
 
@@ -83,10 +85,15 @@ def collect_files(root: Path, spec: BackupSpec) -> list[Path]:
         for caminho in candidatos:
             if not caminho.is_file():
                 continue
+            if not caminho.resolve().is_relative_to(root.resolve()):
+                raise ValidationFailedError("backup contém arquivo fora da raiz da instância")
             rel = caminho.relative_to(root).as_posix()
             if not excluido(rel):
                 encontrados[rel] = caminho
     return [encontrados[k] for k in sorted(encontrados)]
+
+
+_ACTIVE_BACKUPS: WeakKeyDictionary[EventBus, set[str]] = WeakKeyDictionary()
 
 
 class BackupService:
@@ -136,6 +143,23 @@ class BackupService:
         kind: BackupKind = BackupKind.MANUAL,
         note: str = "",
     ) -> Backup:
+        # Serviços são criados por requisição; o bus identifica a instalação
+        # e compartilha a exclusão entre backup manual e agendado.
+        active = _ACTIVE_BACKUPS.setdefault(self._bus, set())
+        if instance.id in active:
+            raise ConflictError("já existe um backup em andamento nesta instância")
+        active.add(instance.id)
+        try:
+            return await self._create(instance, kind, note)
+        finally:
+            active.discard(instance.id)
+
+    async def _create(
+        self,
+        instance: Instance,
+        kind: BackupKind = BackupKind.MANUAL,
+        note: str = "",
+    ) -> Backup:
         spec = self._spec(instance)
         root = Path(instance.root_dir)
         if not root.is_dir():
@@ -155,28 +179,31 @@ class BackupService:
 
         # Com o servidor no ar, pausa a gravação antes de ler. Sem isso o mundo
         # é escrito durante a cópia e o backup sai com região corrompida.
-        pausado = False
-        if rodando and plano.before:
-            try:
+        retomar = rodando and bool(plano.before)
+        try:
+            if retomar:
                 for comando in plano.before:
                     await self._supervisor.send_command(instance.id, comando)
-                pausado = True
                 await asyncio.sleep(plano.settle_seconds)
-            except Exception:
-                pausado = False
-
-        try:
             arquivos = await asyncio.to_thread(collect_files, root, spec)
             if not arquivos:
                 raise EmptyBackupError(
                     "nada para salvar: nenhum arquivo casou com o que o provider define como backup"
                 )
-            tamanho = await asyncio.to_thread(self._write_zip, alvo, root, arquivos)
-        except Exception:
+            escrita = asyncio.create_task(asyncio.to_thread(self._write_zip, alvo, root, arquivos))
+            try:
+                tamanho = await asyncio.shield(escrita)
+            except asyncio.CancelledError:
+                # Cancelar to_thread não para a escrita. Espera antes de
+                # remover o ZIP e liberar o servidor para gravar novamente.
+                with contextlib.suppress(Exception):
+                    await escrita
+                raise
+        except BaseException:
             alvo.unlink(missing_ok=True)  # não deixa zip pela metade
             raise
         finally:
-            if pausado:
+            if retomar:
                 for comando in plano.after:
                     try:
                         await self._supervisor.send_command(instance.id, comando)

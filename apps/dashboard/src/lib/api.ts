@@ -175,19 +175,25 @@ export interface AuthUser {
 
 let accessToken = localStorage.getItem("aether.access") ?? "";
 let refreshToken = localStorage.getItem("aether.refresh") ?? "";
+let sessionVersion = 0;
+let refreshPending: Promise<boolean> | null = null;
 
 export function getAccessToken(): string {
   return accessToken;
 }
 
 export function setTokens(access: string, refresh: string) {
+  sessionVersion++;
   accessToken = access;
   refreshToken = refresh;
   localStorage.setItem("aether.access", access);
   localStorage.setItem("aether.refresh", refresh);
+  window.dispatchEvent(new Event("aether:token"));
 }
 
 export function clearTokens() {
+  sessionVersion++;
+  refreshPending = null;
   accessToken = "";
   refreshToken = "";
   localStorage.removeItem("aether.access");
@@ -195,8 +201,18 @@ export function clearTokens() {
   window.dispatchEvent(new Event("aether:logout"));
 }
 
-async function tryRefresh(): Promise<boolean> {
+export function tryRefresh(): Promise<boolean> {
+  if (refreshPending) return refreshPending;
+  const pending = refreshAccess().catch(() => false).finally(() => {
+    if (refreshPending === pending) refreshPending = null;
+  });
+  refreshPending = pending;
+  return pending;
+}
+
+async function refreshAccess(): Promise<boolean> {
   if (!refreshToken) return false;
+  const version = sessionVersion;
   const res = await fetch("/api/v1/auth/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -204,8 +220,10 @@ async function tryRefresh(): Promise<boolean> {
   });
   if (!res.ok) return false;
   const body = await res.json();
+  if (version !== sessionVersion) return false;
   accessToken = body.access_token;
   localStorage.setItem("aether.access", accessToken);
+  window.dispatchEvent(new Event("aether:token"));
   return true;
 }
 
@@ -216,13 +234,15 @@ async function upload<T>(
   opts: { method?: string } = {},
   retried = false,
 ): Promise<T> {
+  const version = sessionVersion;
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   const res = await fetch(path, { method: opts.method ?? "POST", headers, body: form });
+  if (version !== sessionVersion) throw new Error("A sessão foi alterada.");
 
   if (res.status === 401 && !retried) {
     if (await tryRefresh()) return upload<T>(path, form, opts, true);
-    clearTokens();
+    if (version === sessionVersion) clearTokens();
   }
   if (!res.ok) {
     let detail = res.statusText;
@@ -237,13 +257,16 @@ async function upload<T>(
 }
 
 async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
+  const version = sessionVersion;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   const res = await fetch(path, { ...init, headers });
+  if (version !== sessionVersion) throw new Error("A sessão foi alterada.");
 
-  if (res.status === 401 && !retried && !path.startsWith("/api/v1/auth/")) {
+  if (res.status === 401 && !retried &&
+      (!path.startsWith("/api/v1/auth/") || path === "/api/v1/auth/me")) {
     if (await tryRefresh()) return request<T>(path, init, true);
-    clearTokens();
+    if (version === sessionVersion) clearTokens();
   }
   if (!res.ok) {
     let detail = res.statusText;
@@ -266,7 +289,18 @@ export interface BrowseResult {
   entries: { name: string; path: string }[];
 }
 
+export interface LauncherSettings {
+  public_url: string; name: string; game_address: string; map_url: string;
+  cover_url: string; cover_credit: string;
+}
+export interface LauncherConfig {
+  settings: LauncherSettings;
+  presentation: { name: string; cover_url: string; cover_credit: string };
+}
+
 export const api = {
+  launcherConfig: (id: string) => request<LauncherConfig>(`/api/v1/instances/${id}/launcher`),
+  saveLauncherConfig: (id: string, body: LauncherSettings) => request<LauncherConfig>(`/api/v1/instances/${id}/launcher`, { method: "PUT", body: JSON.stringify(body) }),
   authStatus: () => request<{ setup_required: boolean }>("/api/v1/auth/status"),
   browse: (path?: string | null) =>
     request<BrowseResult>(

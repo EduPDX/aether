@@ -8,7 +8,9 @@ O projeto não usa pytest-asyncio; os casos assíncronos rodam via asyncio.run.
 """
 
 import asyncio
+import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -46,7 +48,9 @@ def _repo(tmp_path: Path) -> tuple[Path, Path]:
 def _dados(tmp_path: Path) -> Path:
     d = tmp_path / "dados"
     d.mkdir()
-    (d / "aether.db").write_bytes(b"banco" * 100)
+    with sqlite3.connect(d / "aether.db") as connection:
+        connection.execute("CREATE TABLE dados (valor TEXT)")
+        connection.execute("INSERT INTO dados VALUES ('preservado')")
     return d
 
 
@@ -130,7 +134,8 @@ def test_atualizacao_copia_o_banco_antes_e_traz_o_commit_novo(tmp_path, monkeypa
 
         copias = list((dados / "updates").glob("*/aether.db"))
         assert len(copias) == 1
-        assert copias[0].read_bytes() == (b"banco" * 100)
+        with sqlite3.connect(copias[0]) as connection:
+            assert connection.execute("SELECT valor FROM dados").fetchone() == ("preservado",)
         assert resultado["assunto"] == "segundo"
         assert resultado["reiniciando"] is True
 
@@ -145,6 +150,34 @@ def _fake_rodar(svc: UpdateService, clone: Path):
             subprocess.run(["git", "-C", str(clone), *comando[1:]], check=True, capture_output=True)
 
     return rodar
+
+
+def test_timeout_cobre_processo_sem_saida(tmp_path, monkeypatch):
+    monkeypatch.setattr("aether_core.application.updates.TIMEOUT_COMANDO", 0.05)
+    service = UpdateService(repo_dir=tmp_path, data_dir=tmp_path, bus=EventBus())
+
+    async def case():
+        with pytest.raises(ValidationFailedError, match="demorou demais"):
+            await asyncio.wait_for(
+                service._rodar(sys.executable, "-c", "import time; time.sleep(5)"), 2
+            )
+
+    asyncio.run(case())
+
+
+def test_backup_do_banco_inclui_transacoes_no_wal(tmp_path):
+    connection = sqlite3.connect(tmp_path / "aether.db")
+    try:
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("CREATE TABLE dados (valor TEXT)")
+        connection.execute("INSERT INTO dados VALUES ('no wal')")
+        connection.commit()
+        service = UpdateService(repo_dir=tmp_path, data_dir=tmp_path, bus=EventBus())
+        backup = service._copiar_banco()
+        with sqlite3.connect(backup) as restored:
+            assert restored.execute("SELECT valor FROM dados").fetchone() == ("no wal",)
+    finally:
+        connection.close()
 
 
 def test_pull_que_falha_nao_reinicia_o_servico(tmp_path, monkeypatch):

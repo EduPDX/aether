@@ -9,6 +9,7 @@ o launcher. É puro protocolo — sem dependência externa.
 from __future__ import annotations
 
 import json
+import re
 import socket
 import struct
 import time
@@ -66,6 +67,25 @@ def _flatten_motd(desc) -> str:
     return ""
 
 
+def player_names(players: dict) -> dict:
+    """SLP publica uma amostra; não inventa nomes quando ela está oculta."""
+    online = int(players.get("online", 0) or 0)
+    sample = players.get("sample")
+    if not isinstance(sample, list):
+        return {"names": [] if online == 0 else None, "names_complete": online == 0}
+    names = sorted(
+        {
+            item["name"]
+            for item in sample
+            if isinstance(item, dict)
+            and isinstance(item.get("name"), str)
+            and re.fullmatch(r"[A-Za-z0-9_]{1,16}", item["name"])
+        },
+        key=str.casefold,
+    )
+    return {"names": names, "names_complete": len(names) == online}
+
+
 def query_status(host: str, port: int, timeout: float = 2.5) -> dict | None:
     """Consulta o servidor via SLP. Devolve dict ou None se offline/inacessível.
 
@@ -107,6 +127,7 @@ def query_status(host: str, port: int, timeout: float = 2.5) -> dict | None:
             return {
                 "online": int(players.get("online", 0) or 0),
                 "max": int(players.get("max", 0) or 0),
+                **player_names(players),
                 "version": str((data.get("version") or {}).get("name", "") or ""),
                 "motd": _flatten_motd(data.get("description", "")),
                 "latency_ms": latency_ms,

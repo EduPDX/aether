@@ -249,7 +249,7 @@ export function FilesView({ instance }: { instance: Instance }) {
           </span>
         ))}
 
-        <span className="ml-auto flex items-center gap-1.5">
+        <span className="ml-auto flex max-w-full flex-wrap items-center gap-1.5">
           {/* Na grade não há cabeçalho de coluna para clicar: o seletor supre isso. */}
           {openFile === null && view !== "list" && (
             <Select
@@ -318,7 +318,7 @@ export function FilesView({ instance }: { instance: Instance }) {
 
       {/* Ações em lote */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-2 border-b border-border bg-surface-2 px-3 py-1.5 text-xs">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-2 px-3 py-1.5 text-xs">
           <span className="font-medium">{selected.size} selecionado(s)</span>
           <Button
             variant="default"
@@ -342,11 +342,11 @@ export function FilesView({ instance }: { instance: Instance }) {
 
       {error && <div className="border-b border-border px-3 py-1.5 text-xs text-danger">{error}</div>}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Tabela de arquivos */}
         <div
           className={`flex min-h-0 flex-col ${
-            openFile !== null ? "w-80 shrink-0 border-r border-border" : "flex-1"
+            openFile !== null ? "max-h-48 w-full shrink-0 border-r border-border md:max-h-none md:w-80" : "min-w-0 flex-1"
           }`}
         >
           <div className="min-h-0 flex-1 overflow-auto">

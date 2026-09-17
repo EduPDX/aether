@@ -64,4 +64,9 @@ def live_players(provider, port: int | None) -> dict | None:
         _CACHE[port] = (result, now + _TTL)
     if not result:
         return None
-    return {"online": int(result.get("online", 0)), "max": int(result.get("max", 0))}
+    status = {"online": int(result.get("online", 0)), "max": int(result.get("max", 0))}
+    # Capability opcional: providers antigos continuam retornando só contagem.
+    if "names" in result:
+        status["names"] = result["names"]
+        status["names_complete"] = bool(result.get("names_complete", False))
+    return status

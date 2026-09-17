@@ -40,7 +40,7 @@ function ruleSummary(rules: SyncRules): string {
     .join(" · ");
 }
 
-export function SyncView({ instance }: { instance: Instance }) {
+export function SyncView({ instance, onInvite }: { instance: Instance; onInvite?: (profileId?: string) => void }) {
   const qc = useQueryClient();
   const dialog = useDialog();
   const [createOpen, setCreateOpen] = useState(false);
@@ -85,7 +85,8 @@ export function SyncView({ instance }: { instance: Instance }) {
           O que os jogadores devem espelhar desta instância
         </span>
         {error && <span className="truncate text-xs text-danger">{error}</span>}
-        <span className="ml-auto">
+        <span className="ml-auto flex gap-2">
+          {onInvite && <Button onClick={() => onInvite?.()}>Convites do Launcher</Button>}
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <Plus size={14} /> Novo perfil
           </Button>
@@ -133,6 +134,7 @@ export function SyncView({ instance }: { instance: Instance }) {
                 >
                   <Pencil size={13} /> Editar regras
                 </Button>
+                {p.published_at && onInvite && <Button onClick={() => onInvite(p.id)}>Gerar convite</Button>}
                 {p.published_at && (
                   <Button
                     variant="ghost"

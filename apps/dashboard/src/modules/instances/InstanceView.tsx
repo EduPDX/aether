@@ -19,7 +19,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import { Badge, Button } from "../../components/ui";
 import type { Instance, InstanceState } from "../../lib/api";
@@ -30,16 +30,17 @@ import { useAuth } from "../auth/AuthGate";
 import { BackupsView } from "../backups/BackupsView";
 import { PlayersView } from "../players/PlayersView";
 import { TrashView } from "../trash/TrashView";
-import { ConfigView } from "../config/ConfigView";
-import { ConsoleView } from "../console/ConsoleView";
+const ConfigView = lazy(() => import("../config/ConfigView").then(m => ({ default: m.ConfigView })));
+const ConsoleView = lazy(() => import("../console/ConsoleView").then(m => ({ default: m.ConsoleView })));
 import { ContentView } from "../content/ContentView";
 import { ServerClientDiff } from "../content/ServerClientDiff";
 import { CatalogView } from "../sources/CatalogView";
 import { TasksView } from "../tasks/TasksView";
-import { FilesView } from "../files/FilesView";
+const FilesView = lazy(() => import("../files/FilesView").then(m => ({ default: m.FilesView })));
 import { PortsView } from "./PortsView";
 import { MinecraftVersionView } from "./MinecraftVersionView";
 import { VersionView } from "./VersionView";
+import { LauncherView } from "../launcher/LauncherView";
 import { SyncView } from "../sync/SyncView";
 
 const STATE_LABEL: Record<InstanceState, string> = {
@@ -71,6 +72,7 @@ type Tab =
   | "trash"
   | "config"
   | "sync"
+  | "launcher"
   | "backups"
   | "version"
   | "mc-version"
@@ -82,6 +84,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
   const { user } = useAuth();
   const dialog = useDialog();
   const [tab, setTab] = useState<Tab>("content");
+  const [inviteProfile, setInviteProfile] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   // As abas seguem o que o provider da instância sabe fazer — nada aqui
   // conhece um jogo específico.
@@ -195,7 +198,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
               ? [["config", "Config", <SlidersHorizontal size={16} />] as Aba]
               : []),
             ...(can(user, "sync.read") && caps?.game_metadata
-              ? [["sync", "Sync", <RefreshCcwDot size={16} />] as Aba]
+              ? [["sync", "Sync", <RefreshCcwDot size={16} />] as Aba, ["launcher", "Launcher", <Laptop size={16} />] as Aba]
               : []),
             ...(can(user, "backups.read") && caps?.backup
               ? [["backups", "Backups", <Archive size={16} />] as Aba]
@@ -240,12 +243,13 @@ export function InstanceView({ instance }: { instance: Instance }) {
         )}
         {tab === "diff" && <ServerClientDiff instance={instance} />}
         {tab === "catalog" && <CatalogView instance={instance} />}
-        {tab === "console" && <ConsoleView instance={instance} />}
-        {tab === "files" && <FilesView instance={instance} />}
-        {tab === "config" && <ConfigView instance={instance} />}
+        {tab === "console" && <Suspense fallback={<p role="status">Carregando console…</p>}><ConsoleView instance={instance} /></Suspense>}
+        {tab === "files" && <Suspense fallback={<p role="status">Carregando arquivos…</p>}><FilesView instance={instance} /></Suspense>}
+        {tab === "config" && <Suspense fallback={<p role="status">Carregando configuração…</p>}><ConfigView instance={instance} /></Suspense>}
         {tab === "players" && <PlayersView instance={instance} />}
         {tab === "trash" && <TrashView instance={instance} />}
-        {tab === "sync" && <SyncView instance={instance} />}
+        {tab === "sync" && <SyncView instance={instance} onInvite={(profileId) => { setInviteProfile(profileId ?? ""); setTab("launcher"); }} />}
+        {tab === "launcher" && <LauncherView key={instance.id} instance={instance} initialProfileId={inviteProfile} />}
         {tab === "backups" && <BackupsView instance={instance} />}
         {tab === "tasks" && <TasksView instance={instance} />}
         {tab === "version" && <VersionView instance={instance} />}

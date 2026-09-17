@@ -148,6 +148,10 @@ def test_keep_files_preserva_os_dados(tmp_path):
         assert rel.container_removido is True
         assert Path(instance.root_dir).is_dir()
         assert rel.pasta_preservada == instance.root_dir
+        # Simula outro processo, sem registro no banco nem estado em memória.
+        reiniciado = InstanceRemover(instances_dir, backups_dir)
+        assert await reiniciado.limpar_pastas_orfas(set(), set()) == []
+        assert (Path(instance.root_dir) / "server" / "jogo.bin").read_bytes() == b"x" * 2048
 
     asyncio.run(caso())
 
@@ -221,8 +225,8 @@ def test_instalacao_em_andamento_e_cancelada_antes_de_apagar(tmp_path):
     asyncio.run(caso())
 
 
-def test_varredura_remove_orfaos_de_remocoes_antigas(tmp_path):
-    """Recupera o que já vazou antes desta correção existir."""
+def test_varredura_remove_containers_mas_preserva_pastas_sem_registro(tmp_path):
+    """Uma pasta sem registro pode ser dado preservado ou de um banco recuperado."""
 
     async def caso():
         instances_dir, backups_dir = _ambiente(tmp_path)
@@ -237,7 +241,9 @@ def test_varredura_remove_orfaos_de_remocoes_antigas(tmp_path):
 
         assert containers == ["sumida"]
         assert runtime.removidos == ["cid-orfa"]
-        assert len(pastas) == 2
+        assert pastas == []
+        assert (instances_dir / "orfa-1").is_dir()
+        assert (instances_dir / "orfa-2").is_dir()
         assert Path(viva.root_dir).is_dir()  # a viva não foi tocada
 
     asyncio.run(caso())

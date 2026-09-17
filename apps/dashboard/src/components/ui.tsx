@@ -1,6 +1,7 @@
 /** Small design-system primitives (dark theme, token-based). */
 
 import clsx from "clsx";
+import { useEffect, useId, useRef } from "react";
 import type { ButtonHTMLAttributes, ComponentProps, ReactNode, SelectHTMLAttributes } from "react";
 
 export function Button({
@@ -117,6 +118,36 @@ export function Modal({
   children: ReactNode;
   size?: "md" | "lg";
 }) {
+  const panel = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const element = panel.current;
+    const focusable = () => Array.from(element?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]'
+    ) ?? []).filter(node => node.getClientRects().length > 0);
+    (focusable()[0] ?? element)?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close.current();
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0], last = items[items.length - 1];
+      if (!first) { event.preventDefault(); element?.focus(); return; }
+      if (event.shiftKey && (document.activeElement === first || !element?.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === element)) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    element?.addEventListener("keydown", keydown);
+    return () => { element?.removeEventListener("keydown", keydown); previous?.focus(); };
+  }, [open]);
   if (!open) return null;
   return (
     <div
@@ -126,13 +157,14 @@ export function Modal({
       {/* max-h + overflow: formulários longos rolam dentro do modal em vez
           de vazar para fora da tela. */}
       <div
+        ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className={clsx(
           "flex max-h-[90vh] w-full flex-col rounded-lg border border-border bg-surface shadow-2xl",
           size === "lg" ? "max-w-2xl" : "max-w-md",
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="border-b border-border px-5 py-3 text-base font-semibold">{title}</h2>
+        <h2 id={titleId} className="border-b border-border px-5 py-3 text-base font-semibold">{title}</h2>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
       </div>
     </div>

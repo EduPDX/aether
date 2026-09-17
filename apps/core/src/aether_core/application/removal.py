@@ -20,7 +20,6 @@ Cada etapa é independente: falha em uma não impede as outras, e tudo que falho
 volta no relatório para a interface mostrar em vez de sumir num log.
 """
 
-import asyncio
 import contextlib
 import logging
 import shutil
@@ -82,7 +81,8 @@ class InstanceRemover:
         """
         try:
             raiz = Path(instance.root_dir).resolve()
-            return raiz.is_relative_to(self._instances_dir.resolve())
+            base = self._instances_dir.resolve()
+            return raiz != base and raiz.is_relative_to(base)
         except (OSError, ValueError):
             return False
 
@@ -190,22 +190,15 @@ class InstanceRemover:
         return removidos
 
     async def limpar_pastas_orfas(self, ids_vivos: set[str], raizes_vivas: set[str]) -> list[str]:
-        """Remove diretórios gerenciados sem instância correspondente.
+        """Registra órfãs para revisão, sem presumir autorização para apagar.
 
-        Só mexe no diretório de instâncias do Core: pasta adotada nunca entra
-        aqui, porque nunca esteve sob a nossa guarda.
+        A ausência no banco também ocorre após keep_files e em recuperações
+        de banco antigo. Só a remoção explícita pode decidir apagar dados.
         """
         if not self._instances_dir.is_dir():
             return []
-        removidas: list[str] = []
         for pasta in self._instances_dir.iterdir():
             if not pasta.is_dir() or str(pasta.resolve()) in raizes_vivas:
                 continue
-            try:
-                await asyncio.to_thread(shutil.rmtree, pasta)
-                removidas.append(str(pasta))
-            except OSError as exc:
-                log.warning("não foi possível remover a pasta órfã %s: %s", pasta, exc)
-        if removidas:
-            log.info("pastas órfãs removidas: %s", removidas)
-        return removidas
+            log.warning("pasta sem registro preservada para revisão: %s", pasta)
+        return []

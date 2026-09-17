@@ -70,13 +70,15 @@ function NavItem({
 }) {
   return (
     <div
-      onClick={onClick}
       className={`group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${
         active ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2 hover:text-text"
       }`}
     >
-      {icon}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <button type="button" onClick={onClick} aria-current={active ? "page" : undefined}
+        className="flex min-w-0 flex-1 items-center gap-2.5 text-left focus-visible:outline-2 focus-visible:outline-accent">
+        {icon}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+      </button>
       {children}
     </div>
   );
@@ -132,9 +134,9 @@ export default function App() {
   const canSeeAudit = user?.role === "owner" || user?.role === "admin";
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col md:flex-row">
       {/* Sidebar */}
-      <aside className="flex w-68 shrink-0 flex-col border-r border-border bg-surface">
+      <aside className="flex max-h-[35vh] w-full shrink-0 flex-col border-r border-border bg-surface md:max-h-none md:w-68">
         <div className="flex items-center gap-2 px-4 py-4">
           <Boxes size={20} className="text-accent" />
           <span className="text-base font-bold tracking-wide">Aether</span>
@@ -193,8 +195,17 @@ export default function App() {
                     tone: "danger",
                   });
                   if (ok) {
-                    removeInstance.mutate(inst.id);
-                    if (view?.kind === "instance" && view.id === inst.id) setView(null);
+                    try {
+                      const result = await removeInstance.mutateAsync(inst.id);
+                      if (view?.kind === "instance" && view.id === inst.id) setView(null);
+                      if (result.falhas.length) await dialog.notify({
+                        title: "Instância removida com pendências",
+                        message: result.falhas.join("\n"), tone: "danger",
+                      });
+                    } catch (error) {
+                      await dialog.notify({title: "Falha ao remover instância",
+                        message: error instanceof Error ? error.message : String(error), tone: "danger"});
+                    }
                   }
                 }}
               >

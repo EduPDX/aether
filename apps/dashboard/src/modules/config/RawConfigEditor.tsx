@@ -1,4 +1,5 @@
 import Editor from "@monaco-editor/react";
+import "../../lib/monaco";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
