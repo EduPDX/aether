@@ -58,6 +58,7 @@ from aether_core.interfaces.http.routes import (
     tasks,
     trash,
     users,
+    worldmap,
 )
 from aether_core.interfaces.http.ws import router as ws_router
 
@@ -296,6 +297,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     api.include_router(game_version.router)
     api.include_router(system.router)
     api.include_router(catalog.router)
+    api.include_router(worldmap.router)
     app.include_router(api)
     app.include_router(ws_router)
 

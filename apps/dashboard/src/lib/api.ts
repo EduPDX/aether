@@ -76,6 +76,8 @@ export interface ProviderCapabilities {
   players: boolean;
   /** Troca de versão sem instalador (Minecraft via itzg): edita e recria. */
   set_version: boolean;
+  /** Serve um mapa-mundi web (sidecar BlueMap). */
+  map: boolean;
 }
 
 export interface ProviderInfo {
@@ -644,7 +646,24 @@ export const api = {
     }),
   deleteSyncProfile: (id: string, profileId: string) =>
     request<void>(`/api/v1/instances/${id}/sync-profiles/${profileId}`, { method: "DELETE" }),
+  // -------------------------------------------------------------------- mapa
+  mapStatus: (id: string) => request<MapStatus>(`/api/v1/instances/${id}/map`),
+  enableMap: (id: string) =>
+    request<MapStatus>(`/api/v1/instances/${id}/map/enable`, { method: "POST" }),
+  disableMap: (id: string) =>
+    request<MapStatus>(`/api/v1/instances/${id}/map/disable`, { method: "POST" }),
 };
+
+/** Estado do mapa-mundi (sidecar BlueMap). A URL é montada pelo cliente a
+ *  partir do endereço do servidor + `port`; o Core não presume o próprio host. */
+export interface MapStatus {
+  /** O provider desta instância oferece mapa? */
+  supported: boolean;
+  enabled: boolean;
+  /** Porta do host onde o mapa é servido (presente quando ligado). */
+  port?: number;
+  path?: string;
+}
 
 export interface UserOut {
   id: string;

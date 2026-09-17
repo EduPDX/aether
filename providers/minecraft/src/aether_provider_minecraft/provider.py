@@ -15,12 +15,14 @@ from aether_sdk import (
     IconSpec,
     LaunchContext,
     LaunchSpec,
+    MapPlan,
     ProviderManifest,
     QuiescePlan,
 )
 
 from aether_provider_minecraft.catalog import catalog_entry
 from aether_provider_minecraft.content.jar_analyzer import JarModAnalyzer
+from aether_provider_minecraft.server.bluemap import map_plan
 from aether_provider_minecraft.content.modrinth import ModrinthSource
 from aether_provider_minecraft.server.backup import backup_spec, quiesce_plan
 from aether_provider_minecraft.server.console import MinecraftConsoleCodec
@@ -157,6 +159,14 @@ class MinecraftProvider:
         from aether_provider_minecraft.server.status import query_status
 
         return query_status(host, port)
+
+    def map_plan(self, ctx: LaunchContext) -> MapPlan | None:
+        """Sidecar de mapa-mundi (BlueMap) — capability opcional `SupportsMap`.
+
+        O Core grava a config, sobe o container à parte e publica a porta; aqui
+        só se descreve o plano. Ver `bluemap.map_plan` e o ADR 0001.
+        """
+        return map_plan(ctx)
 
     def backup_spec(self, root: Path) -> BackupSpec:
         return backup_spec(root)

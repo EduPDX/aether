@@ -43,6 +43,9 @@ class VolumeMount(BaseModel):
 
     container_path: str
     subdir: str = "."
+    read_only: bool = False
+    """Monta só-leitura. Um sidecar de mapa lê o mundo por aqui — ele nunca
+    deve poder escrever no mundo de que o servidor do jogo é dono."""
 
 
 class ContainerSpec(BaseModel):
@@ -61,6 +64,13 @@ class ContainerSpec(BaseModel):
     """Texto escrito no stdin do container para parada graciosa; ``None``
     significa parar por sinal."""
     stop_signal: str = "SIGTERM"
+    cpus: float | None = None
+    """Teto de CPU em número de núcleos (Docker ``--cpus``). ``None`` = sem
+    limite. É o que impede o render de um sidecar de mapa de sufocar o jogo:
+    cede-se um núcleo ao mapa e o kernel isola o resto."""
+    memory: str | None = None
+    """Teto de memória (Docker ``--memory``, ex.: ``"1g"``); ``None`` = sem
+    limite."""
 
 
 @runtime_checkable

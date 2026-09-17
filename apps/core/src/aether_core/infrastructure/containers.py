@@ -50,6 +50,20 @@ HISTORY_LINES = 1000
 STOP_GRACE_SECONDS = 30
 
 
+def _parse_bytes(valor: str) -> int:
+    """Converte ``"2g"``/``"1536m"``/``"512k"`` em bytes para o HostConfig.
+
+    Segue a convenção do Docker (sufixos binários: k=KiB, m=MiB, g=GiB); sem
+    sufixo, já são bytes.
+    """
+    v = valor.strip().lower()
+    mult = 1
+    if v and v[-1] in "kmgt":
+        mult = {"k": 1024, "m": 1024**2, "g": 1024**3, "t": 1024**4}[v[-1]]
+        v = v[:-1]
+    return int(float(v) * mult)
+
+
 def _dono_dos_volumes(spec: ContainerSpec, root_dir: Path) -> None:
     """Passa os volumes da instância para o uid que roda dentro do container.
 
@@ -122,9 +136,20 @@ class AiodockerRuntime:
             # previsível para port-forward manual, diferente do aleatório do Docker.
             bindings[key] = [{"HostPort": str(p.host_port or p.container_port)}]
 
-        binds = [
-            f"{(root_dir / v.subdir).resolve().as_posix()}:{v.container_path}" for v in spec.volumes
-        ]
+        binds = []
+        for v in spec.volumes:
+            bind = f"{(root_dir / v.subdir).resolve().as_posix()}:{v.container_path}"
+            # Volume só-leitura (ex.: o mundo montado no sidecar de mapa) nunca
+            # pode ser escrito pelo container que o recebe.
+            binds.append(f"{bind}:ro" if v.read_only else bind)
+
+        host_config: dict = {"Binds": binds, "PortBindings": bindings}
+        # Tetos de recurso, quando o provider os declara: é o que mantém um
+        # sidecar de mapa preso a poucos núcleos/GB sem sufocar o jogo.
+        if spec.cpus:
+            host_config["NanoCpus"] = int(spec.cpus * 1_000_000_000)
+        if spec.memory:
+            host_config["Memory"] = _parse_bytes(spec.memory)
 
         config = {
             "Image": spec.image,
@@ -134,7 +159,7 @@ class AiodockerRuntime:
             "StopSignal": spec.stop_signal,
             "Labels": {**labels, INSTALL_LABEL: self._install_id} if self._install_id else labels,
             "ExposedPorts": exposed,
-            "HostConfig": {"Binds": binds, "PortBindings": bindings},
+            "HostConfig": host_config,
         }
         if spec.command:
             config["Cmd"] = spec.command

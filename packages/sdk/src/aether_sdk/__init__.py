@@ -49,6 +49,7 @@ from aether_sdk.launch import (
     SupportsLaunch,
 )
 from aether_sdk.manifest import SDK_VERSION, IconSpec, ProviderManifest
+from aether_sdk.map import MapPlan, MapSeedFile, SupportsMap
 from aether_sdk.players import (
     LIVE_ONLY,
     PlayerAction,
@@ -88,6 +89,8 @@ __all__ = [
     "LinkUtil",
     "LaunchContext",
     "LaunchSpec",
+    "MapPlan",
+    "MapSeedFile",
     "PortMapping",
     "PortaDoJogo",
     "ProviderManifest",
@@ -111,6 +114,7 @@ __all__ = [
     "SupportsInstall",
     "SupportsInstallSize",
     "SupportsLaunch",
+    "SupportsMap",
     "SupportsProvision",
     "VersionInfo",
     "VolumeMount",

@@ -5,6 +5,7 @@ import {
   FolderOpen,
   HardDriveDownload,
   Laptop,
+  Map as MapIcon,
   Network,
   Package,
   Play,
@@ -42,6 +43,7 @@ import { MinecraftVersionView } from "./MinecraftVersionView";
 import { VersionView } from "./VersionView";
 import { LauncherView } from "../launcher/LauncherView";
 import { SyncView } from "../sync/SyncView";
+import { MapView } from "../worldmap/MapView";
 
 const STATE_LABEL: Record<InstanceState, string> = {
   stopped: "parado",
@@ -73,6 +75,7 @@ type Tab =
   | "config"
   | "sync"
   | "launcher"
+  | "map"
   | "backups"
   | "version"
   | "mc-version"
@@ -200,6 +203,10 @@ export function InstanceView({ instance }: { instance: Instance }) {
             ...(can(user, "sync.read") && caps?.game_metadata
               ? [["sync", "Sync", <RefreshCcwDot size={16} />] as Aba, ["launcher", "Launcher", <Laptop size={16} />] as Aba]
               : []),
+            // Mapa-mundi: sidecar que renderiza o mundo num mapa web (opt-in).
+            ...(can(user, "power.use") && caps?.map
+              ? [["map", "Mapa", <MapIcon size={16} />] as Aba]
+              : []),
             ...(can(user, "backups.read") && caps?.backup
               ? [["backups", "Backups", <Archive size={16} />] as Aba]
               : []),
@@ -250,6 +257,7 @@ export function InstanceView({ instance }: { instance: Instance }) {
         {tab === "trash" && <TrashView instance={instance} />}
         {tab === "sync" && <SyncView instance={instance} onInvite={(profileId) => { setInviteProfile(profileId ?? ""); setTab("launcher"); }} />}
         {tab === "launcher" && <LauncherView key={instance.id} instance={instance} initialProfileId={inviteProfile} />}
+        {tab === "map" && <MapView instance={instance} />}
         {tab === "backups" && <BackupsView instance={instance} />}
         {tab === "tasks" && <TasksView instance={instance} />}
         {tab === "version" && <VersionView instance={instance} />}

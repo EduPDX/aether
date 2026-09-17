@@ -15,6 +15,7 @@ from aether_core.application.files import FilesService
 from aether_core.application.icons import ServerIconService
 from aether_core.application.instances import InstanceService
 from aether_core.application.players import PlayerService
+from aether_core.application.worldmap import MapService
 from aether_core.application.power import PowerService
 from aether_core.application.sources import SourceService
 from aether_core.application.sync import SyncService
@@ -170,6 +171,16 @@ def get_power_service(request: Request) -> PowerService:
     return PowerService(providers=state.providers, supervisors=state.supervisors)
 
 
+def get_map_service(request: Request, session: SessionDep) -> MapService:
+    state = request.app.state
+    return MapService(
+        providers=state.providers,
+        repo=SqlInstanceRepository(session),
+        runtime=state.container_runtime,
+        bus=state.bus,
+    )
+
+
 def get_player_service(request: Request) -> PlayerService:
     state = request.app.state
     return PlayerService(
@@ -273,3 +284,4 @@ ConfigServiceDep = Annotated[ConfigService, Depends(get_config_service)]
 SyncServiceDep = Annotated[SyncService, Depends(get_sync_service)]
 TrashServiceDep = Annotated[TrashService, Depends(get_trash_service)]
 PlayerServiceDep = Annotated[PlayerService, Depends(get_player_service)]
+MapServiceDep = Annotated[MapService, Depends(get_map_service)]

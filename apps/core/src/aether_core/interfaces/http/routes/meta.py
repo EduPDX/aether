@@ -7,6 +7,7 @@ from aether_sdk import (
     SupportsGameMetadata,
     SupportsInstall,
     SupportsLaunch,
+    SupportsMap,
     SupportsPlayers,
     SupportsProvision,
 )
@@ -34,6 +35,7 @@ def _capabilities(p) -> dict:
         "backup": isinstance(p, SupportsBackup),
         "install": isinstance(p, SupportsInstall),
         "players": isinstance(p, SupportsPlayers),
+        "map": isinstance(p, SupportsMap),
         "sources": bool(getattr(p, "content_sources", None) and p.content_sources()),
         "game_metadata": isinstance(p, SupportsGameMetadata),
         # Troca de versão sem instalador (o Minecraft via itzg: edita a env e
